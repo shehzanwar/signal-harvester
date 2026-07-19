@@ -159,9 +159,14 @@ export function TrendsStrip({ trends }: Props) {
                 (item) => {
                   const isTrending = "ratio" in item;
                   const tag = item.tag;
-                  const extra = isTrending
-                    ? `${(item as TrendingTag).ratio}x`
-                    : `${(item as { count: number }).count}`;
+                  let extra: string;
+                  if (isTrending) {
+                    const t = item as TrendingTag;
+                    // "new" tags have no baseline; show a label, not "nullx".
+                    extra = t.status === "new" || t.ratio == null ? "new" : `${t.ratio}x`;
+                  } else {
+                    extra = `${(item as { count: number }).count}`;
+                  }
                   return (
                     <span
                       key={tag}

@@ -92,8 +92,10 @@ export interface TopTag {
 export interface TrendingTag {
   tag: string;
   today: number;
-  avg7d: number;
-  ratio: number;
+  // null for brand-new tags (status "new") that have no trailing-window history.
+  avg7d: number | null;
+  ratio: number | null;
+  status: "trending" | "new";
 }
 
 export interface TrendsResponse {

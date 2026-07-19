@@ -10,6 +10,36 @@ from pathlib import Path
 from typing import Any, Generator
 
 from harvester.config import ProfileConfig
+from harvester.enrich.prompts import PROMPT_VERSION
+
+# Tags too broad to carry a "trending" signal. Both singular and plural forms
+# are listed so the check survives the plural->singular folding in get_trends.
+_GENERIC_TREND_TAGS = frozenset({
+    "sports", "sport", "politics", "politic", "roundup", "roundups",
+    "news", "analysis", "analyses",
+})
+
+
+def _singularize(tag: str) -> str:
+    """Fold the last word of a lowercased tag phrase to a naive singular.
+
+    Deliberately conservative: leaves words ending in ss/us/is/as/os (analysis,
+    gas, bias, chaos) untouched, and only strips a plain trailing 's'. Callers
+    apply this only when the singular form co-occurs in the data, so genuine
+    words like 'news' are never mangled unless a real variant exists.
+    """
+    parts = tag.split()
+    if not parts:
+        return tag
+    last = parts[-1]
+    if last.endswith("ies") and len(last) > 4:
+        parts[-1] = last[:-3] + "y"
+    elif last.endswith(("ss", "us", "is", "as", "os")):
+        pass
+    elif last.endswith("s") and len(last) > 3:
+        parts[-1] = last[:-1]
+    return " ".join(parts)
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
@@ -235,6 +265,7 @@ class Database:
         self,
         today_only: bool = False,
         tier: str | None = None,
+        since: str | None = None,
     ) -> list[dict[str, Any]]:
         conditions = ["a.status = 'enriched'"]
         params: list[Any] = []
@@ -242,6 +273,9 @@ class Database:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             conditions.append("a.fetched_at >= ?")
             params.append(today)
+        if since:
+            conditions.append("a.fetched_at >= ?")
+            params.append(since)
         if tier:
             conditions.append("e.tier = ?")
             params.append(tier.upper())
@@ -360,18 +394,22 @@ class Database:
             avg_sentiment = con.execute(
                 "SELECT AVG(sentiment_score) FROM enrichments WHERE tier != 'NOISE'"
             ).fetchone()[0]
-            # Windowed KPIs — scoped to last 7 days to avoid v1-era distortion
+            # Windowed KPIs — scoped to the last 7 days AND the current prompt
+            # version. Stale v1-era rows still sit inside the 7-day window and
+            # would otherwise inflate T1 (145 v1 rows vs 32 v4 rows as of launch).
             t1_7d = con.execute(
                 """SELECT COUNT(*) FROM enrichments e
                    JOIN articles a ON e.article_id=a.id
-                   WHERE e.tier='T1' AND a.fetched_at >= ?""",
-                (seven_days_ago,),
+                   WHERE e.tier='T1' AND a.fetched_at >= ?
+                     AND e.prompt_version = ?""",
+                (seven_days_ago, PROMPT_VERSION),
             ).fetchone()[0]
             avg_sentiment_7d_row = con.execute(
                 """SELECT AVG(e.sentiment_score) FROM enrichments e
                    JOIN articles a ON e.article_id=a.id
-                   WHERE e.tier != 'NOISE' AND a.fetched_at >= ?""",
-                (seven_days_ago,),
+                   WHERE e.tier != 'NOISE' AND a.fetched_at >= ?
+                     AND e.prompt_version = ?""",
+                (seven_days_ago, PROMPT_VERSION),
             ).fetchone()[0]
         return {
             "total_articles": total,
@@ -389,7 +427,9 @@ class Database:
     def get_trends(self, days: int = 30) -> dict[str, Any]:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        week_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        # Trailing comparison window: the 7 calendar days BEFORE today. Including
+        # today (the old bug) made every no-history tag ratio out to exactly 7.0.
+        prior_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
         with self._conn() as con:
             rows = con.execute(
@@ -401,11 +441,10 @@ class Database:
                 (cutoff,),
             ).fetchall()
 
-        # Aggregate in Python — avoids SQLite json_each version dependency
+        # First pass: daily tier/sentiment aggregates + raw (day, tag) observations.
         daily: dict[str, dict[str, Any]] = {}
-        tag_all: Counter[str] = Counter()
-        tag_today: Counter[str] = Counter()
-        tag_week: Counter[str] = Counter()
+        tag_observations: list[tuple[str, str]] = []
+        tag_vocab: set[str] = set()
 
         for r in rows:
             d = r["d"]
@@ -423,11 +462,32 @@ class Database:
                 daily[d]["_non_noise"] += 1
                 daily[d]["_sent_sum"] += score
                 for tag in tags:
-                    tag_all[tag] += 1
-                    if d == today:
-                        tag_today[tag] += 1
-                    if d >= week_cutoff[:10]:
-                        tag_week[tag] += 1
+                    t = tag.strip().lower()
+                    if not t:
+                        continue
+                    tag_observations.append((d, t))
+                    tag_vocab.add(t)
+
+        # Canonicalize: case is already folded; merge a plural into its singular
+        # only when the singular co-occurs in the data (so 'strikes'->'strike'
+        # merges, but 'news' stays 'news' because 'new' isn't a tag).
+        def _canon(tag: str) -> str:
+            s = _singularize(tag)
+            return s if s != tag and s in tag_vocab else tag
+
+        tag_all: Counter[str] = Counter()
+        tag_today: Counter[str] = Counter()
+        tag_prior: Counter[str] = Counter()
+        tag_prior_days: dict[str, set[str]] = {}
+
+        for d, raw in tag_observations:
+            tag = _canon(raw)
+            tag_all[tag] += 1
+            if d == today:
+                tag_today[tag] += 1
+            elif prior_cutoff <= d < today:
+                tag_prior[tag] += 1
+                tag_prior_days.setdefault(tag, set()).add(d)
 
         # Finalize daily — compute avg_sentiment, drop internal accumulators
         daily_list = []
@@ -437,22 +497,39 @@ class Database:
             day["avg_sentiment"] = round(ss / nn, 3) if nn > 0 else None
             daily_list.append(day)
 
-        top_tags = [{"tag": t, "count": c} for t, c in tag_all.most_common(10)]
+        top_tags = [
+            {"tag": t, "count": c}
+            for t, c in tag_all.most_common(20)
+            if t not in _GENERIC_TREND_TAGS
+        ][:10]
 
-        # Trending: today_count >= 2x 7-day-daily-avg and at least 2 mentions today
-        week_daily_avg = {tag: count / 7.0 for tag, count in tag_week.items()}
+        # Trending: today's count vs the trailing 7 days (excluding today). A tag
+        # needs >=2 mentions today; with <2 distinct prior days of history it is
+        # surfaced as "new" rather than assigned a meaningless ratio.
         trending = []
         for tag, cnt in tag_today.items():
-            avg7 = week_daily_avg.get(tag, 0.1)
-            ratio = cnt / avg7
-            if ratio >= 2.0 and cnt >= 2:
+            if cnt < 2 or tag in _GENERIC_TREND_TAGS:
+                continue
+            if len(tag_prior_days.get(tag, ())) < 2:
                 trending.append({
-                    "tag": tag,
-                    "today": cnt,
-                    "avg7d": round(avg7, 1),
-                    "ratio": round(ratio, 1),
+                    "tag": tag, "today": cnt,
+                    "avg7d": None, "ratio": None, "status": "new",
                 })
-        trending.sort(key=lambda x: -x["ratio"])
+                continue
+            avg7 = tag_prior[tag] / 7.0
+            ratio = cnt / avg7 if avg7 > 0 else float(cnt)
+            if ratio >= 2.0:
+                trending.append({
+                    "tag": tag, "today": cnt, "avg7d": round(avg7, 1),
+                    "ratio": round(ratio, 1), "status": "trending",
+                })
+
+        # Genuine ratio-ranked trends first (desc), then brand-new tags by volume.
+        trending.sort(key=lambda x: (
+            0 if x["status"] == "trending" else 1,
+            -(x["ratio"] or 0),
+            -x["today"],
+        ))
 
         return {
             "daily": daily_list,

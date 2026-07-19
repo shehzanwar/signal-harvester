@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from harvester.cluster import attach_cluster_metadata
 from harvester.config import ProfileConfig
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.store.db import Database
@@ -52,11 +53,14 @@ def export_site(cfg: ProfileConfig, out_dir: str = "site") -> None:
     articles = db.get_enriched_articles()
     clean = []
     for art in articles:
-        # Attach cluster metadata if available
         a: dict[str, Any] = {
             k: v for k, v in art.items() if k not in _STRIP_FIELDS
         }
         clean.append(a)
+
+    # Populate cluster_size / cluster_sources from cluster_id so the static site
+    # shows "N sources" badges — the live API does this at api.py:55.
+    attach_cluster_metadata(clean)
 
     stats = db.get_stats()
     trends = db.get_trends(days=30)
