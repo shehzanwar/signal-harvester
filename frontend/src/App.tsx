@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IS_STATIC_MODE, api } from "./api/client";
+import { CategoryBar } from "./components/CategoryBar";
 import { DetailPanel } from "./components/DetailPanel";
 import { KPIStrip } from "./components/KPIStrip";
 import { TieredFeed } from "./components/TieredFeed";
@@ -54,6 +55,7 @@ function flattenArticles(articles: Article[], search: string, savedOnly: boolean
 
 export default function App() {
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [todayOnly, setTodayOnly] = useState(false);
   const [compact, setCompact] = useState(false);
   const [hideRead, setHideRead] = useState(false);
@@ -102,8 +104,29 @@ export default function App() {
   const total = articlesData?.total ?? 0;
   const truncated = showing < total;
 
+  // Per-category story counts (collapsed reps, non-noise) for the category bar.
+  // Independent of search/filters so the nav stays stable.
+  const categoryCounts = useMemo(() => {
+    const reps = collapseClusters(allArticles).filter((a) => a.tier !== "NOISE");
+    const counts: Record<string, number> = { all: reps.length };
+    for (const a of reps) {
+      const c = a.category || "general";
+      counts[c] = (counts[c] ?? 0) + 1;
+    }
+    return counts;
+  }, [allArticles]);
+
+  // Feed scoped to the selected category (null = All).
+  const categoryArticles = useMemo(
+    () =>
+      category
+        ? allArticles.filter((a) => (a.category || "general") === category)
+        : allArticles,
+    [allArticles, category],
+  );
+
   // Flat list of visible articles for keyboard navigation
-  const flatArticles = flattenArticles(allArticles, search, showSavedOnly, savedIds);
+  const flatArticles = flattenArticles(categoryArticles, search, showSavedOnly, savedIds);
 
   // cluster_id -> all members, for listing corroborating coverage in the detail panel
   const clusterMembers = useMemo(() => clusterMembersMap(allArticles), [allArticles]);
@@ -184,6 +207,11 @@ export default function App() {
       {trendsData && <TrendsStrip trends={trendsData} />}
 
       <main className="max-w-7xl mx-auto px-4 py-6" role="main">
+        {/* Category navigation */}
+        {allArticles.length > 0 && (
+          <CategoryBar counts={categoryCounts} selected={category} onSelect={setCategory} />
+        )}
+
         {/* Toolbar */}
         <div className="flex items-center gap-3 mb-6 flex-wrap">
           <div className="flex-1 min-w-48">
@@ -281,7 +309,7 @@ export default function App() {
 
         {articlesData && (
           <TieredFeed
-            articles={allArticles}
+            articles={categoryArticles}
             search={search}
             compact={compact}
             readIds={readIds}

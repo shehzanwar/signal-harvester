@@ -53,6 +53,10 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
             ]
         # Attach cluster metadata (cluster_size, cluster_sources) to all articles
         attach_cluster_metadata(articles)
+        # Tag each article with its feed's category for the dashboard nav.
+        cat_map = cfg.feed_category_map() if cfg else {}
+        for a in articles:
+            a["category"] = cat_map.get(a.get("feed_name", ""), "general")
         total = len(articles)
         return {"total": total, "items": articles[offset: offset + limit]}
 

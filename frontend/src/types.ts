@@ -24,6 +24,8 @@ export interface Article {
   enriched_at?: string;
   latency_ms?: number;
   prompt_version?: string;
+  // feed-derived category (technology / finance / politics / sports / world)
+  category?: string;
   // cluster fields
   cluster_id?: string;
   cluster_size?: number;

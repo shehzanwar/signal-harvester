@@ -46,6 +46,27 @@ def test_load_profile_file_not_found():
         load_profile("this_does_not_exist.yaml")
 
 
+def test_feed_category_default_and_map():
+    cfg = ProfileConfig.model_validate(_MINIMAL)
+    # Unspecified category falls back to "general".
+    assert cfg.feeds[0].category == "general"
+    assert cfg.feed_category_map() == {"Test Feed": "general"}
+
+
+def test_daily_briefing_feeds_have_known_categories():
+    """Every feed in the shipped profile must declare a nav category, or it
+    silently vanishes from the category bar (defaults to 'general')."""
+    from pathlib import Path
+
+    path = Path("configs/profiles/daily-briefing.yaml")
+    if not path.exists():
+        pytest.skip("daily-briefing.yaml not found (run from project root)")
+    cfg = load_profile(path)
+    known = {"technology", "finance", "politics", "sports", "world"}
+    for feed in cfg.feeds:
+        assert feed.category in known, f"{feed.name} has category {feed.category!r}"
+
+
 def test_load_real_profiles(tmp_path):
     """Smoke-test that the bundled profiles parse without errors."""
     import yaml

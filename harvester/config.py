@@ -11,6 +11,10 @@ class FeedConfig(BaseModel):
     name: str
     url: str
     trust: Literal["high", "medium", "low"] = "medium"
+    # Coarse topic bucket used for the dashboard's category navigation. Free-form
+    # so other profiles can define their own buckets; the default profile uses
+    # technology / finance / politics / sports / world.
+    category: str = "general"
     max_articles: int | None = None  # per-feed override; falls back to ProfileConfig.max_articles_per_feed
 
 
@@ -66,6 +70,10 @@ class ProfileConfig(BaseModel):
         if not v:
             raise ValueError("feeds: at least one feed must be configured")
         return v
+
+    def feed_category_map(self) -> dict[str, str]:
+        """{feed_name: category} for tagging articles at query/export time."""
+        return {f.name: f.category for f in self.feeds}
 
     @field_validator("watch_topics")
     @classmethod
