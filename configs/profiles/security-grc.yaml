@@ -1,0 +1,84 @@
+profile: security-grc
+dashboard_title: "Security & Compliance Intelligence"
+
+feeds:
+  - name: CISA Advisories
+    url: https://www.cisa.gov/cybersecurity-advisories/all.xml
+    trust: high
+  - name: Krebs on Security
+    url: https://krebsonsecurity.com/feed/
+    trust: high
+  - name: BleepingComputer
+    url: https://www.bleepingcomputer.com/feed/
+    trust: medium
+  - name: Schneier on Security
+    url: https://www.schneier.com/feed/atom/
+    trust: high
+  - name: The Record by Recorded Future
+    url: https://therecord.media/feed/
+    trust: high
+  - name: Google Project Zero
+    url: https://googleprojectzero.blogspot.com/feeds/posts/default
+    trust: high
+  - name: MSRC Security Updates
+    url: https://api.msrc.microsoft.com/update-guide/rss
+    trust: high
+  - name: Dark Reading
+    url: https://www.darkreading.com/rss.xml
+    trust: medium
+  - name: SecurityWeek
+    url: https://feeds.feedburner.com/securityweek
+    trust: medium
+  - name: SANS Internet Stormcast
+    url: https://isc.sans.edu/rssfeed_full.xml
+    trust: medium
+  - name: Threatpost
+    url: https://threatpost.com/feed/
+    trust: medium
+  - name: NIST News
+    url: https://www.nist.gov/news-events/cybersecurity/rss.xml
+    trust: high
+
+watch_topics:
+  - ransomware
+  - zero-day vulnerability
+  - cloud security
+  - SOC 2 compliance
+  - supply chain security
+  - critical infrastructure
+  - data breach
+  - CISA advisory
+  - patch management
+  - threat intelligence
+  - regulatory compliance
+
+sentiment_target: "our organization's security and compliance posture"
+
+tiers:
+  T1: >
+    Active exploitation confirmed in the wild; new CISA Known Exploited Vulnerability (KEV) entry;
+    critical vulnerability (CVSS 9.0+) with public proof-of-concept; major regulatory deadline
+    or enforcement action with immediate compliance impact; confirmed breach at a peer organization
+    or key vendor; active ransomware campaign targeting our sector.
+  T2: >
+    New vulnerability disclosure (CVSS 7.0–8.9) without confirmed exploitation; regulatory
+    proposal or comment period opening; security tool or patch release from a major vendor;
+    significant policy change at CISA/NIST/NSA; important threat-actor activity report or
+    attribution; compliance guidance update.
+  T3: >
+    Opinion pieces and security analysis; long-term trend reporting; vendor marketing with
+    substantive technical content; conference talk summaries; academic security research previews;
+    general industry statistics without specific threat.
+
+llm:
+  model: qwen3:8b
+  base_url: http://localhost:11434/v1
+  num_ctx: 8192
+  max_article_tokens: 3500
+
+output:
+  root: "output/security-grc"
+  formats: [json, markdown]
+
+schedule:
+  interval: daily

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Security Feed</title>
+    <link>https://example-security.com</link>
+    <description>A test RSS feed for signal-harvester unit tests</description>
+
+    <item>
+      <title>Critical Vulnerability Discovered in Popular Web Framework</title>
+      <link>https://example-security.com/articles/critical-vuln-2026-001</link>
+      <guid>https://example-security.com/articles/critical-vuln-2026-001</guid>
+      <pubDate>Sun, 13 Jul 2026 08:00:00 +0000</pubDate>
+      <description>
+        Researchers have disclosed a critical remote code execution vulnerability (CVE-2026-9999,
+        CVSS 9.8) in a widely-deployed web framework. Active exploitation has been confirmed
+        in the wild. Patches are available and immediate upgrade is recommended.
+      </description>
+    </item>
+
+    <item>
+      <title>New Ransomware Group Targets Healthcare Sector</title>
+      <link>https://example-security.com/articles/ransomware-healthcare-2026</link>
+      <guid>https://example-security.com/articles/ransomware-healthcare-2026</guid>
+      <pubDate>Sat, 12 Jul 2026 14:30:00 +0000</pubDate>
+      <description>
+        A newly identified ransomware group has launched a campaign specifically targeting
+        healthcare organizations. Three hospitals have confirmed incidents this week.
+        The group uses double extortion tactics.
+      </description>
+    </item>
+
+    <item>
+      <title>Annual State of Cybersecurity Report 2026</title>
+      <link>https://example-security.com/articles/state-of-security-2026</link>
+      <guid>https://example-security.com/articles/state-of-security-2026</guid>
+      <pubDate>Fri, 11 Jul 2026 10:00:00 +0000</pubDate>
+      <description>
+        The annual State of Cybersecurity report finds that phishing remains the top initial
+        access vector for the fifth consecutive year. Overall incident rates decreased slightly
+        compared to 2025 but costs per incident increased 18%.
+      </description>
+    </item>
+
+  </channel>
+</rss>

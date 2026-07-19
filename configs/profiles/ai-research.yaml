@@ -1,0 +1,85 @@
+profile: ai-research
+dashboard_title: "AI Research Intelligence"
+
+feeds:
+  - name: arXiv cs.AI
+    url: https://rss.arxiv.org/rss/cs.AI
+    trust: high
+  - name: arXiv cs.LG
+    url: https://rss.arxiv.org/rss/cs.LG
+    trust: high
+  - name: arXiv cs.CL
+    url: https://rss.arxiv.org/rss/cs.CL
+    trust: high
+  - name: Anthropic Blog
+    url: https://www.anthropic.com/news/rss.xml
+    trust: high
+  - name: OpenAI Blog
+    url: https://openai.com/blog/rss/
+    trust: high
+  - name: Google DeepMind Blog
+    url: https://deepmind.google/discover/blog/rss.xml
+    trust: high
+  - name: Meta AI Blog
+    url: https://ai.meta.com/blog/rss/
+    trust: high
+  - name: Hugging Face Blog
+    url: https://huggingface.co/blog/feed.xml
+    trust: high
+  - name: The Batch (DeepLearning.AI)
+    url: https://www.deeplearning.ai/the-batch/feed/
+    trust: high
+  - name: Import AI (Jack Clark)
+    url: https://importai.substack.com/feed
+    trust: high
+  - name: Alignment Forum
+    url: https://www.alignmentforum.org/feed.xml
+    trust: medium
+  - name: ML Safety Newsletter
+    url: https://newsletter.mlsafety.org/feed
+    trust: medium
+
+watch_topics:
+  - foundation model release
+  - benchmark result
+  - reasoning capability
+  - multimodal AI
+  - AI safety and alignment
+  - open source model release
+  - inference optimization
+  - agentic AI
+  - AI regulatory policy
+  - compute efficiency
+
+sentiment_target: "the pace of safe and beneficial AI capability development"
+
+tiers:
+  T1: >
+    Major frontier model release (GPT, Claude, Gemini, Llama family milestones); new
+    state-of-the-art result on a key benchmark by more than 5 percentage points; significant
+    AI safety incident or near-miss; open-source release matching or exceeding closed-model
+    capabilities; breakthrough research result with independent replication; major regulatory
+    action or government AI policy with immediate effect.
+  T2: >
+    New model variant or fine-tune release with notable improvements; strong benchmark
+    improvement in a specific domain; significant regulatory proposal or government report;
+    important research paper with code release; efficiency improvement (inference speed, cost
+    reduction, context length); influential dataset or evaluation release; notable lab hire or
+    organizational change.
+  T3: >
+    Technical tutorial or blog post without new results; conference paper summaries; commentary
+    and opinion on AI trends; application-level demos without novel capability; awards and
+    rankings; retrospective analyses.
+
+llm:
+  model: qwen3:8b
+  base_url: http://localhost:11434/v1
+  num_ctx: 8192
+  max_article_tokens: 3500
+
+output:
+  root: "output/ai-research"
+  formats: [json, markdown]
+
+schedule:
+  interval: daily

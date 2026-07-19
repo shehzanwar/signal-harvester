@@ -1,0 +1,74 @@
+profile: soccer-intel
+dashboard_title: "Soccer Intelligence Feed"
+
+feeds:
+  - name: BBC Sport Football
+    url: https://feeds.bbci.co.uk/sport/football/rss.xml
+    trust: high
+  - name: The Guardian Football
+    url: https://www.theguardian.com/football/rss
+    trust: high
+  - name: Sky Sports Football
+    url: https://www.skysports.com/rss/12040
+    trust: medium
+  - name: ESPN FC
+    url: https://www.espn.com/espn/rss/soccer/news
+    trust: medium
+  - name: The Athletic Football
+    url: https://theathletic.com/rss/news/
+    trust: high
+  - name: Swiss Ramble (Finance)
+    url: https://swissramble.blogspot.com/feeds/posts/default
+    trust: high
+  - name: StatsBomb
+    url: https://statsbomb.com/feed/
+    trust: high
+  - name: FBref News
+    url: https://fbref.com/en/news.rss
+    trust: medium
+  - name: Transfermarkt Blog
+    url: https://www.transfermarkt.com/blog/rss
+    trust: medium
+
+watch_topics:
+  - transfer market
+  - player injury
+  - tactical analysis
+  - squad depth
+  - Champions League
+  - Premier League
+  - contract extension
+  - managerial change
+  - player development
+  - financial fair play
+
+sentiment_target: "top-six Premier League clubs and UEFA Champions League contenders"
+
+tiers:
+  T1: >
+    Confirmed major transfer (fee above €20M or marquee player signing/departure); confirmed
+    serious injury to a key first-team player (4+ weeks out); managerial sacking or shock
+    appointment at a top club; major contract dispute becoming public; club ownership change;
+    Champions League or relegation-deciding match result.
+  T2: >
+    Transfer rumor from a reliable journalist (Fabrizio Romano, David Ornstein, etc.); minor
+    injury affecting selection for upcoming matches; tactical system change confirmed by manager;
+    significant statistical analysis of a match or season; contract talks officially confirmed;
+    notable loan deal or youth promotion to first team.
+  T3: >
+    General match previews and post-match opinion; historical analysis pieces; speculative
+    transfer links from tabloid sources; general awards and rankings; standard league standings
+    update without analysis.
+
+llm:
+  model: qwen3:8b
+  base_url: http://localhost:11434/v1
+  num_ctx: 8192
+  max_article_tokens: 3500
+
+output:
+  root: "output/soccer-intel"
+  formats: [json, markdown]
+
+schedule:
+  interval: daily

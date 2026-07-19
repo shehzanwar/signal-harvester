@@ -1,0 +1,162 @@
+profile: daily-briefing
+dashboard_title: "Daily Briefing"
+
+# Hard cap per feed — newest N entries only. Prevents high-frequency feeds
+# from flooding the enrichment queue and turning a 20-min run into 2 hours.
+# Override per-feed with max_articles: N for outliers.
+max_articles_per_feed: 20
+
+feeds:
+  # ── Technology ────────────────────────────────────────────────────────────
+  - name: Ars Technica
+    url: https://feeds.arstechnica.com/arstechnica/index
+    trust: high
+  - name: The Verge
+    url: https://www.theverge.com/rss/index.xml
+    trust: high
+  - name: TechCrunch
+    url: https://techcrunch.com/feed/
+    trust: medium
+  - name: MIT Technology Review
+    url: https://www.technologyreview.com/feed/
+    trust: high
+  - name: Wired
+    url: https://www.wired.com/feed/rss
+    trust: medium
+  - name: Hacker News Front Page
+    url: https://hnrss.org/frontpage
+    trust: medium
+
+  # ── Finance ───────────────────────────────────────────────────────────────
+  - name: CNBC Business
+    url: https://www.cnbc.com/id/10001147/device/rss/rss.html
+    trust: high
+  - name: MarketWatch Top Stories
+    url: https://feeds.marketwatch.com/marketwatch/topstories/
+    trust: high
+  - name: Yahoo Finance
+    url: https://finance.yahoo.com/rss/topfinstories
+    trust: medium
+  - name: NYT Business
+    url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
+    trust: high
+  - name: Bloomberg Markets
+    url: https://feeds.bloomberg.com/markets/news.rss
+    trust: high
+
+  # ── Politics ──────────────────────────────────────────────────────────────
+  - name: Axios
+    url: https://api.axios.com/feed/
+    trust: high
+  - name: Politico
+    url: https://rss.politico.com/politics-news.xml
+    trust: high
+  - name: The Hill
+    url: https://thehill.com/feed/
+    trust: medium
+    max_articles: 10
+  - name: BBC Politics
+    url: https://feeds.bbci.co.uk/news/politics/rss.xml
+    trust: high
+
+  # ── Sports ────────────────────────────────────────────────────────────────
+  - name: ESPN
+    url: https://www.espn.com/espn/rss/news
+    trust: medium
+  - name: BBC Sport
+    url: https://feeds.bbci.co.uk/sport/rss.xml
+    trust: high
+  - name: The Athletic
+    url: https://theathletic.com/rss/news/
+    trust: high
+    max_articles: 5
+  - name: Sky Sports
+    url: https://www.skysports.com/rss/12040
+    trust: medium
+
+  # ── World News ────────────────────────────────────────────────────────────
+  - name: NPR World
+    url: https://feeds.npr.org/1004/rss.xml
+    trust: high
+  - name: BBC World News
+    url: https://feeds.bbci.co.uk/news/world/rss.xml
+    trust: high
+  - name: Al Jazeera
+    url: https://www.aljazeera.com/xml/rss/all.xml
+    trust: high
+  - name: The Guardian World
+    url: https://www.theguardian.com/world/rss
+    trust: high
+  - name: PBS NewsHour
+    url: https://www.pbs.org/newshour/feeds/rss/headlines
+    trust: high
+
+watch_topics:
+  - breaking news
+  - technology industry
+  - financial markets
+  - politics and government
+  - major sporting events
+  - international affairs
+  - economic policy
+  - elections
+  - artificial intelligence
+  - geopolitical conflict
+
+sentiment_target: "a well-informed reader's view of global developments"
+
+tiers:
+  T1: >
+    Use T1 sparingly — it should apply to roughly the top 1-3% of items; expect zero or one
+    T1 on most days. T1 means: election result officially announced or government falls;
+    major index move greater than 3% (S&P 500, FTSE, Nikkei) with a named catalyst;
+    armed conflict escalation with casualties or ceasefire signed; major natural disaster
+    with confirmed mass casualties; landmark court ruling or legislation passed into law;
+    company bankruptcy or acquisition above $10B actually confirmed (not rumoured);
+    critical zero-day exploit actively exploited in the wild. NOT T1: routine fixtures,
+    tee times, transfer rumours, product announcements without confirmed market impact,
+    earnings beats without unusual magnitude, polls, previews, or analysis pieces.
+  T2: >
+    Use T2 very sparingly — target 10-15% of articles. If you have assigned T2 to more than
+    1 in 6 articles, you are being too generous. Most important-seeming articles are T3.
+    T2 is for genuinely surprising confirmed facts that materially change understanding —
+    not just important topics. Qualifying events (all require confirmation, not speculation):
+    central bank decision that surprises consensus (hold when cut was expected, or emergency
+    action); major economic data release (CPI, NFP, GDP) where the confirmed number differs
+    meaningfully from forecast (>0.3pp or 2+ sigma surprise — in-line prints are T3);
+    legislation enacted into law or executive order taking immediate effect (not debate,
+    committee vote, first/second reading, or amendment stage); armed conflict with confirmed
+    major escalation — ceasefire signed, formal declaration, or 100+ confirmed casualties
+    in a single event (official statements or troop movements alone are T3); corporate
+    earnings beating/missing by more than 10% for a major index constituent; trade deal or
+    sanctions regime officially signed and in force (proposals, announcements, and
+    negotiations are T3); confirmed player transfer exceeding £50M or season-ending injury
+    to a world-class athlete during active competition; major product launch from a tier-1
+    company (Apple, Google, Microsoft, Meta, Amazon) with a ship date already confirmed;
+    CVE with active exploitation in the wild and a vendor patch available.
+    NOT T2: opinion columns; analyst speculation or upgrades/downgrades; unconfirmed
+    rumours; earnings previews or guidance-only updates; economic data that lands in line
+    with consensus; political debates, committee hearings, procedural votes, or any
+    legislative step short of enactment; press conferences reiterating known positions;
+    conflict stories where the only new fact is an official statement, troop movement, or
+    diplomatic meeting without confirmed casualties or territorial change; trade negotiations
+    or tariff proposals not yet signed and in force; any regular-season or league sports
+    result (championship finals and world-title bouts only); market commentary;
+    retrospectives; interview pieces.
+  T3: >
+    Context, analysis, and FYI content. Opinion pieces; market commentary without new data;
+    political previews and speculation; sports previews, match previews, or lower-profile
+    results; feature journalism; historical retrospectives; routine corporate updates.
+
+llm:
+  model: harvester-enrich
+  base_url: http://localhost:11434/v1
+  num_ctx: 8192
+  max_article_tokens: 1500
+
+output:
+  root: "output/daily-briefing"
+  formats: [json, markdown]
+
+schedule:
+  interval: daily

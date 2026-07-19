@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Runtime output
+output/
+logs/
+*.db
+*.db-wal
+*.db-shm
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+!.env.example
+!frontend/.env.static
+
+# Claude Code project settings
+.claude/
+
+# Ollama model config (contains machine-specific absolute paths)
+ollama/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

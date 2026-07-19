@@ -1,0 +1,11 @@
+{
+  "summary": "A critical remote code execution vulnerability (CVE-2026-9999, CVSS 9.8) has been disclosed in a widely-deployed web framework, with active exploitation confirmed in the wild. Patches are available and immediate upgrading is strongly recommended by security researchers.",
+  "tier": "T1",
+  "tier_rationale": "Active exploitation confirmed in the wild with CVSS 9.8 score and public disclosure — meets T1 criteria for immediate action.",
+  "sentiment": {
+    "label": "negative",
+    "score": -0.88,
+    "rationale": "Severe threat to organizational security posture with confirmed active exploitation requiring immediate remediation effort."
+  },
+  "tags": ["rce vulnerability", "zero-day", "patch management", "web framework"]
+}

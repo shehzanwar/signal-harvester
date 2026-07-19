@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from harvester.cluster import attach_cluster_metadata
+from harvester.config import ProfileConfig
+from harvester.store.db import Database
+
+_FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+
+
+def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
+    app = FastAPI(
+        title="Signal Harvester",
+        version="0.1.0",
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://localhost:8001"],
+        allow_methods=["GET"],
+        allow_headers=["*"],
+    )
+
+    def _db() -> Database:
+        if cfg is None:
+            raise HTTPException(500, detail="No profile configured.")
+        return Database.from_config(cfg)
+
+    @app.get("/api/articles")
+    def list_articles(
+        tier: str | None = Query(None, description="Filter by tier: T1, T2, T3, NOISE"),
+        limit: int = Query(2000, ge=1, le=5000),
+        offset: int = Query(0, ge=0),
+        search: str | None = Query(None, description="Full-text search on title and summary"),
+        today_only: bool = Query(False),
+    ) -> dict[str, Any]:
+        articles = _db().get_enriched_articles(today_only=today_only, tier=tier)
+        if search:
+            q = search.lower()
+            articles = [
+                a for a in articles
+                if q in (a.get("title") or "").lower()
+                or q in (a.get("enrich_summary") or "").lower()
+                or any(q in tag.lower() for tag in (a.get("tags") or []))
+            ]
+        # Attach cluster metadata (cluster_size, cluster_sources) to all articles
+        attach_cluster_metadata(articles)
+        total = len(articles)
+        return {"total": total, "items": articles[offset: offset + limit]}
+
+    @app.get("/api/stats")
+    def stats() -> dict[str, Any]:
+        return _db().get_stats()
+
+    @app.get("/api/trends")
+    def trends(days: int = Query(30, ge=7, le=365)) -> dict[str, Any]:
+        return _db().get_trends(days=days)
+
+    @app.get("/api/runs")
+    def runs(limit: int = Query(10, ge=1, le=50)) -> list[dict[str, Any]]:
+        return _db().get_runs(limit=limit)
+
+    @app.get("/api/profile")
+    def profile_info() -> dict[str, Any]:
+        if cfg is None:
+            raise HTTPException(500, detail="No profile configured.")
+        return {
+            "profile": cfg.profile,
+            "dashboard_title": cfg.dashboard_title,
+            "watch_topics": cfg.watch_topics,
+            "feeds": [{"name": f.name, "url": f.url, "trust": f.trust} for f in cfg.feeds],
+            "model": cfg.llm.model,
+        }
+
+    # Serve built frontend as static files so `python -m harvester serve` is one-command demo
+    if _FRONTEND_DIST.exists():
+        assets = _FRONTEND_DIST / "assets"
+        if assets.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets)), name="assets")
+
+        @app.get("/", include_in_schema=False)
+        def serve_index() -> FileResponse:
+            index = _FRONTEND_DIST / "index.html"
+            if not index.exists():
+                raise HTTPException(404, detail="Frontend not built. Run: make frontend")
+            return FileResponse(str(index))
+
+        @app.get("/{full_path:path}", include_in_schema=False, response_model=None)
+        def serve_spa(full_path: str) -> FileResponse | JSONResponse:
+            if full_path.startswith("api/"):
+                return JSONResponse(
+                    status_code=404,
+                    content={"detail": f"API endpoint /{full_path} not found"},
+                )
+            index = _FRONTEND_DIST / "index.html"
+            if not index.exists():
+                raise HTTPException(404, detail="Frontend not built. Run: make frontend")
+            return FileResponse(str(index))
+
+    return app
