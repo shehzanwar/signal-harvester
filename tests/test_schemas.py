@@ -54,10 +54,14 @@ def test_invalid_sentiment_label_rejected():
 
 
 def test_all_sentiment_labels_accepted():
-    for label in ("positive", "negative", "neutral", "mixed"):
-        sent = {**_VALID["sentiment"], "label": label}
+    # Each label must be paired with a sign-consistent score, or the
+    # label_score_consistent validator rejects it (positive needs score>=0,
+    # negative needs score<=0; neutral/mixed are unconstrained).
+    for label, score in (("positive", 0.85), ("negative", -0.85), ("neutral", 0.0), ("mixed", 0.0)):
+        sent = {**_VALID["sentiment"], "label": label, "score": score}
         r = EnrichmentResult.model_validate({**_VALID, "sentiment": sent})
         assert r.sentiment.label == label
+        assert r.sentiment.score == score
 
 
 def test_empty_summary_rejected():
