@@ -5,7 +5,7 @@ import re
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from harvester.cluster import attach_cluster_metadata, cluster_articles
@@ -144,17 +144,30 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
         time.sleep(_INTER_ARTICLE_SLEEP)
 
     # -- Stage 4: Cluster ----------------------------------------------------
-    # Cluster today's enriched articles to surface corroborated stories.
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_articles = db.get_enriched_articles(today_only=True)
-    if today_articles:
-        cluster_articles(today_articles)
-        cluster_map = {a["id"]: a["cluster_id"] for a in today_articles if "cluster_id" in a}
+    # Cluster over a rolling 48h window of ALL enriched articles (not just this
+    # run's batch) so a story breaking yesterday and corroborated today still
+    # merges. Sort representative-preferred — highest-trust feed first, then most
+    # recent — so the cluster's founding member is the card we surface.
+    window_start = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    window_articles = db.get_enriched_articles(since=window_start)
+    if window_articles:
+        trust_rank = {"high": 0, "medium": 1, "low": 2}
+        feed_trust = {f.name: trust_rank.get(f.trust, 1) for f in cfg.feeds}
+        # Stable two-key sort: recency DESC first, then trust ASC (primary).
+        window_articles.sort(key=lambda a: a.get("published_at") or "", reverse=True)
+        window_articles.sort(key=lambda a: feed_trust.get(a.get("feed_name", ""), 1))
+
+        cluster_articles(window_articles)
+        cluster_map = {a["id"]: a["cluster_id"] for a in window_articles if "cluster_id" in a}
         db.update_cluster_ids(cluster_map)
         cluster_count = len(set(cluster_map.values()))
-        log.info("cluster_done articles=%d clusters=%d", len(today_articles), cluster_count)
+        log.info(
+            "cluster_done window=48h articles=%d clusters=%d",
+            len(window_articles), cluster_count,
+        )
 
     # -- Stage 5: Social signals (best-effort, parallel) ---------------------
+    today_articles = db.get_enriched_articles(today_only=True)
     enriched_today = [a for a in today_articles if a.get("tier") not in ("NOISE",)]
     if enriched_today:
         def _fetch_social(art: dict[str, Any]) -> list[dict[str, Any]]:

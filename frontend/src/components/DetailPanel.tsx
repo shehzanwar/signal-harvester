@@ -1,11 +1,13 @@
 import { formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
+import { clusterSiblings } from "../lib/clusters";
 import type { Article } from "../types";
 import { SentimentBadge } from "./SentimentBadge";
 import { TierBadge } from "./TierBadge";
 
 interface Props {
   article: Article | null;
+  clusterMembers?: Map<string, Article[]>;
   onClose: () => void;
   isSaved: boolean;
   isRead: boolean;
@@ -24,6 +26,7 @@ function relativeTime(iso?: string): string {
 
 export function DetailPanel({
   article,
+  clusterMembers,
   onClose,
   isSaved,
   isRead,
@@ -41,6 +44,7 @@ export function DetailPanel({
 
   if (!article) return null;
 
+  const siblings = clusterMembers ? clusterSiblings(article, clusterMembers) : [];
   const hasCluster = (article.cluster_size ?? 1) > 1;
   const hnScore = article.hn_score ?? 0;
   const hnComments = article.hn_comments ?? 0;
@@ -179,19 +183,42 @@ export function DetailPanel({
           {/* Cluster corroboration */}
           {hasCluster && (
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
                 Covered by {article.cluster_size} sources
               </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {(article.cluster_sources ?? []).map((src) => (
-                  <span
-                    key={src}
-                    className="text-xs px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800"
-                  >
-                    {src}
-                  </span>
-                ))}
-              </div>
+              {siblings.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {siblings.map((m) => (
+                    <li key={m.id}>
+                      <a
+                        href={m.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex flex-col gap-0.5"
+                      >
+                        <span className="text-sm text-neutral-300 group-hover:text-blue-300 transition-colors leading-snug">
+                          {m.title}
+                        </span>
+                        <span className="text-xs text-neutral-600">
+                          {m.feed_name}
+                          {m.tier !== article.tier ? ` · ${m.tier}` : ""}
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {(article.cluster_sources ?? []).map((src) => (
+                    <span
+                      key={src}
+                      className="text-xs px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800"
+                    >
+                      {src}
+                    </span>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 

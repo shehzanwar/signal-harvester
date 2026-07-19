@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IS_STATIC_MODE, api } from "./api/client";
 import { DetailPanel } from "./components/DetailPanel";
 import { KPIStrip } from "./components/KPIStrip";
 import { TieredFeed } from "./components/TieredFeed";
 import { TrendsStrip } from "./components/TrendsStrip";
+import { clusterMembersMap, collapseClusters } from "./lib/clusters";
 import type { Article } from "./types";
 
 // ── LocalStorage set hook ─────────────────────────────────────────────────────
@@ -46,7 +47,9 @@ function flattenArticles(articles: Article[], search: string, savedOnly: boolean
     );
   }
   if (savedOnly) list = list.filter((a) => savedIds.has(a.id));
-  return list; // already sorted by tier then published_at from the API
+  // Collapse clusters so keyboard nav (j/k) steps through the same representative
+  // cards the feed shows, not the hidden corroborating members.
+  return collapseClusters(list); // already sorted by tier then published_at from the API
 }
 
 export default function App() {
@@ -101,6 +104,9 @@ export default function App() {
 
   // Flat list of visible articles for keyboard navigation
   const flatArticles = flattenArticles(allArticles, search, showSavedOnly, savedIds);
+
+  // cluster_id -> all members, for listing corroborating coverage in the detail panel
+  const clusterMembers = useMemo(() => clusterMembersMap(allArticles), [allArticles]);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   useEffect(() => {
@@ -308,6 +314,7 @@ export default function App() {
       {/* Detail panel */}
       <DetailPanel
         article={detailArticle}
+        clusterMembers={clusterMembers}
         onClose={() => setDetailArticle(null)}
         isSaved={detailArticle ? savedIds.has(detailArticle.id) : false}
         isRead={detailArticle ? readIds.has(detailArticle.id) : false}

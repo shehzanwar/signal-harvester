@@ -1,12 +1,28 @@
-"""Greedy story clustering using Jaccard similarity of title tokens.
+"""Greedy story clustering over IDF-weighted title + tag tokens.
 
-Articles within the same pipeline window with title-token Jaccard similarity
->= threshold are grouped into a cluster. The first article to define a cluster
-is the representative (cluster_id == its own id).
+Each article is reduced to a bag of informative tokens drawn from BOTH its title
+and its (word-split) tags — the LLM tags are topic-normalized, so even when their
+surface form varies ("us-iran-conflict" vs "us-iran conflict") they share the same
+word tokens {iran, conflict}. Tokens are IDF-weighted across the batch so that
+rare, discriminating words ("jordan", "hormuz") dominate the similarity while
+ubiquitous ones barely move it.
+
+Similarity is IDF-weighted cosine (binary TF). Cosine — unlike Jaccard — does not
+penalize for union size, so same-event headlines from different outlets with quite
+different wording still score highly (measured: same-story Iran headlines 0.29-1.0
+vs <0.07 for merely topic-adjacent stories, a wide clean valley at threshold 0.25).
+
+Greedy single pass: an article joins the existing cluster whose founding member is
+most similar (cosine >= threshold) provided they share at least `min_shared`
+tokens; otherwise it founds a new cluster. Articles should be passed in
+representative-preferred order (highest-trust feed first) so the founding member
+is the one surfaced as the cluster's card.
 """
 from __future__ import annotations
 
+import math
 import re
+from collections import Counter
 from typing import Any
 
 _STOPWORDS = frozenset({
@@ -25,33 +41,69 @@ def _title_tokens(title: str) -> frozenset[str]:
     return frozenset(w for w in words if w not in _STOPWORDS)
 
 
-def _jaccard(a: frozenset[str], b: frozenset[str]) -> float:
-    if not a or not b:
+def _article_features(article: dict[str, Any]) -> frozenset[str]:
+    """Bag of informative tokens: title words UNION word-split tag tokens."""
+    toks: set[str] = set(_title_tokens(article.get("title", "")))
+    for tag in article.get("tags") or []:
+        for w in re.findall(r"[a-z]{3,}", str(tag).lower()):
+            if w not in _STOPWORDS:
+                toks.add(w)
+    return frozenset(toks)
+
+
+def _compute_idf(feature_sets: list[frozenset[str]]) -> dict[str, float]:
+    """Smoothed IDF over the batch. +1.0 floor keeps common tokens contributing
+    a little rather than zero, so similarity stays well-behaved."""
+    n = len(feature_sets)
+    df: Counter[str] = Counter()
+    for f in feature_sets:
+        for t in f:
+            df[t] += 1
+    return {t: math.log((n + 1) / (c + 0.5)) + 1.0 for t, c in df.items()}
+
+
+def _idf_cosine(a: frozenset[str], b: frozenset[str], idf: dict[str, float]) -> float:
+    """Cosine similarity over IDF-weighted binary term vectors, in [0, 1]."""
+    inter = a & b
+    if not inter:
         return 0.0
-    return len(a & b) / len(a | b)
+    num = sum(idf.get(t, 1.0) ** 2 for t in inter)
+    na = math.sqrt(sum(idf.get(t, 1.0) ** 2 for t in a))
+    nb = math.sqrt(sum(idf.get(t, 1.0) ** 2 for t in b))
+    return num / (na * nb) if na > 0 and nb > 0 else 0.0
 
 
 def cluster_articles(
     articles: list[dict[str, Any]],
-    threshold: float = 0.40,
+    threshold: float = 0.25,
+    min_shared: int = 2,
 ) -> list[dict[str, Any]]:
     """Assign cluster_id to each article in-place.
 
-    cluster_id is the id of the first article that founded the cluster.
-    Articles should be sorted with the preferred representative first
-    (e.g. highest-trust feed, earliest publish_at DESC).
+    cluster_id is the id of the first article that founded the cluster. Pass
+    articles sorted with the preferred representative first (highest-trust feed,
+    then most recent) so the founder is the article shown for the cluster.
+
+    An article joins a cluster only if it shares >= `min_shared` tokens with the
+    founder AND their IDF-weighted Jaccard similarity is >= `threshold`. The
+    shared-token floor stops a single coincidental common word from merging two
+    unrelated stories; the weighting stops common words from inflating the score.
 
     Returns the same list (mutated in-place) for convenience.
     """
+    feats = [_article_features(a) for a in articles]
+    idf = _compute_idf(feats)
+
     cluster_centers: list[tuple[frozenset[str], str]] = []
 
-    for art in articles:
-        tokens = _title_tokens(art.get("title", ""))
+    for art, tokens in zip(articles, feats):
         best_sim = 0.0
         best_id: str | None = None
 
         for center_tokens, center_id in cluster_centers:
-            sim = _jaccard(tokens, center_tokens)
+            if len(tokens & center_tokens) < min_shared:
+                continue
+            sim = _idf_cosine(tokens, center_tokens, idf)
             if sim > best_sim:
                 best_sim = sim
                 best_id = center_id

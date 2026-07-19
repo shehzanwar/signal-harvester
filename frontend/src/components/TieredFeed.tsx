@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { collapseClusters } from "../lib/clusters";
 import type { Article } from "../types";
 import { ArticleCard } from "./ArticleCard";
 
@@ -55,10 +56,14 @@ export function TieredFeed({
     filtered = filtered.filter((a) => !readIds.has(a.id));
   }
 
-  const t1 = filtered.filter((a) => a.tier === "T1");
-  const t2 = filtered.filter((a) => a.tier === "T2");
-  const t3 = filtered.filter((a) => a.tier === "T3");
-  const noise = filtered.filter((a) => a.tier === "NOISE");
+  // Collapse corroborating clusters to one representative each BEFORE splitting
+  // into tiers, so a T1 representative also suppresses its lower-tier members.
+  const reps = collapseClusters(filtered);
+
+  const t1 = reps.filter((a) => a.tier === "T1");
+  const t2 = reps.filter((a) => a.tier === "T2");
+  const t3 = reps.filter((a) => a.tier === "T3");
+  const noise = reps.filter((a) => a.tier === "NOISE");
 
   const visibleT1 = showAllT1 ? t1 : t1.slice(0, T1_PREVIEW_COUNT);
 
