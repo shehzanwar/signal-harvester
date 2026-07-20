@@ -1,5 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
+import { recordEngagement } from "../lib/affinity";
 import { clusterSiblings } from "../lib/clusters";
 import type { Article } from "../types";
 import { SentimentBadge } from "./SentimentBadge";
@@ -8,11 +9,13 @@ import { TierBadge } from "./TierBadge";
 interface Props {
   article: Article | null;
   clusterMembers?: Map<string, Article[]>;
+  whyRanked?: { label: string; value: number }[] | null;
   onClose: () => void;
   isSaved: boolean;
   isRead: boolean;
   onToggleSave: (id: string) => void;
   onToggleRead: (id: string) => void;
+  onMute?: (a: Article) => void;
 }
 
 function relativeTime(iso?: string): string {
@@ -27,11 +30,13 @@ function relativeTime(iso?: string): string {
 export function DetailPanel({
   article,
   clusterMembers,
+  whyRanked,
   onClose,
   isSaved,
   isRead,
   onToggleSave,
   onToggleRead,
+  onMute,
 }: Props) {
   // Close on Escape
   useEffect(() => {
@@ -41,6 +46,16 @@ export function DetailPanel({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  // Dwell signal: a read of >10s in the panel is a positive engagement.
+  useEffect(() => {
+    if (!article) return;
+    const a = article;
+    const start = Date.now();
+    return () => {
+      if (Date.now() - start > 10_000) recordEngagement(a, "dwell");
+    };
+  }, [article?.id]);
 
   if (!article) return null;
 
@@ -113,6 +128,7 @@ export function DetailPanel({
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => recordEngagement(article, "open")}
             className="block text-lg font-semibold text-neutral-100 hover:text-white hover:underline leading-snug"
           >
             {article.title}
@@ -128,6 +144,44 @@ export function DetailPanel({
               <> · enriched {relativeTime(article.enriched_at)}</>
             )}
           </p>
+
+          {/* Why ranked here (For You mode) */}
+          {whyRanked && whyRanked.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
+                Why ranked here
+              </h3>
+              <div className="flex flex-col gap-1">
+                {whyRanked.map((r) => (
+                  <div key={r.label} className="flex items-center gap-2 text-xs">
+                    <span className="w-32 text-neutral-400">{r.label}</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${r.value >= 0 ? "bg-green-500" : "bg-red-500"}`}
+                        style={{ width: `${Math.min(100, (Math.abs(r.value) / 3) * 100)}%` }}
+                      />
+                    </div>
+                    <span
+                      className={`tabular-nums w-10 text-right ${r.value >= 0 ? "text-green-400" : "text-red-400"}`}
+                    >
+                      {r.value >= 0 ? "+" : ""}
+                      {r.value.toFixed(1)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Less like this — mute this story's tags */}
+          {onMute && article.tags.length > 0 && (
+            <button
+              onClick={() => onMute(article)}
+              className="text-xs px-3 py-1.5 rounded border border-neutral-700 text-neutral-400 hover:border-red-700 hover:text-red-400 transition-colors"
+            >
+              🔇 Less like this
+            </button>
+          )}
 
           {/* Summary */}
           {article.enrich_summary && (

@@ -1,4 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
+import { recordEngagement } from "../lib/affinity";
 import type { Article } from "../types";
 import { SentimentBadge } from "./SentimentBadge";
 import { TierBadge, tierBorderClass } from "./TierBadge";
@@ -100,7 +101,10 @@ export function ArticleCard({
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-neutral-200 group-hover:text-white line-clamp-2 leading-snug hover:underline block"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              recordEngagement(article, "open");
+            }}
           >
             {article.title}
           </a>
@@ -193,7 +197,10 @@ export function ArticleCard({
         target="_blank"
         rel="noopener noreferrer"
         className="block text-base font-semibold text-neutral-100 hover:text-white leading-snug mb-2 hover:underline"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          recordEngagement(article, "open");
+        }}
       >
         {article.title}
       </a>

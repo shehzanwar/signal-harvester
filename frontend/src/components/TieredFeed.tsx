@@ -7,6 +7,10 @@ interface Props {
   articles: Article[];
   search: string;
   compact: boolean;
+  mode?: "tiered" | "foryou";
+  forYouOrder?: (reps: Article[]) => Article[];
+  isMuted?: (a: Article) => boolean;
+  lowInterest?: (a: Article) => boolean;
   readIds: Set<string>;
   savedIds: Set<string>;
   hideRead: boolean;
@@ -23,6 +27,10 @@ export function TieredFeed({
   articles,
   search,
   compact,
+  mode = "tiered",
+  forYouOrder,
+  isMuted,
+  lowInterest,
   readIds,
   savedIds,
   hideRead,
@@ -56,28 +64,14 @@ export function TieredFeed({
     filtered = filtered.filter((a) => !readIds.has(a.id));
   }
 
+  // Muted tags/keywords hide cards everywhere.
+  if (isMuted) {
+    filtered = filtered.filter((a) => !isMuted(a));
+  }
+
   // Collapse corroborating clusters to one representative each BEFORE splitting
   // into tiers, so a T1 representative also suppresses its lower-tier members.
   const reps = collapseClusters(filtered);
-
-  const t1 = reps.filter((a) => a.tier === "T1");
-  const t2 = reps.filter((a) => a.tier === "T2");
-  const t3 = reps.filter((a) => a.tier === "T3");
-  const noise = reps.filter((a) => a.tier === "NOISE");
-
-  const visibleT1 = showAllT1 ? t1 : t1.slice(0, T1_PREVIEW_COUNT);
-
-  if (filtered.length === 0) {
-    return (
-      <div className="text-center py-20 text-neutral-500">
-        {search
-          ? `No articles match "${search}"`
-          : showSavedOnly
-          ? "No saved articles. Star items to save them."
-          : "No enriched articles yet. Run the pipeline first."}
-      </div>
-    );
-  }
 
   const cardProps = (a: Article) => ({
     isRead: readIds.has(a.id),
@@ -87,6 +81,39 @@ export function TieredFeed({
     onToggleSave,
     onToggleRead,
   });
+  // Low-interest categories render compact so they take less space.
+  const compactFor = (a: Article) => compact || (lowInterest?.(a) ?? false);
+
+  if (filtered.length === 0) {
+    return (
+      <div className="text-center py-20 text-neutral-500">
+        {search
+          ? `No articles match "${search}"`
+          : showSavedOnly
+          ? "No saved articles. Star items to save them."
+          : "Nothing here — try a different category or clear your mutes."}
+      </div>
+    );
+  }
+
+  // ── For You: a single ranked, cross-tier list ────────────────────────────────
+  if (mode === "foryou") {
+    const ranked = (forYouOrder ? forYouOrder(reps) : reps).filter((a) => a.tier !== "NOISE");
+    return (
+      <div className="space-y-3">
+        {ranked.map((a) => (
+          <ArticleCard key={a.id} article={a} compact={compactFor(a)} {...cardProps(a)} />
+        ))}
+      </div>
+    );
+  }
+
+  const t1 = reps.filter((a) => a.tier === "T1");
+  const t2 = reps.filter((a) => a.tier === "T2");
+  const t3 = reps.filter((a) => a.tier === "T3");
+  const noise = reps.filter((a) => a.tier === "NOISE");
+
+  const visibleT1 = showAllT1 ? t1 : t1.slice(0, T1_PREVIEW_COUNT);
 
   return (
     <div className="space-y-10">

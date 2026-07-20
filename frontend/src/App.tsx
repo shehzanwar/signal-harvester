@@ -5,10 +5,15 @@ import { BottomSheet } from "./components/BottomSheet";
 import { CategoryBar } from "./components/CategoryBar";
 import { DetailPanel } from "./components/DetailPanel";
 import { KPIStrip } from "./components/KPIStrip";
+import { PrefsPanel } from "./components/PrefsPanel";
 import { TieredFeed } from "./components/TieredFeed";
 import { TrendsStrip } from "./components/TrendsStrip";
+import { getWeights, recordEngagement } from "./lib/affinity";
+import { orderedCategories } from "./lib/categories";
 import { clusterMembersMap, collapseClusters } from "./lib/clusters";
 import { useIsMobile, useIsTouch } from "./lib/hooks";
+import { isMuted, usePrefs } from "./lib/prefs";
+import { breakdownRows, forYouOrder, scoreArticle } from "./lib/scoring";
 import type { Article } from "./types";
 
 // ── LocalStorage set hook ─────────────────────────────────────────────────────
@@ -65,6 +70,9 @@ export default function App() {
   const [detailArticle, setDetailArticle] = useState<Article | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [filterSheet, setFilterSheet] = useState(false);
+  const [sortMode, setSortMode] = useState<"tiered" | "foryou">("tiered");
+  const [rankSeed, setRankSeed] = useState(0);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const isMobile = useIsMobile();
@@ -72,6 +80,32 @@ export default function App() {
 
   const [readIds, toggleRead] = useLocalSet("signal-read");
   const [savedIds, toggleSave] = useLocalSet("signal-saved");
+  const [prefs, updatePrefs, replacePrefs] = usePrefs();
+
+  // Latest readIds without making the For You order recompute on every toggle.
+  const readIdsRef = useRef(readIds);
+  readIdsRef.current = readIds;
+  // Latest loaded articles, for id->article lookups in event handlers.
+  const articlesDataRef = useRef<Article[]>([]);
+
+  // Engagement-tracked wrappers.
+  const openDetail = useCallback(
+    (a: Article) => {
+      recordEngagement(a, "detail");
+      setDetailArticle(a);
+    },
+    [],
+  );
+  const toggleSaveTracked = useCallback(
+    (id: string) => {
+      if (!savedIds.has(id)) {
+        const a = (articlesDataRef.current ?? []).find((x) => x.id === id);
+        if (a) recordEngagement(a, "save");
+      }
+      toggleSave(id);
+    },
+    [savedIds, toggleSave],
+  );
 
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -106,6 +140,7 @@ export default function App() {
 
   const title = profile?.dashboard_title ?? "Signal Harvester";
   const allArticles = articlesData?.items ?? [];
+  articlesDataRef.current = allArticles;
   const showing = articlesData?.items.length ?? 0;
   const total = articlesData?.total ?? 0;
   const truncated = showing < total;
@@ -140,6 +175,58 @@ export default function App() {
   // Mobile forces compact cards; the toggle only exists on desktop.
   const effectiveCompact = compact || isMobile;
   const activeFilterCount = [todayOnly, hideRead, showSavedOnly].filter(Boolean).length;
+
+  // ── Personalization ────────────────────────────────────────────────────────
+  const orderedCats = useMemo(() => orderedCategories(prefs.categoryOrder), [prefs.categoryOrder]);
+  const isMutedFn = useCallback((a: Article) => isMuted(a, prefs), [prefs]);
+  const lowInterestFn = useCallback(
+    (a: Article) => (prefs.categoryInterest[a.category ?? ""] ?? "normal") === "low",
+    [prefs],
+  );
+
+  // For You ordering. Weights + read state are snapshotted when this recomputes
+  // (on prefs change or an explicit re-rank) so the order stays stable while you
+  // tap — learning is applied on the next re-rank, not mid-scroll.
+  const forYouOrderFn = useMemo(() => {
+    const weights = getWeights();
+    const now = Date.now();
+    return (reps: Article[]) =>
+      forYouOrder(reps, (a) =>
+        scoreArticle(a, { prefs, weights, isRead: readIdsRef.current.has(a.id), now }).total,
+      );
+    // rankSeed forces a fresh weight/read snapshot on explicit re-rank.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs, rankSeed]);
+
+  const activateForYou = useCallback(() => {
+    setSortMode("foryou");
+    setRankSeed((s) => s + 1);
+  }, []);
+
+  const muteArticle = useCallback(
+    (a: Article) => {
+      const tags = (a.tags ?? []).map((t) => t.toLowerCase());
+      updatePrefs((p) => ({
+        ...p,
+        mutedTags: [...new Set([...p.mutedTags, ...tags])],
+      }));
+      recordEngagement(a, "mute");
+      setDetailArticle(null);
+    },
+    [updatePrefs],
+  );
+
+  // "Why ranked" breakdown for the currently open article (For You only).
+  const whyRanked = useMemo(() => {
+    if (sortMode !== "foryou" || !detailArticle) return null;
+    const b = scoreArticle(detailArticle, {
+      prefs,
+      weights: getWeights(),
+      isRead: readIds.has(detailArticle.id),
+      now: Date.now(),
+    });
+    return breakdownRows(b);
+  }, [sortMode, detailArticle, prefs, readIds]);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   useEffect(() => {
@@ -183,12 +270,15 @@ export default function App() {
 
       if ((e.key === "Enter" || e.key === "o") && focusedId) {
         const art = flatArticles.find((a) => a.id === focusedId);
-        if (art) window.open(art.url, "_blank", "noopener,noreferrer");
+        if (art) {
+          recordEngagement(art, "open");
+          window.open(art.url, "_blank", "noopener,noreferrer");
+        }
         return;
       }
 
       if (e.key === "s" && focusedId) {
-        toggleSave(focusedId);
+        toggleSaveTracked(focusedId);
         return;
       }
 
@@ -199,14 +289,14 @@ export default function App() {
 
       if (e.key === "d" && focusedId) {
         const art = flatArticles.find((a) => a.id === focusedId);
-        if (art) setDetailArticle(art);
+        if (art) openDetail(art);
         return;
       }
     };
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [flatArticles, focusedId, toggleSave, toggleRead]);
+  }, [flatArticles, focusedId, toggleSaveTracked, toggleRead, openDetail]);
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -219,7 +309,12 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 py-6" role="main">
         {/* Category navigation */}
         {allArticles.length > 0 && (
-          <CategoryBar counts={categoryCounts} selected={category} onSelect={setCategory} />
+          <CategoryBar
+            categories={orderedCats}
+            counts={categoryCounts}
+            selected={category}
+            onSelect={setCategory}
+          />
         )}
 
         {/* Toolbar — desktop */}
@@ -325,10 +420,56 @@ export default function App() {
 
         {/* Keyboard hint — non-touch only */}
         {!isTouch && (
-          <p className="text-xs text-neutral-700 mb-4">
+          <p className="text-xs text-neutral-700 mb-3">
             j/k navigate · Enter open · s save · r read · d detail · / search
           </p>
         )}
+
+        {/* Sort mode + preferences */}
+        <div className="flex items-center gap-2 mb-4">
+          <div className="inline-flex rounded-lg border border-neutral-700 overflow-hidden text-sm">
+            <button
+              onClick={() => setSortMode("tiered")}
+              className={`px-3 py-1.5 transition-colors ${
+                sortMode === "tiered"
+                  ? "bg-neutral-800 text-neutral-100"
+                  : "text-neutral-500 hover:text-neutral-300"
+              }`}
+            >
+              Tiered
+            </button>
+            <button
+              onClick={activateForYou}
+              className={`px-3 py-1.5 transition-colors ${
+                sortMode === "foryou"
+                  ? "bg-blue-900/50 text-blue-200"
+                  : "text-neutral-500 hover:text-neutral-300"
+              }`}
+            >
+              For You
+            </button>
+          </div>
+          {sortMode === "foryou" && (
+            <button
+              onClick={() => setRankSeed((s) => s + 1)}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-neutral-700 text-neutral-400 hover:text-neutral-200 hover:border-neutral-500"
+              title="Re-rank with your latest activity"
+            >
+              ↻ Re-rank
+            </button>
+          )}
+          <button
+            onClick={() => setPrefsOpen(true)}
+            className="ml-auto flex items-center justify-center h-9 w-9 rounded-lg border border-neutral-700 text-neutral-400 hover:text-neutral-100 hover:border-neutral-500"
+            aria-label="Preferences"
+            title="Preferences"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
 
         {/* Feed */}
         {isLoading && (
@@ -358,13 +499,17 @@ export default function App() {
             articles={categoryArticles}
             search={search}
             compact={effectiveCompact}
+            mode={sortMode}
+            forYouOrder={forYouOrderFn}
+            isMuted={isMutedFn}
+            lowInterest={lowInterestFn}
             readIds={readIds}
             savedIds={savedIds}
             hideRead={hideRead}
             showSavedOnly={showSavedOnly}
             focusedId={focusedId}
-            onDetail={setDetailArticle}
-            onToggleSave={toggleSave}
+            onDetail={openDetail}
+            onToggleSave={toggleSaveTracked}
             onToggleRead={toggleRead}
           />
         )}
@@ -402,11 +547,22 @@ export default function App() {
       <DetailPanel
         article={detailArticle}
         clusterMembers={clusterMembers}
+        whyRanked={whyRanked}
         onClose={() => setDetailArticle(null)}
         isSaved={detailArticle ? savedIds.has(detailArticle.id) : false}
         isRead={detailArticle ? readIds.has(detailArticle.id) : false}
-        onToggleSave={toggleSave}
+        onToggleSave={toggleSaveTracked}
         onToggleRead={toggleRead}
+        onMute={muteArticle}
+      />
+
+      {/* Preferences */}
+      <PrefsPanel
+        open={prefsOpen}
+        onClose={() => setPrefsOpen(false)}
+        prefs={prefs}
+        onUpdate={updatePrefs}
+        onReplacePrefs={replacePrefs}
       />
     </div>
   );
