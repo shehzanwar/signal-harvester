@@ -37,25 +37,22 @@ function CorroborationBadge({ count }: { count: number }) {
 }
 
 function SocialChip({ article }: { article: Article }) {
-  const hnScore = article.hn_score ?? 0;
-  const redditScore = article.reddit_score ?? 0;
-  const hnComments = article.hn_comments ?? 0;
-  const redditComments = article.reddit_comments ?? 0;
+  const social = article.social ?? [];
+  if (social.length === 0) return null;
 
-  if (hnScore === 0 && redditScore === 0) return null;
-
-  const totalScore = hnScore + redditScore;
-  const totalComments = hnComments + redditComments;
-  const link = hnScore >= redditScore ? (article.hn_url ?? "#") : (article.reddit_url ?? "#");
+  const totalScore = article.social_score ?? social.reduce((s, x) => s + x.score, 0);
+  const totalComments = social.reduce((s, x) => s + x.comments, 0);
+  // Link to the highest-scoring source's discussion.
+  const best = social.reduce((a, b) => (b.score > a.score ? b : a));
 
   return (
     <a
-      href={link}
+      href={best.permalink ?? "#"}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
       className="text-xs text-orange-400 hover:text-orange-300 transition-colors tabular-nums"
-      title="View social discussion"
+      title={`Discussed on ${social.map((s) => s.source).join(", ")}`}
     >
       {totalScore >= 1000 ? `${(totalScore / 1000).toFixed(1)}k` : totalScore}pts
       {totalComments > 0 && ` · ${totalComments}💬`}

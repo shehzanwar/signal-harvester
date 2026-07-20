@@ -61,11 +61,8 @@ export function DetailPanel({
 
   const siblings = clusterMembers ? clusterSiblings(article, clusterMembers) : [];
   const hasCluster = (article.cluster_size ?? 1) > 1;
-  const hnScore = article.hn_score ?? 0;
-  const hnComments = article.hn_comments ?? 0;
-  const redditScore = article.reddit_score ?? 0;
-  const redditComments = article.reddit_comments ?? 0;
-  const hasSocial = hnScore > 0 || redditScore > 0;
+  const social = (article.social ?? []).slice().sort((a, b) => b.score - a.score);
+  const hasSocial = social.length > 0;
 
   return (
     <>
@@ -276,37 +273,29 @@ export function DetailPanel({
             </section>
           )}
 
-          {/* Social signals */}
+          {/* Social signals — one row per source */}
           {hasSocial && (
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
                 Social
               </h3>
               <div className="flex flex-col gap-2">
-                {hnScore > 0 && (
+                {social.map((s) => (
                   <a
-                    href={article.hn_url ?? "#"}
+                    key={s.source}
+                    href={s.permalink ?? "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm text-orange-400 hover:text-orange-300 transition-colors"
                   >
-                    <span className="font-semibold">HN</span>
-                    <span>{hnScore.toLocaleString()} pts · {hnComments.toLocaleString()} comments</span>
-                    <span className="text-neutral-600 text-xs">→</span>
+                    <span className="font-semibold capitalize w-16">{s.source}</span>
+                    <span>
+                      {s.score.toLocaleString()} pts
+                      {s.comments > 0 && <> · {s.comments.toLocaleString()} comments</>}
+                    </span>
+                    {s.permalink && <span className="text-neutral-600 text-xs">→</span>}
                   </a>
-                )}
-                {redditScore > 0 && (
-                  <a
-                    href={article.reddit_url ?? "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-orange-400 hover:text-orange-300 transition-colors"
-                  >
-                    <span className="font-semibold">Reddit</span>
-                    <span>{redditScore.toLocaleString()} pts · {redditComments.toLocaleString()} comments</span>
-                    <span className="text-neutral-600 text-xs">→</span>
-                  </a>
-                )}
+                ))}
               </div>
             </section>
           )}

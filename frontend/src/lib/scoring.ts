@@ -32,7 +32,7 @@ export function scoreArticle(
   const size = a.cluster_size ?? 1;
   const cluster = size > 1 ? Math.log2(size) * 0.4 : 0;
 
-  const socialScore = (a.hn_score ?? 0) + (a.reddit_score ?? 0);
+  const socialScore = a.social_score ?? 0;
   const social = socialScore > 0 ? Math.log10(socialScore + 1) * 0.3 : 0;
 
   let recency = 0;

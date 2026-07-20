@@ -13,7 +13,7 @@ from harvester.config import ProfileConfig
 from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
-from harvester.social import fetch_social_signals
+from harvester.social import SocialFetcher
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
 from harvester.store.writers import write_json_article, write_markdown_digest
@@ -171,8 +171,12 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     today_articles = db.get_enriched_articles(today_only=True)
     enriched_today = [a for a in today_articles if a.get("tier") not in ("NOISE",)]
     if enriched_today:
+        # One fetcher per run: it does the Mastodon batch prefetch + any gated
+        # auth (Bluesky/Reddit) once, then reuses them across articles.
+        fetcher = SocialFetcher()
+
         def _fetch_social(art: dict[str, Any]) -> list[dict[str, Any]]:
-            signals = fetch_social_signals(art["url"])
+            signals = fetcher.fetch(art["url"])
             return [{"article_id": art["id"], **s} for s in signals]
 
         all_signals: list[dict[str, Any]] = []

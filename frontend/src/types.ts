@@ -30,13 +30,16 @@ export interface Article {
   cluster_id?: string;
   cluster_size?: number;
   cluster_sources?: string[];
-  // social signals
-  hn_score?: number | null;
-  hn_comments?: number | null;
-  hn_url?: string | null;
-  reddit_score?: number | null;
-  reddit_comments?: number | null;
-  reddit_url?: string | null;
+  // social signals — aggregated across providers (hn, lemmy, mastodon, bluesky, reddit)
+  social?: SocialSignal[];
+  social_score?: number;
+}
+
+export interface SocialSignal {
+  source: string;
+  score: number;
+  comments: number;
+  permalink?: string | null;
 }
 
 export interface Stats {

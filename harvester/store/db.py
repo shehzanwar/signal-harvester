@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 from collections import Counter
 from contextlib import contextmanager
@@ -11,6 +12,8 @@ from typing import Any, Generator
 
 from harvester.config import ProfileConfig
 from harvester.enrich.prompts import PROMPT_VERSION
+
+log = logging.getLogger(__name__)
 
 # Tags too broad to carry a "trending" signal. Both singular and plural forms
 # are listed so the check survives the plural->singular folding in get_trends.
@@ -75,7 +78,7 @@ CREATE TABLE IF NOT EXISTS enrichments (
 
 CREATE TABLE IF NOT EXISTS social_signals (
     article_id  TEXT NOT NULL,
-    source      TEXT NOT NULL CHECK (source IN ('hn', 'reddit')),
+    source      TEXT NOT NULL,
     score       INTEGER NOT NULL DEFAULT 0,
     comments    INTEGER NOT NULL DEFAULT 0,
     permalink   TEXT,
@@ -154,6 +157,40 @@ class Database:
                     con.execute(stmt)
             except sqlite3.OperationalError:
                 pass  # column already exists
+
+        self._migrate_social_source_check()
+
+    def _migrate_social_source_check(self) -> None:
+        """Drop the legacy `CHECK (source IN ('hn','reddit'))` on social_signals.
+
+        SQLite can't ALTER a constraint, so rebuild the table when the old CHECK
+        is still present. Idempotent: no-op once the constraint is gone.
+        """
+        with self._conn() as con:
+            row = con.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='social_signals'"
+            ).fetchone()
+            if not row or "CHECK" not in (row[0] or ""):
+                return
+            log.info("migrating social_signals: dropping source CHECK constraint")
+            con.executescript(
+                """
+                CREATE TABLE social_signals_new (
+                    article_id  TEXT NOT NULL,
+                    source      TEXT NOT NULL,
+                    score       INTEGER NOT NULL DEFAULT 0,
+                    comments    INTEGER NOT NULL DEFAULT 0,
+                    permalink   TEXT,
+                    fetched_at  TEXT NOT NULL,
+                    PRIMARY KEY (article_id, source)
+                );
+                INSERT OR IGNORE INTO social_signals_new
+                    SELECT article_id, source, score, comments, permalink, fetched_at
+                    FROM social_signals;
+                DROP TABLE social_signals;
+                ALTER TABLE social_signals_new RENAME TO social_signals;
+                """
+            )
 
     def insert_new_articles(self, articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Insert articles, silently skip duplicates. Return only the newly inserted ones."""
@@ -284,17 +321,9 @@ class Database:
             rows = con.execute(
                 f"""SELECT a.*, e.summary AS enrich_summary, e.tier, e.tier_rationale,
                            e.sentiment_label, e.sentiment_score, e.sentiment_rationale,
-                           e.tags, e.model, e.enriched_at, e.latency_ms, e.prompt_version,
-                           ss_hn.score AS hn_score, ss_hn.comments AS hn_comments,
-                           ss_hn.permalink AS hn_url,
-                           ss_r.score AS reddit_score, ss_r.comments AS reddit_comments,
-                           ss_r.permalink AS reddit_url
+                           e.tags, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
-                    LEFT JOIN social_signals ss_hn
-                        ON a.id = ss_hn.article_id AND ss_hn.source = 'hn'
-                    LEFT JOIN social_signals ss_r
-                        ON a.id = ss_r.article_id AND ss_r.source = 'reddit'
                     WHERE {where}
                     ORDER BY
                         CASE e.tier WHEN 'T1' THEN 1 WHEN 'T2' THEN 2
@@ -302,11 +331,31 @@ class Database:
                         a.published_at DESC""",
                 params,
             ).fetchall()
-        results = []
-        for r in rows:
-            d = dict(r)
-            d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
-            results.append(d)
+            results = []
+            by_id: dict[str, dict[str, Any]] = {}
+            for r in rows:
+                d = dict(r)
+                d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
+                d["social"] = []
+                d["social_score"] = 0
+                results.append(d)
+                by_id[d["id"]] = d
+
+            # Attach social signals from all sources (aggregate score per article).
+            if by_id:
+                for s in con.execute(
+                    "SELECT article_id, source, score, comments, permalink FROM social_signals"
+                ).fetchall():
+                    d = by_id.get(s["article_id"])
+                    if d is None:
+                        continue
+                    d["social"].append({
+                        "source": s["source"],
+                        "score": s["score"] or 0,
+                        "comments": s["comments"] or 0,
+                        "permalink": s["permalink"],
+                    })
+                    d["social_score"] += s["score"] or 0
         return results
 
     def get_articles_for_backfill(
