@@ -118,12 +118,12 @@ export function ArticleCard({
             <SocialChip article={article} />
           </span>
         </span>
-        {/* Actions */}
-        <span className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Actions — hover-reveal on desktop, always visible + 40px on touch */}
+        <span className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity">
           {onToggleSave && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleSave(article.id); }}
-              className="p-1 rounded hover:bg-neutral-700 text-sm"
+              className="flex items-center justify-center h-8 w-8 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-700 text-sm"
               title={isSaved ? "Unsave" : "Save"}
               aria-pressed={isSaved}
             >
@@ -133,7 +133,7 @@ export function ArticleCard({
           {onToggleRead && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleRead(article.id); }}
-              className="p-1 rounded hover:bg-neutral-700 text-xs text-neutral-500"
+              className="flex items-center justify-center h-8 w-8 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-700 text-xs text-neutral-500"
               title={isRead ? "Mark unread" : "Mark read"}
             >
               {isRead ? "●" : "○"}
@@ -166,7 +166,7 @@ export function ArticleCard({
           {onToggleSave && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleSave(article.id); }}
-              className="text-sm p-1 rounded hover:bg-neutral-800 transition-colors"
+              className="flex items-center justify-center text-sm p-1 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-800 transition-colors"
               title={isSaved ? "Unsave" : "Save"}
               aria-pressed={isSaved}
             >
@@ -176,7 +176,7 @@ export function ArticleCard({
           {onToggleRead && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleRead(article.id); }}
-              className="text-xs p-1 rounded hover:bg-neutral-800 transition-colors text-neutral-500"
+              className="flex items-center justify-center text-xs p-1 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-800 transition-colors text-neutral-500"
               title={isRead ? "Mark unread" : "Mark read"}
             >
               {isRead ? "●" : "○"}

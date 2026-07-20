@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useIsMobile, useLocalStorageState } from "../lib/hooks";
 import type { TrendsDay, TrendingTag, TrendsResponse } from "../types";
 
 interface Props {
@@ -98,7 +98,10 @@ function TierBars({ days }: { days: TrendsDay[] }) {
 
 // ── Main TrendsStrip ─────────────────────────────────────────────────────────
 export function TrendsStrip({ trends }: Props) {
-  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
+  // Collapsed by default on mobile (saves vertical space), open on desktop;
+  // the user's choice is remembered across sessions.
+  const [open, setOpen] = useLocalStorageState<boolean>("signal-trends-open", !isMobile);
 
   const hasData = trends.daily.length > 0;
 

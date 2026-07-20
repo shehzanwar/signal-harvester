@@ -104,6 +104,14 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
                     status_code=404,
                     content={"detail": f"API endpoint /{full_path} not found"},
                 )
+            # Serve real built files (manifest.webmanifest, sw.js, icons, favicon)
+            # when they exist, guarding against path traversal; otherwise fall back
+            # to index.html for client-side routes.
+            if full_path:
+                candidate = (_FRONTEND_DIST / full_path).resolve()
+                root = _FRONTEND_DIST.resolve()
+                if candidate.is_file() and root in candidate.parents:
+                    return FileResponse(str(candidate))
             index = _FRONTEND_DIST / "index.html"
             if not index.exists():
                 raise HTTPException(404, detail="Frontend not built. Run: make frontend")
