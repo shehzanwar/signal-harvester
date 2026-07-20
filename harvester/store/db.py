@@ -314,24 +314,43 @@ class Database:
         from_date: str | None = None,
         to_date: str | None = None,
         status: str | None = None,
+        prompt_version: str | None = None,
+        exclude_prompt_version: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Select articles to re-enrich.
+
+        prompt_version / exclude_prompt_version filter by the enrichment's
+        version (join on enrichments) — e.g. exclude_prompt_version=current
+        targets only "stale" rows left behind by an older prompt.
+        """
         clauses: list[str] = []
         params: list[Any] = []
         if from_date:
-            clauses.append("fetched_at >= ?")
+            clauses.append("a.fetched_at >= ?")
             params.append(from_date)
         if to_date:
-            clauses.append("fetched_at <= ?")
+            clauses.append("a.fetched_at <= ?")
             params.append(to_date + "T23:59:59")
         if status:
-            clauses.append("status = ?")
+            clauses.append("a.status = ?")
             params.append(status)
         else:
-            clauses.append("status IN ('enriched', 'failed_llm', 'extracted')")
+            clauses.append("a.status IN ('enriched', 'failed_llm', 'extracted')")
+
+        join = ""
+        if prompt_version is not None:
+            join = "JOIN enrichments e ON e.article_id = a.id"
+            clauses.append("e.prompt_version = ?")
+            params.append(prompt_version)
+        elif exclude_prompt_version is not None:
+            join = "JOIN enrichments e ON e.article_id = a.id"
+            clauses.append("e.prompt_version != ?")
+            params.append(exclude_prompt_version)
+
         where = " AND ".join(clauses) if clauses else "1=1"
         with self._conn() as con:
             rows = con.execute(
-                f"SELECT * FROM articles WHERE {where} ORDER BY fetched_at DESC",
+                f"SELECT a.* FROM articles a {join} WHERE {where} ORDER BY a.fetched_at DESC",
                 params,
             ).fetchall()
         return [dict(r) for r in rows]

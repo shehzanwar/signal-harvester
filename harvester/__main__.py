@@ -40,6 +40,16 @@ def main() -> None:
         "--status",
         help="Re-process only articles with this status (e.g. failed_llm)",
     )
+    bf.add_argument(
+        "--stale",
+        action="store_true",
+        help="Re-enrich only articles not on the current prompt version",
+    )
+    bf.add_argument(
+        "--prompt-version",
+        metavar="VER",
+        help="Re-enrich only articles enriched with this exact prompt version (e.g. v1)",
+    )
 
     # validate-config
     sub.add_parser("validate-config", help="Validate profile YAML and exit")
@@ -121,6 +131,8 @@ def main() -> None:
             from_date=getattr(args, "from_date", None),
             to_date=getattr(args, "to_date", None),
             status=getattr(args, "status", None),
+            stale=getattr(args, "stale", False),
+            prompt_version=getattr(args, "prompt_version", None),
         )
         return
 

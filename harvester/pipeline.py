@@ -11,6 +11,7 @@ from typing import Any
 from harvester.cluster import attach_cluster_metadata, cluster_articles
 from harvester.config import ProfileConfig
 from harvester.enrich.client import EnrichmentClient
+from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
 from harvester.social import fetch_social_signals
 from harvester.sources.rss import RSSSource
@@ -227,11 +228,21 @@ def backfill(
     from_date: str | None = None,
     to_date: str | None = None,
     status: str | None = None,
+    stale: bool = False,
+    prompt_version: str | None = None,
 ) -> None:
-    """Re-enrich existing articles filtered by date range or status."""
+    """Re-enrich existing articles filtered by date range, status, or prompt
+    version. `stale=True` targets everything not on the current PROMPT_VERSION."""
     db = Database.from_config(cfg)
     db.init_schema()
-    articles = db.get_articles_for_backfill(from_date=from_date, to_date=to_date, status=status)
+    exclude = PROMPT_VERSION if stale else None
+    articles = db.get_articles_for_backfill(
+        from_date=from_date,
+        to_date=to_date,
+        status=status,
+        prompt_version=prompt_version,
+        exclude_prompt_version=exclude,
+    )
     log.info("backfill_start count=%d", len(articles))
     if not articles:
         print("No articles match the backfill criteria.")
