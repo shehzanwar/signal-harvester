@@ -47,6 +47,24 @@ def test_exclude_current_version_selects_all_stale(tmp_path):
     assert ids == {"v1_0", "v1_1", "v1_2", "pf_0"}
 
 
+def test_stale_includes_orphans_from_an_interrupted_run(tmp_path):
+    """An interrupted backfill leaves articles whose enrichment row was already
+    deleted (status back to 'extracted'). --stale must still pick those up, or
+    they are stranded with no enrichment at all."""
+    db = _make_db(tmp_path)
+    with sqlite3.connect(str(db._path)) as con:
+        _seed(con)
+        # Simulate the interruption: reset one v1 article mid-flight.
+        con.execute("DELETE FROM enrichments WHERE article_id='v1_0'")
+        con.execute("UPDATE articles SET status='extracted' WHERE id='v1_0'")
+        con.commit()
+
+    stale = db.get_articles_for_backfill(exclude_prompt_version="v4")
+    ids = {a["id"] for a in stale}
+    assert "v1_0" in ids, "orphaned article was skipped — it would never be re-enriched"
+    assert ids == {"v1_0", "v1_1", "v1_2", "pf_0"}
+
+
 def test_exact_prompt_version_selects_only_that(tmp_path):
     db = _make_db(tmp_path)
     with sqlite3.connect(str(db._path)) as con:

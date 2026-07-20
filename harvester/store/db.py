@@ -343,8 +343,12 @@ class Database:
             clauses.append("e.prompt_version = ?")
             params.append(prompt_version)
         elif exclude_prompt_version is not None:
-            join = "JOIN enrichments e ON e.article_id = a.id"
-            clauses.append("e.prompt_version != ?")
+            # LEFT JOIN so this stays resume-safe: an interrupted backfill leaves
+            # articles whose enrichment row was already deleted by
+            # reset_enrichment. An INNER JOIN would silently skip them, stranding
+            # them with no enrichment at all. IS NULL catches those orphans.
+            join = "LEFT JOIN enrichments e ON e.article_id = a.id"
+            clauses.append("(e.prompt_version IS NULL OR e.prompt_version != ?)")
             params.append(exclude_prompt_version)
 
         where = " AND ".join(clauses) if clauses else "1=1"
