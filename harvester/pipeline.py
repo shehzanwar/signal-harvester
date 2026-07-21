@@ -269,6 +269,7 @@ def backfill(
             log.warning("backfill_failed id=%s error=%s", art["id"], exc)
             db.mark_failed(art["id"], "failed_llm")
             fail += 1
-        time.sleep(_INTER_ARTICLE_SLEEP)
+        if cfg.llm.backend == "ollama":
+            time.sleep(_INTER_ARTICLE_SLEEP)
 
     print(f"Backfill complete: {success} enriched, {fail} failed (of {len(articles)} total)")

@@ -46,7 +46,7 @@ def _fake_resp(content: str):
     return R()
 
 
-def test_llamacpp_builds_json_schema_chat_request(monkeypatch):
+def test_llamacpp_builds_chat_request(monkeypatch):
     captured = {}
 
     def fake_post(url, json=None, timeout=None):
@@ -61,8 +61,10 @@ def test_llamacpp_builds_json_schema_chat_request(monkeypatch):
 
     assert captured["url"] == "http://localhost:11435/v1/chat/completions"
     p = captured["payload"]
-    assert p["response_format"]["type"] == "json_schema"
-    assert p["response_format"]["json_schema"]["name"] == "enrichment"
+    # response_format/json_schema is intentionally omitted: the GBNF grammar sampler
+    # evaluates minLength/maxLength at every token step (~20x slower on b10075).
+    # Structural validation is handled by Pydantic + one retry instead.
+    assert "response_format" not in p
     assert [m["role"] for m in p["messages"]] == ["system", "user"]
     assert p["chat_template_kwargs"] == {"enable_thinking": False}
     # parsed + validated end-to-end

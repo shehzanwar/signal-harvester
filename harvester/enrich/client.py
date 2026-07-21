@@ -141,13 +141,11 @@ class EnrichmentClient:
             "top_k": self._cfg.llm.top_k,
             "repeat_penalty": self._cfg.llm.repeat_penalty,
             "max_tokens": 1024,
-            # Native grammar-constrained decoding — llama-server compiles the JSON
-            # schema to GBNF, so malformed JSON is impossible at the source.
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {"name": "enrichment", "schema": ENRICHMENT_JSON_SCHEMA, "strict": True},
-            },
             # Qwen3: send tokens to JSON, not chain-of-thought.
+            # We skip response_format/json_schema here because the GBNF grammar
+            # sampler (which evaluates minLength/maxLength string constraints at
+            # every token step) is ~20x slower than free generation on this build.
+            # Pydantic validation + one retry catches any structural issues.
             "chat_template_kwargs": {"enable_thinking": False},
         }
         if self._cfg.llm.seed is not None:
