@@ -25,6 +25,11 @@ class TierCriteria(BaseModel):
 
 
 class LLMConfig(BaseModel):
+    # "ollama": /api/generate with the raw-ChatML + stream-salvage workarounds for
+    # the Ollama 0.32/Windows wsarecv crash. "llamacpp": clean OpenAI-compatible
+    # /v1/chat/completions against a standalone llama-server with native
+    # json_schema grammar — no workarounds. See EnrichmentClient.
+    backend: Literal["ollama", "llamacpp"] = "ollama"
     model: str = "qwen3:8b"
     base_url: str = "http://localhost:11434/v1"
     api_key: str = "ollama"  # Ollama ignores this; the openai client requires a non-empty value

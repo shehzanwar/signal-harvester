@@ -72,40 +72,102 @@ class EnrichmentClient:
     def __init__(self, cfg: ProfileConfig) -> None:
         self._cfg = cfg
         self._system_prompt = build_system_prompt(cfg)
-        # Derive the Ollama base URL (strip /v1 if present)
+        # Ollama /api/generate URL (strip /v1 if present).
         base = cfg.llm.base_url.rstrip("/")
         if base.endswith("/v1"):
             base = base[:-3]
         self._generate_url = f"{base}/api/generate"
+        # llama-server OpenAI-compatible chat endpoint (base_url keeps its /v1).
+        self._chat_url = cfg.llm.base_url.rstrip("/") + "/chat/completions"
 
     def enrich(self, article: dict[str, Any], cfg: ProfileConfig) -> dict[str, Any]:
+        if cfg.llm.backend == "llamacpp":
+            raw = self._enrich_llamacpp(article, cfg)
+        else:
+            raw = self._enrich_ollama(article, cfg)
+        result = _parse_and_validate(raw, article)
+        return result.to_storage_dict(
+            model=cfg.llm.model,
+            prompt_version=PROMPT_VERSION,
+            raw_response=raw,
+        )
+
+    def _enrich_ollama(self, article: dict[str, Any], cfg: ProfileConfig) -> str:
+        """Legacy path: raw ChatML + stream-salvage + multi-turn repair, needed to
+        survive the Ollama 0.32/Windows wsarecv crash. Returns the raw response
+        that _parse_and_validate then re-checks (the repair here pre-validates)."""
         user_msg = build_user_message(article, max_tokens=cfg.llm.max_article_tokens)
         initial_prompt = _CHATML.format(system=self._system_prompt, user=user_msg)
 
         raw = self._call_llm(initial_prompt)
         try:
-            result = _parse_and_validate(raw, article)
+            _parse_and_validate(raw, article)
         except (ValueError, ValidationError) as first_exc:
             log.warning(
                 "llm_output_invalid id=%s error=%s — attempting repair",
                 article.get("id", "?"),
                 first_exc,
             )
-            # Re-send the original article context so the model corrects its JSON
-            # structure rather than inventing content from scratch.
             repair_prompt = _CHATML_REPAIR.format(
                 system=self._system_prompt,
                 user=user_msg,
-                bad_response=raw[:2000],  # cap to avoid ballooning context
+                bad_response=raw[:2000],
                 error=str(first_exc)[:200],
             )
             raw = self._call_llm(repair_prompt)
-            result = _parse_and_validate(raw, article)  # raise if still broken → caught upstream
+        return raw
 
-        return result.to_storage_dict(
-            model=cfg.llm.model,
-            prompt_version=PROMPT_VERSION,
-            raw_response=raw,
+    def _enrich_llamacpp(self, article: dict[str, Any], cfg: ProfileConfig) -> str:
+        """Clean path: one call, native json_schema grammar, one retry. No ChatML,
+        no stream-salvage, no crash sleeps — llama-server doesn't crash like Ollama."""
+        user_msg = build_user_message(article, max_tokens=cfg.llm.max_article_tokens)
+        raw = self._call_llamacpp(user_msg)
+        try:
+            _parse_and_validate(raw, article)
+        except (ValueError, ValidationError) as exc:
+            log.warning("llamacpp_output_invalid id=%s error=%s — one retry", article.get("id", "?"), exc)
+            raw = self._call_llamacpp(user_msg)
+        return raw
+
+    def _call_llamacpp(self, user_msg: str) -> str:
+        payload: dict[str, Any] = {
+            "model": self._cfg.llm.model,
+            "messages": [
+                {"role": "system", "content": self._system_prompt},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": self._cfg.llm.temperature,
+            "top_p": self._cfg.llm.top_p,
+            "top_k": self._cfg.llm.top_k,
+            "repeat_penalty": self._cfg.llm.repeat_penalty,
+            "max_tokens": 1024,
+            # Native grammar-constrained decoding — llama-server compiles the JSON
+            # schema to GBNF, so malformed JSON is impossible at the source.
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "enrichment", "schema": ENRICHMENT_JSON_SCHEMA, "strict": True},
+            },
+            # Qwen3: send tokens to JSON, not chain-of-thought.
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+        if self._cfg.llm.seed is not None:
+            payload["seed"] = self._cfg.llm.seed
+
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = httpx.post(self._chat_url, json=payload, timeout=120.0)
+                resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+                if content and content.strip():
+                    return content
+                last_exc = ValueError("llama-server returned empty content")
+            except (httpx.HTTPError, KeyError, ValueError) as exc:
+                last_exc = exc
+            if attempt < 2:
+                time.sleep(2)
+        raise RuntimeError(
+            f"llama-server /v1/chat/completions failed after 3 attempts: {last_exc}"
         )
 
     def _call_llm(self, prompt: str) -> str:

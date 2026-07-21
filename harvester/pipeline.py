@@ -141,8 +141,11 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             db.mark_failed(art["id"], "failed_llm")
             counts["failed"] += 1
             counts["failed_llm"] += 1
-        # Brief pause so llama-server can crash and respawn before the next request
-        time.sleep(_INTER_ARTICLE_SLEEP)
+        # The inter-article pause exists only to let Ollama's llama-server crash and
+        # respawn between requests. A standalone llama-server doesn't crash, so the
+        # llamacpp backend skips the wait entirely (this is most of a run's wall time).
+        if cfg.llm.backend == "ollama":
+            time.sleep(_INTER_ARTICLE_SLEEP)
 
     # -- Stage 4: Cluster ----------------------------------------------------
     # Cluster over a rolling 48h window of ALL enriched articles (not just this
