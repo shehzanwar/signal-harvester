@@ -189,6 +189,34 @@ The dashboard is a single-page React app served by FastAPI at `localhost:8000`.
 
 ---
 
+## Scheduling
+
+Run once from the project root to register a daily Task Scheduler job.
+
+**Pipeline only** (refreshes data and dashboard, no git push):
+
+```cmd
+schtasks /Create /TN "SignalHarvester\DailyBriefing" ^
+  /TR "\"%CD%\scripts\run_harvester.cmd\"" ^
+  /SC DAILY /ST 06:00 /RU %USERNAME% /F
+```
+
+**Full publish cycle** (pipeline → frontend build → export → git push):
+
+```cmd
+schtasks /Create /TN "SignalHarvester\DailyPublish" ^
+  /TR "\"%CD%\scripts\publish.cmd\"" ^
+  /SC DAILY /ST 06:00 /RU %USERNAME% /F
+```
+
+`/F` makes re-running idempotent — safe to run again to change the start time.
+
+Verify: `schtasks /Query /TN "SignalHarvester\DailyBriefing" /V /FO LIST`
+
+Test immediately: `schtasks /Run /TN "SignalHarvester\DailyBriefing"` then tail `logs\scheduler.log`.
+
+---
+
 ## Output artifacts
 
 Each run produces:

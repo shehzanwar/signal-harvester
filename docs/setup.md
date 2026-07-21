@@ -106,13 +106,32 @@ cd frontend && npm run dev
 
 ## Step 6 — Schedule daily runs (Windows Task Scheduler)
 
-1. Open Task Scheduler → Create Basic Task.
-2. **Trigger:** Daily at your preferred time (e.g., 6:00 AM).
-3. **Action:** Start a Program
-   - **Program:** `C:\path\to\signal-harvester\scripts\run_harvester.cmd`
-   - **Start in:** `C:\path\to\signal-harvester`
-4. **NAS output:** Use a UNC path in your YAML (`\\NAS\intel\...`), not a mapped drive letter. Task Scheduler runs under a different user context and mapped drives may not be visible.
-5. Test by right-clicking the task → Run, then check `logs\scheduler.log`.
+Run once from the project root in a Command Prompt (not PowerShell):
+
+```cmd
+schtasks /Create /TN "SignalHarvester\DailyBriefing" ^
+  /TR "\"%CD%\scripts\run_harvester.cmd\"" ^
+  /SC DAILY /ST 06:00 /RU %USERNAME% /F
+```
+
+`%CD%` captures the project root at registration time. Change `/ST 06:00` to your preferred wake-up time.
+
+Verify it registered:
+
+```cmd
+schtasks /Query /TN "SignalHarvester\DailyBriefing" /V /FO LIST
+```
+
+Test without waiting:
+
+```cmd
+schtasks /Run /TN "SignalHarvester\DailyBriefing"
+# then check logs\scheduler.log
+```
+
+**NAS output:** Use a UNC path in your YAML (`\\NAS\intel\...`), not a mapped drive letter — Task Scheduler runs under a different user context and mapped drives may not be visible.
+
+**Full publish cycle** (pipeline → frontend build → git push): replace `run_harvester.cmd` with `publish.cmd` in the `/TR` argument. Requires a configured git remote.
 
 ---
 
