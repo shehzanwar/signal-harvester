@@ -14,6 +14,11 @@ $logFile   = "S:\Projects\Agentic Info Harvest\logs\llama-server.log"
 # Wait for GPU drivers and desktop to settle before loading the model.
 Start-Sleep -Seconds 30
 
-# *> redirects all streams (stdout + stderr) to the log.
-# The process runs in this hidden PS window until the server is stopped.
-& "$llamaDir\llama-server.exe" -m $model -c 8192 -np 2 -ngl 999 --host 127.0.0.1 --port 11435 --flash-attn on *> $logFile
+# Start-Process detaches llama-server as its own independent process so this
+# hidden PS window can exit immediately. Using & with *> in a hidden window
+# causes the native exe to silently fail to start.
+Start-Process -FilePath "$llamaDir\llama-server.exe" `
+    -ArgumentList "-m `"$model`" -c 8192 -np 2 -ngl 999 --host 127.0.0.1 --port 11435 --flash-attn on" `
+    -WorkingDirectory $llamaDir `
+    -RedirectStandardError $logFile `
+    -NoNewWindow
