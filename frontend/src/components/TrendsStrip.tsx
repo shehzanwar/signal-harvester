@@ -99,9 +99,9 @@ function TierBars({ days }: { days: TrendsDay[] }) {
 // ── Main TrendsStrip ─────────────────────────────────────────────────────────
 export function TrendsStrip({ trends }: Props) {
   const isMobile = useIsMobile();
-  // Collapsed by default on mobile (saves vertical space), open on desktop;
-  // the user's choice is remembered across sessions.
-  const [open, setOpen] = useLocalStorageState<boolean>("signal-trends-open", !isMobile);
+  // Collapsed by default — articles load above the fold immediately.
+  // User's choice is remembered across sessions.
+  const [open, setOpen] = useLocalStorageState<boolean>("signal-trends-open", false);
 
   const hasData = trends.daily.length > 0;
 

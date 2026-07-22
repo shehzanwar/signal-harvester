@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { collapseClusters } from "../lib/clusters";
+import { useIsMobile } from "../lib/hooks";
 import type { Article } from "../types";
 import { ArticleCard } from "./ArticleCard";
 
@@ -42,6 +43,11 @@ export function TieredFeed({
   onToggleSave,
   onToggleRead,
 }: Props) {
+  const isMobile = useIsMobile();
+  // T2 compact list mode is only available on desktop — on mobile T2 always
+  // renders as full cards so the inline summary remains visible.
+  const t2Compact = compact && !isMobile;
+
   const [showNoise, setShowNoise] = useState(false);
   const [showT3, setShowT3] = useState(true);
   const [showAllT1, setShowAllT1] = useState(false);
@@ -146,9 +152,15 @@ export function TieredFeed({
       {/* T2 */}
       {t2.length > 0 && (
         <Section title="Notable" emoji="🟡" count={t2.length} accent="text-amber-400">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            className={
+              t2Compact
+                ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800 overflow-hidden"
+                : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            }
+          >
             {t2.map((a) => (
-              <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+              <ArticleCard key={a.id} article={a} compact={t2Compact} {...cardProps(a)} />
             ))}
           </div>
         </Section>
