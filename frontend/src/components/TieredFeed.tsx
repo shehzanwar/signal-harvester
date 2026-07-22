@@ -30,6 +30,7 @@ interface Props {
 }
 
 const T1_PREVIEW_COUNT = 10;
+const BRIEF_T1_LIMIT = 7;
 
 function dateBucket(publishedAt?: string): "Today" | "Yesterday" | "Earlier" {
   if (!publishedAt) return "Earlier";
@@ -153,19 +154,21 @@ export function TieredFeed({
 
   // ── 5-Minute Brief: all T1 + top 3 T2 by social score, T3/NOISE hidden ────────
   if (briefMode) {
-    const t1b = reps.filter((a) => a.tier === "T1");
+    const t1All = reps.filter((a) => a.tier === "T1");
+    const t1b = t1All.slice(0, BRIEF_T1_LIMIT);
     const t2b = reps.filter((a) => a.tier === "T2");
     const top3 = [...t2b].sort((a, b) => (b.social_score ?? 0) - (a.social_score ?? 0)).slice(0, 3);
+    const hiddenT1 = t1All.length - t1b.length;
     const hiddenT2 = t2b.length - top3.length;
     const hiddenOther = reps.filter((a) => a.tier === "T3" || a.tier === "NOISE").length;
 
     return (
       <div className="space-y-10">
         {t1b.length > 0 && (
-          <Section title="Critical" emoji="🔴" count={t1b.length} accent="text-red-400">
+          <Section title="Critical" emoji="🔴" count={t1All.length} accent="text-red-400">
             <div className="space-y-4">
               {t1b.map((a) => (
-                <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+                <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
               ))}
             </div>
           </Section>
@@ -181,7 +184,7 @@ export function TieredFeed({
         )}
         <div className="text-center py-4 border-t border-neutral-800">
           <p className="text-sm text-neutral-500 mb-2">
-            {[hiddenT2 > 0 && `${hiddenT2} more notable`, hiddenOther > 0 && `${hiddenOther} background`]
+            {[hiddenT1 > 0 && `${hiddenT1} more critical`, hiddenT2 > 0 && `${hiddenT2} more notable`, hiddenOther > 0 && `${hiddenOther} background`]
               .filter(Boolean).join(" · ")} articles in the full briefing
           </p>
           {onExitBriefMode && (
@@ -235,9 +238,9 @@ export function TieredFeed({
                 {groups.map(({ label, items }) => (
                   <div key={label}>
                     {showHeaders && <DateLabel label={label} />}
-                    <div className="space-y-4">
+                    <div className={compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
                       {items.map((a) => (
-                        <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+                        <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
                       ))}
                     </div>
                   </div>

@@ -204,12 +204,14 @@ export function ArticleCard({
             label={article.sentiment_label}
             score={article.sentiment_score}
             rationale={article.sentiment_rationale}
+            kind="editorial"
           />
           {article.predicted_reaction_label && article.predicted_reaction_score != null && (
             <SentimentBadge
               label={article.predicted_reaction_label}
               score={article.predicted_reaction_score}
               rationale={article.predicted_reaction_rationale}
+              kind="predicted"
             />
           )}
           {article.perception_gap != null && Math.abs(article.perception_gap) >= 0.2 && (
