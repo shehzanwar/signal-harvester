@@ -452,15 +452,19 @@ def fetch_bluesky_replies(article_url: str, top_n: int = 10) -> list[dict[str, A
         return []
 
 
-def fetch_youtube_comments(article_title: str, top_n: int = 15) -> list[dict[str, Any]]:
+def fetch_youtube_comments(
+    article_title: str,
+    top_n: int = 15,
+    preferred_channels: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Fetch YouTube comments for the most relevant video matching an article title.
 
     Requires YOUTUBE_API_KEY env var (Google Data API v3, free tier: 10k units/day).
     Each call costs ~102 quota units: 100 for search + ~2 for comment threads.
     Cap callers to ≤20 articles/run to stay within 20% of daily quota.
 
-    Search strategy: query by article title, restrict to videos published in the
-    last 7 days, take the top 2 results, fetch up to 10 top-level comments each.
+    Search strategy: fetch 5 candidates, boost preferred_channels to the front
+    (case-insensitive channel name match), then take the top 2 for comment fetching.
     Returns [{text, score, author}] sorted by like count descending.
     """
     api_key = os.environ.get("YOUTUBE_API_KEY", "")
@@ -479,7 +483,7 @@ def fetch_youtube_comments(article_title: str, top_n: int = 15) -> list[dict[str
                 "part": "snippet",
                 "type": "video",
                 "order": "relevance",
-                "maxResults": 3,
+                "maxResults": 5,
                 "relevanceLanguage": "en",
                 "publishedAfter": published_after,
             },
@@ -493,6 +497,13 @@ def fetch_youtube_comments(article_title: str, top_n: int = 15) -> list[dict[str
     except Exception as exc:
         log.debug("yt_search_failed title=%s err=%s", article_title[:60], exc)
         return []
+
+    # Boost preferred channels to the front without discarding others.
+    if preferred_channels:
+        preferred_lower = {ch.lower() for ch in preferred_channels}
+        videos.sort(
+            key=lambda v: 0 if v.get("snippet", {}).get("channelTitle", "").lower() in preferred_lower else 1
+        )
 
     comments: list[dict[str, Any]] = []
     for video in videos[:2]:

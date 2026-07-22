@@ -282,7 +282,7 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             title = art.get("title", "") if art else ""
             if not title:
                 continue
-            comments = fetch_youtube_comments(title)
+            comments = fetch_youtube_comments(title, preferred_channels=cfg.social.youtube.preferred_channels)
             if comments:
                 yt_count += db.save_comments(article_id, "youtube", comments)
         if yt_count:

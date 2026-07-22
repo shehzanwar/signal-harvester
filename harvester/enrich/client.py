@@ -55,6 +55,7 @@ _COMMENT_SENTIMENT_SYSTEM = (
     "assess how the general public is reacting to this news.\n\n"
     "Analyze ONLY what the comments actually express — do not infer from the article content. "
     "If comments are sparse or ambiguous, use confidence: \"low\".\n\n"
+    "Respond in English regardless of the language the comments are written in.\n\n"
     "Respond with JSON ONLY — no markdown, no explanation. Use EXACTLY these field names:\n"
     '{"label": "positive|negative|neutral|mixed", '
     '"score": <float -1.0 to 1.0>, '

@@ -204,3 +204,26 @@ schedule:
 retention:
   article_days: 90
   health_days: 30
+
+# Social enrichment settings. Requires YOUTUBE_API_KEY env var to activate.
+# preferred_channels: case-insensitive channel name match — these are boosted
+# to the top of search results before comment fetching. Channels not on the
+# list are still fetched if they appear in the top 5 results; they're just
+# deprioritized. Add or remove channels to tune comment source quality.
+social:
+  youtube:
+    preferred_channels:
+      - "BBC News"
+      - "Reuters"
+      - "Associated Press"
+      - "Al Jazeera English"
+      - "CNN"
+      - "Sky News"
+      - "NBC News"
+      - "ABC News"
+      - "CBS News"
+      - "The Guardian"
+      - "France 24 English"
+      - "DW News"
+      - "CNBC"
+      - "Bloomberg Television"

@@ -68,6 +68,32 @@ class RetentionConfig(BaseModel):
     health_days: int = 30
 
 
+class YouTubeConfig(BaseModel):
+    # Channel names to boost to the top of YouTube search results.
+    # Case-insensitive match against the video's channelTitle field.
+    # Channels not in this list are still fetched — they're just deprioritized.
+    preferred_channels: list[str] = [
+        "BBC News",
+        "Reuters",
+        "Associated Press",
+        "Al Jazeera English",
+        "CNN",
+        "Sky News",
+        "NBC News",
+        "ABC News",
+        "CBS News",
+        "The Guardian",
+        "France 24 English",
+        "DW News",
+        "CNBC",
+        "Bloomberg Television",
+    ]
+
+
+class SocialConfig(BaseModel):
+    youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
+
+
 class ProfileConfig(BaseModel):
     profile: str
     dashboard_title: str = "Signal Harvester"
@@ -81,6 +107,7 @@ class ProfileConfig(BaseModel):
     output: OutputConfig = Field(default_factory=OutputConfig)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
+    social: SocialConfig = Field(default_factory=SocialConfig)
 
     @field_validator("feeds")
     @classmethod
