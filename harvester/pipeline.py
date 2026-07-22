@@ -14,7 +14,7 @@ from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
-from harvester.social import SocialFetcher, fetch_hn_comments, fetch_reddit_comments
+from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_reddit_comments
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
 from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
@@ -247,6 +247,20 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             comments = fetch_reddit_comments(permalink)
             if comments:
                 comment_count += db.save_comments(article_id, "reddit", comments)
+
+        # Bluesky: public API (no auth required) for any article with social engagement
+        art_url_map = {art["id"]: art["url"] for art in enriched_today}
+        bsky_candidates = sorted({s["article_id"] for s in all_signals})[:30]
+        for article_id in bsky_candidates:
+            if db.has_comments(article_id, "bluesky"):
+                continue
+            url = art_url_map.get(article_id)
+            if not url:
+                continue
+            comments = fetch_bluesky_replies(url)
+            if comments:
+                comment_count += db.save_comments(article_id, "bluesky", comments)
+
         if comment_count:
             log.info("comments_done inserted=%d", comment_count)
 

@@ -32,6 +32,7 @@ _HN_ITEM = "https://hn.algolia.com/api/v1/items"
 _LEMMY_SEARCH = "https://lemmy.world/api/v3/search"
 _MASTODON_TRENDS = "https://mastodon.social/api/v1/trends/links"
 _BSKY_BASE = "https://bsky.social/xrpc"
+_BSKY_PUBLIC = "https://public.api.bsky.app/xrpc"
 _REDDIT_TOKEN = "https://www.reddit.com/api/v1/access_token"
 _REDDIT_INFO = "https://oauth.reddit.com/api/info.json"
 
@@ -54,6 +55,7 @@ class _Throttle:
 
 _lemmy_throttle = _Throttle(1.1)
 _bsky_throttle = _Throttle(0.5)
+_bsky_replies_throttle = _Throttle(0.6)
 _reddit_throttle = _Throttle(1.1)
 _reddit_comments_throttle = _Throttle(1.1)
 
@@ -364,4 +366,83 @@ def fetch_reddit_comments(permalink: str, top_n: int = 10) -> list[dict[str, Any
         return comments[:top_n]
     except Exception as exc:
         log.debug("reddit_comments_failed permalink=%s err=%s", permalink[:60], exc)
+        return []
+
+
+def fetch_bluesky_replies(article_url: str, top_n: int = 10) -> list[dict[str, Any]]:
+    """Fetch Bluesky posts discussing article_url via the unauthenticated public API.
+
+    Searches by exact URL; falls back to domain if <2 hits. Expands one level
+    of replies for posts with reply_count > 0. Returns [{text, score, author}].
+    """
+    _bsky_replies_throttle.wait()
+    try:
+        resp = httpx.get(
+            f"{_BSKY_PUBLIC}/app.bsky.feed.searchPosts",
+            params={"q": article_url, "limit": 15, "sort": "top"},
+            headers={"User-Agent": _UA},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        posts = resp.json().get("posts", [])
+
+        if len(posts) < 2:
+            domain = urlsplit(article_url).netloc.lstrip("www.")
+            if not domain:
+                return []
+            _bsky_replies_throttle.wait()
+            resp2 = httpx.get(
+                f"{_BSKY_PUBLIC}/app.bsky.feed.searchPosts",
+                params={"q": domain, "limit": 25, "sort": "top"},
+                headers={"User-Agent": _UA},
+                timeout=_TIMEOUT,
+            )
+            resp2.raise_for_status()
+            domain_posts = resp2.json().get("posts", [])
+            # Keep only posts whose text mentions the domain (reduce off-topic noise)
+            posts = [p for p in domain_posts if domain in (p.get("record", {}).get("text", "") or "")]
+
+        if not posts:
+            return []
+
+        comments: list[dict[str, Any]] = []
+        for post in posts[:8]:
+            record = post.get("record", {})
+            post_text = (record.get("text") or "").strip()
+            score = (post.get("likeCount", 0) or 0) + (post.get("repostCount", 0) or 0)
+            if len(post_text) > 40:
+                comments.append({
+                    "text": post_text[:500],
+                    "score": score,
+                    "author": post.get("author", {}).get("handle"),
+                })
+
+            # Expand one level of replies for posts that have them
+            uri = post.get("uri", "")
+            if (post.get("replyCount", 0) or 0) > 0 and uri and len(comments) < top_n:
+                _bsky_replies_throttle.wait()
+                try:
+                    thread_resp = httpx.get(
+                        f"{_BSKY_PUBLIC}/app.bsky.feed.getPostThread",
+                        params={"uri": uri, "depth": 1, "parentHeight": 0},
+                        headers={"User-Agent": _UA},
+                        timeout=_TIMEOUT,
+                    )
+                    thread_resp.raise_for_status()
+                    for reply in (thread_resp.json().get("thread", {}).get("replies") or [])[:3]:
+                        rp = reply.get("post", {})
+                        rt = (rp.get("record", {}).get("text") or "").strip()
+                        if len(rt) > 40:
+                            comments.append({
+                                "text": rt[:500],
+                                "score": rp.get("likeCount", 0) or 0,
+                                "author": rp.get("author", {}).get("handle"),
+                            })
+                except Exception as exc:
+                    log.debug("bsky_thread_failed uri=%s err=%s", uri[:60], exc)
+
+        comments.sort(key=lambda c: c.get("score") or 0, reverse=True)
+        return comments[:top_n]
+    except Exception as exc:
+        log.debug("bluesky_replies_failed url=%s err=%s", article_url[:60], exc)
         return []
