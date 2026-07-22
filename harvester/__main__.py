@@ -30,7 +30,7 @@ def main() -> None:
     # serve
     serve_p = sub.add_parser("serve", help="Start the dashboard (API + frontend)")
     serve_p.add_argument("--host", default="127.0.0.1")
-    serve_p.add_argument("--port", type=int, default=8000)
+    serve_p.add_argument("--port", type=int, default=8001)  # must match vite.config.ts proxy target
 
     # backfill
     bf = sub.add_parser("backfill", help="Re-enrich articles by date range or status")
