@@ -6,6 +6,7 @@ import { ArticleCard } from "./ArticleCard";
 interface Props {
   articles: Article[];
   search: string;
+  skipSearchFilter?: boolean;
   compact: boolean;
   mode?: "tiered" | "foryou";
   forYouOrder?: (reps: Article[]) => Article[];
@@ -26,6 +27,7 @@ const T1_PREVIEW_COUNT = 10;
 export function TieredFeed({
   articles,
   search,
+  skipSearchFilter,
   compact,
   mode = "tiered",
   forYouOrder,
@@ -46,7 +48,7 @@ export function TieredFeed({
 
   let filtered = articles;
 
-  if (search) {
+  if (search && !skipSearchFilter) {
     const q = search.toLowerCase();
     filtered = filtered.filter(
       (a) =>

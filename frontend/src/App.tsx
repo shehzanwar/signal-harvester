@@ -62,6 +62,7 @@ function flattenArticles(articles: Article[], search: string, savedOnly: boolean
 
 export default function App() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [todayOnly, setTodayOnly] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -130,11 +131,17 @@ export default function App() {
     refetchInterval: IS_STATIC_MODE ? false : 300_000,
   });
 
-  // search is NOT in the queryKey — filtering is client-side so we don't
-  // refetch on every keystroke. todayOnly changes the dataset so it stays in.
+  // debouncedSearch is in the queryKey when live: FTS5 search runs server-side.
+  // Static mode ignores search params (no server), so the key stays stable.
+  const isServerSearch = !IS_STATIC_MODE && debouncedSearch.length > 0;
   const { data: articlesData, isLoading, error } = useQuery({
-    queryKey: ["articles", todayOnly],
-    queryFn: () => api.articles({ today_only: todayOnly, limit: 2000 }),
+    queryKey: ["articles", todayOnly, IS_STATIC_MODE ? "" : debouncedSearch],
+    queryFn: () =>
+      api.articles({
+        today_only: todayOnly,
+        search: isServerSearch ? debouncedSearch : undefined,
+        limit: isServerSearch ? 200 : 2000,
+      }),
     refetchInterval: IS_STATIC_MODE ? false : 120_000,
   });
 
@@ -166,8 +173,9 @@ export default function App() {
     [allArticles, category],
   );
 
-  // Flat list of visible articles for keyboard navigation
-  const flatArticles = flattenArticles(categoryArticles, search, showSavedOnly, savedIds);
+  // Flat list of visible articles for keyboard navigation.
+  // When the server has already filtered by FTS5, skip the client-side text pass.
+  const flatArticles = flattenArticles(categoryArticles, isServerSearch ? "" : search, showSavedOnly, savedIds);
 
   // cluster_id -> all members, for listing corroborating coverage in the detail panel
   const clusterMembers = useMemo(() => clusterMembersMap(allArticles), [allArticles]);
@@ -227,6 +235,11 @@ export default function App() {
     });
     return breakdownRows(b);
   }, [sortMode, detailArticle, prefs, readIds]);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(id);
+  }, [search]);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   useEffect(() => {
@@ -498,6 +511,7 @@ export default function App() {
           <TieredFeed
             articles={categoryArticles}
             search={search}
+            skipSearchFilter={isServerSearch}
             compact={effectiveCompact}
             mode={sortMode}
             forYouOrder={forYouOrderFn}
