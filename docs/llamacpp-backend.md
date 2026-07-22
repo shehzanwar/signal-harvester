@@ -9,9 +9,10 @@ backfill this crash loop turned a ~40-minute job into several hours.
 
 The `llamacpp` backend bypasses Ollama entirely and talks to a **standalone
 llama-server** (from llama.cpp) over its OpenAI-compatible
-`/v1/chat/completions` endpoint, using native `json_schema` grammar-constrained
-decoding. No ChatML, no stream-salvage, no crash sleeps — just one call and one
-retry.
+`/v1/chat/completions` endpoint. No ChatML, no stream-salvage, no crash sleeps —
+just one call and one retry. On Blackwell (RTX 50-series) with `--flash-attn on`
+it runs at **~65 t/s** — roughly 50% faster than Ollama and 4× faster end-to-end
+(no inter-article sleep).
 
 You need an OpenAI-compatible server on `:11435`. Two ways to get one; the
 harvester only cares that `/v1/chat/completions` answers, so either works.
@@ -50,12 +51,13 @@ Once all four DLL sources are in the same folder, run:
 
 ```
 llama-server -m C:/Users/couga/.ollama/models/Qwen3-8B-Q5_K_M.gguf ^
-  -c 8192 -np 2 -ngl 999 --host 127.0.0.1 --port 11435
+  -c 8192 -np 2 -ngl 999 --host 127.0.0.1 --port 11435 --flash-attn on
 ```
 
 - `-c 8192` — context window (matches the profile's `num_ctx`).
 - `-np 2` — two parallel decoding slots (see "Throughput", below).
 - `-ngl 999` — offload all layers to the GPU.
+- `--flash-attn on` — **required on Blackwell (sm_120)**; without it throughput collapses to ~0.4 t/s.
 
 ### Option B — llama-cpp-python's server
 
@@ -91,19 +93,28 @@ Then run the pipeline as usual: `python -m harvester run`. The `llamacpp` backen
 also skips the 5-second inter-article sleep (which only existed to wait out
 Ollama crashes), so runs are dramatically faster.
 
-## 4. Blackwell (RTX 50-series) performance caveat
+## 4. Performance — Blackwell (RTX 50-series)
 
-Tested on RTX 5070 / driver 610.74 / b10075 build: the standalone `llama-server`
-runs at **~3 tokens/second** even with `--flash-attn on` and all layers on the GPU.
-Ollama (bundled llama.cpp) on the same hardware runs at ~43 tokens/second. The
-GPU is compute-saturated (99% SM util, 9% memory bandwidth) instead of the
-memory-bandwidth-bound pattern normal for autoregressive decoding — this is a
-build-level regression in b10075's Blackwell CUDA kernels, likely tied to the
-experimental `BLACKWELL_NATIVE_FP4` kernel path not fully supporting Q5_K_M.
+Tested on RTX 5070 / driver 610.74 / b10075 build with Qwen3-8B Q5_K_M, **GPU
+fully uncontested** (no other GPU workloads running):
 
-**Do not enable the `llamacpp` backend on Blackwell until a newer build fixes
-this.** Retest with builds from mid-2026 or later. The backend code is production-
-ready — only the binary's GPU performance regresses on this specific architecture.
+| Backend | Speed | Notes |
+|---|---|---|
+| `llamacpp` (llama-server, `--flash-attn on`) | **~65 t/s** | 10-article sample, 2.2s avg/call |
+| `ollama` (bundled llama.cpp) | ~43 t/s | baseline |
+
+The standalone `llama-server` is **~50% faster than Ollama** on Blackwell when
+the GPU is uncontested. Combined with the removed inter-article sleep, end-to-end
+pipeline runs are roughly **4× faster** (286 articles: ~10 min vs ~43 min).
+
+**`--flash-attn on` is required** — without it throughput collapses to ~0.4 t/s
+on Blackwell (sm_120). The flag is already in the launch command in Option A above.
+
+**Note on GPU contention:** an earlier test session showed ~2.75 t/s and was
+misattributed to a Blackwell kernel regression. The actual cause was competing
+GPU/CPU workloads during that session. If you see unexpectedly low throughput,
+check `nvidia-smi` for other processes consuming GPU resources before diagnosing
+the binary.
 
 ## 5. Validate before trusting it — A/B on the golden set
 
