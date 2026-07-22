@@ -51,6 +51,16 @@ def main() -> None:
         help="Re-enrich only articles enriched with this exact prompt version (e.g. v1)",
     )
 
+    # weekly-digest
+    wd = sub.add_parser("weekly-digest", help="Generate a week-in-review Markdown digest")
+    wd.add_argument(
+        "--weeks-ago",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Generate for N weeks ago (default: 0 = this week)",
+    )
+
     # prune
     prune_p = sub.add_parser("prune", help="Delete old articles according to the retention policy")
     prune_p.add_argument(
@@ -100,6 +110,33 @@ def main() -> None:
     from harvester.logging_setup import setup_logging
 
     setup_logging(level=args.log_level)
+
+    # ── weekly-digest ─────────────────────────────────────────────────────────
+    if args.command == "weekly-digest":
+        from datetime import datetime, timedelta, timezone
+
+        from harvester.config import load_profile
+        from harvester.store.db import Database
+        from harvester.store.writers import write_weekly_digest
+
+        cfg = load_profile(args.profile)
+        db = Database.from_config(cfg)
+        db.init_schema()
+
+        weeks_ago = getattr(args, "weeks_ago", 0)
+        now = datetime.now(timezone.utc) - timedelta(weeks=weeks_ago)
+        # Week window: last 7 days ending today (or the reference day).
+        week_start = now - timedelta(days=6)
+        since = (now - timedelta(days=7)).isoformat()
+
+        articles = db.get_enriched_articles(since=since)
+        out = write_weekly_digest(articles, cfg, week_start=week_start)
+        if out:
+            t1 = sum(1 for a in articles if a.get("tier") == "T1")
+            t2 = sum(1 for a in articles if a.get("tier") == "T2")
+            print(f"Weekly digest written: {out}")
+            print(f"  {len(articles)} articles · T1: {t1} · T2: {t2}")
+        return
 
     # ── prune ─────────────────────────────────────────────────────────────────
     if args.command == "prune":

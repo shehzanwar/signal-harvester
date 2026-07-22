@@ -16,7 +16,7 @@ from harvester.extract import extract_text
 from harvester.social import SocialFetcher
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
-from harvester.store.writers import write_json_article, write_markdown_digest
+from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
 
 log = logging.getLogger(__name__)
 
@@ -228,6 +228,14 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             log.warning("write_json_failed id=%s error=%s", art["id"], exc)
 
     write_markdown_digest(enriched_all, cfg, run_id=run_id)
+
+    # Weekly digest — generated automatically on Sunday (ISO weekday 7).
+    now = datetime.now(timezone.utc)
+    if now.isoweekday() == 7:
+        week_start = now - timedelta(days=6)  # the Monday of this Mon-Sun window
+        seven_days_ago = (now - timedelta(days=7)).isoformat()
+        weekly_articles = db.get_enriched_articles(since=seven_days_ago)
+        write_weekly_digest(weekly_articles, cfg, week_start=week_start)
 
     # -- Stage 7: Prune -------------------------------------------------------
     r = cfg.retention
