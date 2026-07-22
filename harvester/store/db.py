@@ -432,10 +432,12 @@ class Database:
         return [dict(r) for r in rows]
 
     def get_articles_needing_perception(self) -> list[dict[str, Any]]:
-        """Return v5+ enriched articles that don't yet have a perception_gap score.
+        """Return v5+ enriched articles that need perception scoring.
 
-        Includes articles with and without comments — articles without comments get a
-        'predicted' confidence score from existing predicted_reaction data, no LLM call.
+        Includes:
+        - Articles never scored (perception_gap IS NULL)
+        - Articles scored on predicted fallback (public_sentiment_label IS NULL) that
+          now have ≥2 comments — comment fetching may have run after a prior scoring pass.
         """
         with self._conn() as con:
             rows = con.execute(
@@ -447,8 +449,15 @@ class Database:
                    FROM articles a
                    JOIN enrichments e ON a.id = e.article_id
                    WHERE a.status = 'enriched'
-                     AND e.perception_gap IS NULL
                      AND e.predicted_reaction_score IS NOT NULL
+                     AND (
+                       e.perception_gap IS NULL
+                       OR (
+                         e.public_sentiment_label IS NULL
+                         AND (SELECT count(*) FROM article_comments ac
+                              WHERE ac.article_id = a.id) >= 2
+                       )
+                     )
                    ORDER BY a.fetched_at DESC"""
             ).fetchall()
         return [dict(r) for r in rows]

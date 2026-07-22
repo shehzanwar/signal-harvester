@@ -55,7 +55,12 @@ _COMMENT_SENTIMENT_SYSTEM = (
     "assess how the general public is reacting to this news.\n\n"
     "Analyze ONLY what the comments actually express — do not infer from the article content. "
     "If comments are sparse or ambiguous, use confidence: \"low\".\n\n"
-    "Respond with JSON ONLY — no markdown, no preamble, no explanation."
+    "Respond with JSON ONLY — no markdown, no explanation. Use EXACTLY these field names:\n"
+    '{"label": "positive|negative|neutral|mixed", '
+    '"score": <float -1.0 to 1.0>, '
+    '"dominant_emotion": "anger|approval|concern|indifference|amusement|fear|sadness|enthusiasm", '
+    '"confidence": "high|medium|low", '
+    '"rationale": "<one sentence>"}'
 )
 
 _STOPWORDS = frozenset({
