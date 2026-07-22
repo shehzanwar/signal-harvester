@@ -776,6 +776,73 @@ class Database:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def prune(
+        self,
+        article_days: int,
+        health_days: int,
+        *,
+        dry_run: bool = False,
+    ) -> dict[str, int]:
+        """Delete articles older than article_days and feed_health older than health_days.
+
+        Deletes child rows first so FK constraints are satisfied. The FTS trigger
+        fires on enrichments DELETE so articles_fts is cleaned up automatically.
+        T1 articles are exempt from pruning — they represent the most significant
+        events and should be kept indefinitely.
+
+        Returns counts of rows deleted (or that would be deleted when dry_run=True).
+        """
+        cutoff_articles = (
+            datetime.now(timezone.utc) - timedelta(days=article_days)
+        ).isoformat() if article_days > 0 else None
+        cutoff_health = (
+            datetime.now(timezone.utc) - timedelta(days=health_days)
+        ).isoformat() if health_days > 0 else None
+
+        counts: dict[str, int] = {"articles": 0, "enrichments": 0, "social_signals": 0, "feed_health": 0}
+
+        with self._conn() as con:
+            if cutoff_articles:
+                # T1 articles are exempt — they record significant events worth keeping.
+                ids = [
+                    r[0] for r in con.execute(
+                        """SELECT a.id FROM articles a
+                           LEFT JOIN enrichments e ON e.article_id = a.id
+                           WHERE a.fetched_at < ?
+                             AND (e.tier IS NULL OR e.tier != 'T1')""",
+                        (cutoff_articles,),
+                    ).fetchall()
+                ]
+                counts["articles"] = len(ids)
+                if ids:
+                    placeholders = ",".join("?" * len(ids))
+                    if dry_run:
+                        counts["enrichments"] = con.execute(
+                            f"SELECT COUNT(*) FROM enrichments WHERE article_id IN ({placeholders})", ids
+                        ).fetchone()[0]
+                        counts["social_signals"] = con.execute(
+                            f"SELECT COUNT(*) FROM social_signals WHERE article_id IN ({placeholders})", ids
+                        ).fetchone()[0]
+                    else:
+                        counts["social_signals"] = con.execute(
+                            f"DELETE FROM social_signals WHERE article_id IN ({placeholders})", ids
+                        ).rowcount
+                        counts["enrichments"] = con.execute(
+                            f"DELETE FROM enrichments WHERE article_id IN ({placeholders})", ids
+                        ).rowcount
+                        con.execute(
+                            f"DELETE FROM articles WHERE id IN ({placeholders})", ids
+                        )
+
+            if cutoff_health:
+                counts["feed_health"] = con.execute(
+                    "SELECT COUNT(*) FROM feed_health WHERE checked_at < ?", (cutoff_health,)
+                ).fetchone()[0]
+                if not dry_run:
+                    con.execute("DELETE FROM feed_health WHERE checked_at < ?", (cutoff_health,))
+
+        return counts
+
     def save_feed_health(self, records: list[dict[str, Any]]) -> None:
         """Persist one health record per feed from the current pipeline run."""
         with self._conn() as con:

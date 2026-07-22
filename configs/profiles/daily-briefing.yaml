@@ -197,3 +197,9 @@ output:
 
 schedule:
   interval: daily
+
+# Data retention. T1 articles are always kept regardless of article_days.
+# Set article_days: 0 to disable pruning.
+retention:
+  article_days: 90
+  health_days: 30

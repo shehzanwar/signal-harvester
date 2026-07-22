@@ -51,6 +51,26 @@ def main() -> None:
         help="Re-enrich only articles enriched with this exact prompt version (e.g. v1)",
     )
 
+    # prune
+    prune_p = sub.add_parser("prune", help="Delete old articles according to the retention policy")
+    prune_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be deleted without deleting anything",
+    )
+    prune_p.add_argument(
+        "--article-days",
+        type=int,
+        metavar="N",
+        help="Override retention.article_days from the profile",
+    )
+    prune_p.add_argument(
+        "--health-days",
+        type=int,
+        metavar="N",
+        help="Override retention.health_days from the profile",
+    )
+
     # prompt-stats
     sub.add_parser("prompt-stats", help="Show prompt version coverage and stale article count")
 
@@ -80,6 +100,33 @@ def main() -> None:
     from harvester.logging_setup import setup_logging
 
     setup_logging(level=args.log_level)
+
+    # ── prune ─────────────────────────────────────────────────────────────────
+    if args.command == "prune":
+        from harvester.config import load_profile
+        from harvester.store.db import Database
+
+        cfg = load_profile(args.profile)
+        db = Database.from_config(cfg)
+        db.init_schema()
+
+        article_days = getattr(args, "article_days", None) or cfg.retention.article_days
+        health_days = getattr(args, "health_days", None) or cfg.retention.health_days
+        dry_run = getattr(args, "dry_run", False)
+
+        counts = db.prune(article_days, health_days, dry_run=dry_run)
+        label = "Would delete" if dry_run else "Deleted"
+        print(
+            f"\n{'[DRY RUN] ' if dry_run else ''}"
+            f"Retention policy: articles > {article_days}d, feed_health > {health_days}d\n"
+            f"  {label}: {counts['articles']:,} articles, "
+            f"{counts['enrichments']:,} enrichments, "
+            f"{counts['social_signals']:,} social signals, "
+            f"{counts['feed_health']:,} feed_health records\n"
+        )
+        if dry_run and any(counts.values()):
+            print("  Run without --dry-run to apply.")
+        return
 
     # ── prompt-stats ──────────────────────────────────────────────────────────
     if args.command == "prompt-stats":

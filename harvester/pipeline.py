@@ -229,6 +229,17 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
 
     write_markdown_digest(enriched_all, cfg, run_id=run_id)
 
+    # -- Stage 7: Prune -------------------------------------------------------
+    r = cfg.retention
+    if r.article_days > 0 or r.health_days > 0:
+        pruned = db.prune(r.article_days, r.health_days)
+        if any(pruned.values()):
+            log.info(
+                "pruned articles=%d enrichments=%d social=%d feed_health=%d",
+                pruned["articles"], pruned["enrichments"],
+                pruned["social_signals"], pruned["feed_health"],
+            )
+
     _finalize(db, run_id, cfg, started_at, counts)
     return counts
 

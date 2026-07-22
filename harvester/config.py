@@ -59,6 +59,13 @@ class ScheduleConfig(BaseModel):
     interval: Literal["daily", "hourly"] = "daily"
 
 
+class RetentionConfig(BaseModel):
+    # Days to keep articles and enrichments. 0 = keep forever.
+    article_days: int = 90
+    # Days to keep feed_health records (cheaper to keep longer).
+    health_days: int = 30
+
+
 class ProfileConfig(BaseModel):
     profile: str
     dashboard_title: str = "Signal Harvester"
@@ -71,6 +78,7 @@ class ProfileConfig(BaseModel):
     prompts: PromptsConfig = Field(default_factory=PromptsConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
+    retention: RetentionConfig = Field(default_factory=RetentionConfig)
 
     @field_validator("feeds")
     @classmethod
