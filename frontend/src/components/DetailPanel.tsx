@@ -96,7 +96,7 @@ export function DetailPanel({
             <button
               onClick={() => onToggleSave(article.id)}
               title={isSaved ? "Unsave" : "Save"}
-              className="flex items-center justify-center text-lg leading-none p-1 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-800 transition-colors"
+              className="flex items-center justify-center text-lg leading-none p-1 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 rounded hover:bg-neutral-800 transition-colors"
               aria-pressed={isSaved}
             >
               {isSaved ? "★" : "☆"}
@@ -111,7 +111,7 @@ export function DetailPanel({
             <button
               onClick={onClose}
               aria-label="Close detail panel"
-              className="flex items-center justify-center text-neutral-500 hover:text-neutral-200 text-xl leading-none p-1 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-800 transition-colors"
+              className="flex items-center justify-center text-neutral-500 hover:text-neutral-200 text-xl leading-none p-1 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 rounded hover:bg-neutral-800 transition-colors"
             >
               ×
             </button>

@@ -124,7 +124,7 @@ export function ArticleCard({
           {onToggleSave && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleSave(article.id); }}
-              className="flex items-center justify-center h-8 w-8 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-700 text-sm"
+              className="flex items-center justify-center h-8 w-8 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 rounded hover:bg-neutral-700 text-sm"
               title={isSaved ? "Unsave" : "Save"}
               aria-pressed={isSaved}
             >
@@ -134,7 +134,7 @@ export function ArticleCard({
           {onToggleRead && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleRead(article.id); }}
-              className="flex items-center justify-center h-8 w-8 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-700 text-xs text-neutral-500"
+              className="flex items-center justify-center h-8 w-8 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 rounded hover:bg-neutral-700 text-xs text-neutral-500"
               title={isRead ? "Mark unread" : "Mark read"}
             >
               {isRead ? "●" : "○"}
@@ -167,7 +167,7 @@ export function ArticleCard({
           {onToggleSave && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleSave(article.id); }}
-              className="flex items-center justify-center text-sm p-1 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-800 transition-colors"
+              className="flex items-center justify-center text-sm p-1 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 rounded hover:bg-neutral-800 transition-colors"
               title={isSaved ? "Unsave" : "Save"}
               aria-pressed={isSaved}
             >
@@ -177,7 +177,7 @@ export function ArticleCard({
           {onToggleRead && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleRead(article.id); }}
-              className="flex items-center justify-center text-xs p-1 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 rounded hover:bg-neutral-800 transition-colors text-neutral-500"
+              className="flex items-center justify-center text-xs p-1 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 rounded hover:bg-neutral-800 transition-colors text-neutral-500"
               title={isRead ? "Mark unread" : "Mark read"}
             >
               {isRead ? "●" : "○"}

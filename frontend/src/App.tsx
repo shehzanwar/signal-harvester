@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IS_STATIC_MODE, api } from "./api/client";
+import { BottomNav } from "./components/BottomNav";
 import { BottomSheet } from "./components/BottomSheet";
 import { CategoryBar } from "./components/CategoryBar";
 import { DetailPanel } from "./components/DetailPanel";
@@ -75,6 +76,7 @@ export default function App() {
   const [rankSeed, setRankSeed] = useState(0);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const searchMRef = useRef<HTMLInputElement>(null);
 
   const isMobile = useIsMobile();
   const isTouch = useIsTouch();
@@ -319,7 +321,7 @@ export default function App() {
       {/* Trends strip (collapsible) */}
       {trendsData && <TrendsStrip trends={trendsData} />}
 
-      <main className="max-w-7xl mx-auto px-4 py-6" role="main">
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:pb-6 pb-24" role="main">
         {/* Category navigation */}
         {allArticles.length > 0 && (
           <CategoryBar
@@ -397,38 +399,20 @@ export default function App() {
           </span>
         </div>
 
-        {/* Toolbar — mobile: search + one filter button (opens bottom sheet) */}
-        <div className="flex sm:hidden items-center gap-2 mb-4">
-          <div className="flex-1 min-w-0">
-            <label htmlFor="search-m" className="sr-only">Search articles</label>
-            <input
-              id="search-m"
-              type="search"
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2
-                         text-sm text-neutral-100 placeholder-neutral-500
-                         focus:outline-none focus:border-neutral-500 transition-colors"
-            />
-          </div>
-          <button
-            onClick={() => setFilterSheet(true)}
-            className="shrink-0 relative flex items-center justify-center gap-1.5 min-h-[40px] px-3
-                       rounded-lg border border-neutral-700 text-sm text-neutral-300 active:bg-neutral-800"
-            aria-label="Filters"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-            </svg>
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center
-                               text-[10px] font-bold rounded-full bg-blue-600 text-white">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
+        {/* Toolbar — mobile: search only (filters/saved/today in BottomNav) */}
+        <div className="flex sm:hidden items-center mb-4">
+          <label htmlFor="search-m" className="sr-only">Search articles</label>
+          <input
+            id="search-m"
+            ref={searchMRef}
+            type="search"
+            placeholder="Search articles…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5
+                       text-sm text-neutral-100 placeholder-neutral-500
+                       focus:outline-none focus:border-neutral-500 transition-colors"
+          />
         </div>
 
         {/* Keyboard hint — non-touch only */}
@@ -577,6 +561,19 @@ export default function App() {
         prefs={prefs}
         onUpdate={updatePrefs}
         onReplacePrefs={replacePrefs}
+      />
+
+      {/* Mobile bottom navigation */}
+      <BottomNav
+        todayOnly={todayOnly}
+        showSavedOnly={showSavedOnly}
+        savedCount={savedIds.size}
+        filterCount={[hideRead].filter(Boolean).length}
+        onTodayToggle={() => setTodayOnly((v) => !v)}
+        onSearchFocus={() => searchMRef.current?.focus()}
+        onSavedToggle={() => setShowSavedOnly((v) => !v)}
+        onFilterSheet={() => setFilterSheet(true)}
+        onSettings={() => setPrefsOpen(true)}
       />
     </div>
   );
