@@ -99,12 +99,21 @@ CREATE TABLE IF NOT EXISTS runs (
     notes       TEXT
 );
 
+CREATE TABLE IF NOT EXISTS feed_health (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    feed_name     TEXT NOT NULL,
+    checked_at    TEXT NOT NULL,
+    article_count INTEGER NOT NULL DEFAULT 0,
+    error         TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_status     ON articles(status);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched_at ON articles(fetched_at);
 CREATE INDEX IF NOT EXISTS idx_enrichments_tier    ON enrichments(tier);
 CREATE INDEX IF NOT EXISTS idx_enrichments_at      ON enrichments(enriched_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_feed_guid ON articles(feed_name, guid)
     WHERE guid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_feed_health_feed ON feed_health(feed_name, checked_at);
 """
 
 # FTS5 virtual table + triggers — created separately from _SCHEMA so they can be
@@ -766,3 +775,90 @@ class Database:
                 "SELECT * FROM runs ORDER BY started_at DESC LIMIT ?", (limit,)
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def save_feed_health(self, records: list[dict[str, Any]]) -> None:
+        """Persist one health record per feed from the current pipeline run."""
+        with self._conn() as con:
+            con.executemany(
+                """INSERT INTO feed_health (feed_name, checked_at, article_count, error)
+                   VALUES (:feed_name, :checked_at, :article_count, :error)""",
+                records,
+            )
+
+    def get_feed_health(self, feed_names: list[str]) -> list[dict[str, Any]]:
+        """Return one summary dict per feed name, including feeds never checked."""
+        if not feed_names:
+            return []
+
+        # Fetch the last 10 records per feed (sufficient for consecutive-error detection
+        # and 3-day silence check on a daily pipeline).
+        placeholders = ",".join("?" * len(feed_names))
+        with self._conn() as con:
+            rows = con.execute(
+                f"""SELECT feed_name, checked_at, article_count, error
+                    FROM feed_health
+                    WHERE feed_name IN ({placeholders})
+                    ORDER BY feed_name, checked_at DESC""",
+                feed_names,
+            ).fetchall()
+
+        feed_records: dict[str, list[dict[str, Any]]] = {}
+        for r in rows:
+            name = r["feed_name"]
+            if name not in feed_records:
+                feed_records[name] = []
+            if len(feed_records[name]) < 10:
+                feed_records[name].append(dict(r))
+
+        silent_threshold = (
+            datetime.now(timezone.utc) - timedelta(days=3)
+        ).isoformat()
+
+        results = []
+        for name in feed_names:
+            records = feed_records.get(name, [])
+            if not records:
+                results.append({
+                    "feed_name": name,
+                    "last_checked": None,
+                    "last_article_count": None,
+                    "last_error": None,
+                    "consecutive_errors": 0,
+                    "status": "unknown",
+                })
+                continue
+
+            latest = records[0]
+            consecutive_errors = sum(
+                1 for _ in (r for r in records if r["error"])
+                if True  # count leading errors
+            )
+            # count only the unbroken leading run of errors
+            consecutive_errors = 0
+            for r in records:
+                if r["error"]:
+                    consecutive_errors += 1
+                else:
+                    break
+
+            if latest["error"]:
+                status = "error"
+            elif latest["article_count"] == 0:
+                last_seen = next(
+                    (r["checked_at"] for r in records if r["article_count"] > 0),
+                    None,
+                )
+                status = "silent" if (last_seen is None or last_seen < silent_threshold) else "ok"
+            else:
+                status = "ok"
+
+            results.append({
+                "feed_name": name,
+                "last_checked": latest["checked_at"],
+                "last_article_count": latest["article_count"],
+                "last_error": latest["error"],
+                "consecutive_errors": consecutive_errors,
+                "status": status,
+            })
+
+        return results

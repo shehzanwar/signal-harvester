@@ -24,17 +24,36 @@ class RSSSource:
         self._feeds = cfg.feeds
         self._default_max = cfg.max_articles_per_feed
 
-    def fetch(self) -> list[dict[str, Any]]:
+    def fetch(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Return (articles, health_records).
+
+        health_records: one dict per feed with feed_name, checked_at,
+        article_count (raw count before DB dedup), and error (None on success).
+        """
         articles: list[dict[str, Any]] = []
+        health: list[dict[str, Any]] = []
+        checked_at = datetime.now(timezone.utc).isoformat()
         for feed_cfg in self._feeds:
             try:
                 cap = feed_cfg.max_articles if feed_cfg.max_articles is not None else self._default_max
                 arts = self._fetch_feed(feed_cfg, cap)
                 articles.extend(arts)
                 log.info("feed_fetched feed=%s count=%d cap=%d", feed_cfg.name, len(arts), cap)
+                health.append({
+                    "feed_name": feed_cfg.name,
+                    "checked_at": checked_at,
+                    "article_count": len(arts),
+                    "error": None,
+                })
             except Exception as exc:
                 log.warning("feed_failed feed=%s error=%s", feed_cfg.name, exc)
-        return articles
+                health.append({
+                    "feed_name": feed_cfg.name,
+                    "checked_at": checked_at,
+                    "article_count": 0,
+                    "error": str(exc)[:500],
+                })
+        return articles, health
 
     def _fetch_feed(self, feed_cfg: FeedConfig, max_articles: int) -> list[dict[str, Any]]:
         try:

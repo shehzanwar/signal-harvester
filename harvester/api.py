@@ -59,6 +59,11 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
     def stats() -> dict[str, Any]:
         return _db().get_stats()
 
+    @app.get("/api/feed-health")
+    def feed_health() -> list[dict[str, Any]]:
+        feed_names = [f.name for f in cfg.feeds] if cfg else []
+        return _db().get_feed_health(feed_names)
+
     @app.get("/api/trends")
     def trends(days: int = Query(30, ge=7, le=365)) -> dict[str, Any]:
         return _db().get_trends(days=days)

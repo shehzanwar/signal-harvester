@@ -81,7 +81,8 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
 
     # -- Stage 1: Fetch -------------------------------------------------------
     source = RSSSource(cfg)
-    raw_articles = source.fetch()
+    raw_articles, feed_health = source.fetch()
+    db.save_feed_health(feed_health)
     counts["fetched"] = len(raw_articles)
     new_articles = db.insert_new_articles(raw_articles)
     counts["new"] = len(new_articles)
