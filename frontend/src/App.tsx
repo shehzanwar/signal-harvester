@@ -73,8 +73,13 @@ export default function App() {
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [filterSheet, setFilterSheet] = useState(false);
   const [sortMode, setSortMode] = useState<"tiered" | "foryou">("tiered");
+  const [briefMode, setBriefMode] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<ReadonlySet<string>>(new Set());
   const [rankSeed, setRankSeed] = useState(0);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [lastVisit] = useState<Date | null>(() => {
+    try { const s = localStorage.getItem("signal-last-visit"); return s ? new Date(s) : null; } catch { return null; }
+  });
   const searchRef = useRef<HTMLInputElement>(null);
   const searchMRef = useRef<HTMLInputElement>(null);
 
@@ -175,12 +180,41 @@ export default function App() {
     [allArticles, category],
   );
 
+  // Tag filter applied after category filter (client-side; OR semantics across selected tags).
+  const tagFilteredArticles = useMemo(
+    () =>
+      selectedTags.size > 0
+        ? categoryArticles.filter((a) => a.tags.some((t) => selectedTags.has(t)))
+        : categoryArticles,
+    [categoryArticles, selectedTags],
+  );
+
   // Flat list of visible articles for keyboard navigation.
   // When the server has already filtered by FTS5, skip the client-side text pass.
-  const flatArticles = flattenArticles(categoryArticles, isServerSearch ? "" : search, showSavedOnly, savedIds);
+  const flatArticles = flattenArticles(tagFilteredArticles, isServerSearch ? "" : search, showSavedOnly, savedIds);
 
   // cluster_id -> all members, for listing corroborating coverage in the detail panel
   const clusterMembers = useMemo(() => clusterMembersMap(allArticles), [allArticles]);
+
+  // Top tag chips: trending tags first, backfilled from all-time top_tags up to 12.
+  const topTags = useMemo(() => {
+    if (!trendsData) return [];
+    const seen = new Set<string>();
+    const tags: string[] = [];
+    for (const t of trendsData.trending.slice(0, 6)) { seen.add(t.tag); tags.push(t.tag); }
+    for (const t of trendsData.top_tags) {
+      if (!seen.has(t.tag)) { seen.add(t.tag); tags.push(t.tag); if (tags.length >= 12) break; }
+    }
+    return tags;
+  }, [trendsData]);
+
+  const toggleTag = useCallback((tag: string) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag); else next.add(tag);
+      return next;
+    });
+  }, []);
 
   // Mobile forces compact cards; the toggle only exists on desktop.
   const effectiveCompact = compact || isMobile;
@@ -210,6 +244,7 @@ export default function App() {
 
   const activateForYou = useCallback(() => {
     setSortMode("foryou");
+    setBriefMode(false);
     setRankSeed((s) => s + 1);
   }, []);
 
@@ -242,6 +277,15 @@ export default function App() {
     const id = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(id);
   }, [search]);
+
+  // Save visit timestamp so the "NEW" badge shows on next session.
+  useEffect(() => {
+    const save = () => {
+      try { localStorage.setItem("signal-last-visit", new Date().toISOString()); } catch {}
+    };
+    window.addEventListener("pagehide", save);
+    return () => { save(); window.removeEventListener("pagehide", save); };
+  }, []);
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   useEffect(() => {
@@ -330,6 +374,34 @@ export default function App() {
             selected={category}
             onSelect={setCategory}
           />
+        )}
+
+        {/* Tag filter chips */}
+        {topTags.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
+            {selectedTags.size > 0 && (
+              <button
+                onClick={() => setSelectedTags(new Set())}
+                className="shrink-0 text-xs px-2.5 py-1 rounded-full border border-neutral-600
+                           text-neutral-400 hover:text-neutral-200 transition-colors whitespace-nowrap"
+              >
+                ✕ Clear
+              </button>
+            )}
+            {topTags.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={`shrink-0 text-xs px-2.5 py-1 rounded-full border transition-colors whitespace-nowrap ${
+                  selectedTags.has(tag)
+                    ? "bg-blue-600 border-blue-500 text-white"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Toolbar — desktop */}
@@ -426,14 +498,25 @@ export default function App() {
         <div className="flex items-center gap-2 mb-4">
           <div className="inline-flex rounded-lg border border-neutral-700 overflow-hidden text-sm">
             <button
-              onClick={() => setSortMode("tiered")}
+              onClick={() => { setSortMode("tiered"); setBriefMode(false); }}
               className={`px-3 py-1.5 transition-colors ${
-                sortMode === "tiered"
+                sortMode === "tiered" && !briefMode
                   ? "bg-neutral-800 text-neutral-100"
                   : "text-neutral-500 hover:text-neutral-300"
               }`}
             >
               Tiered
+            </button>
+            <button
+              onClick={() => { setSortMode("tiered"); setBriefMode(true); }}
+              className={`px-3 py-1.5 transition-colors ${
+                briefMode
+                  ? "bg-emerald-900/50 text-emerald-200"
+                  : "text-neutral-500 hover:text-neutral-300"
+              }`}
+              title="5-minute briefing: all Critical + top 3 Notable articles"
+            >
+              ⚡ 5-min
             </button>
             <button
               onClick={activateForYou}
@@ -493,9 +576,12 @@ export default function App() {
 
         {articlesData && (
           <TieredFeed
-            articles={categoryArticles}
+            articles={tagFilteredArticles}
             search={search}
             skipSearchFilter={isServerSearch}
+            briefMode={briefMode}
+            newSince={lastVisit}
+            onExitBriefMode={() => setBriefMode(false)}
             compact={effectiveCompact}
             mode={sortMode}
             forYouOrder={forYouOrderFn}

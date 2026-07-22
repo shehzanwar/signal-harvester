@@ -10,6 +10,7 @@ interface Props {
   isRead?: boolean;
   isSaved?: boolean;
   isFocused?: boolean;
+  isNew?: boolean;
   onDetail?: (article: Article) => void;
   onToggleSave?: (id: string) => void;
   onToggleRead?: (id: string) => void;
@@ -66,6 +67,7 @@ export function ArticleCard({
   isRead = false,
   isSaved = false,
   isFocused = false,
+  isNew = false,
   onDetail,
   onToggleSave,
   onToggleRead,
@@ -106,6 +108,11 @@ export function ArticleCard({
             {article.title}
           </a>
           <span className="flex items-center gap-2 mt-1 flex-wrap">
+            {isNew && (
+              <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-blue-600 text-white uppercase tracking-wide">
+                New
+              </span>
+            )}
             <span className="text-xs text-neutral-500">{article.feed_name}</span>
             <span className="text-neutral-700">·</span>
             <span className="text-xs text-neutral-500">{relativeTime(article.published_at)}</span>
@@ -155,6 +162,11 @@ export function ArticleCard({
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
           <TierBadge tier={article.tier} />
+          {isNew && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white uppercase tracking-wide">
+              New
+            </span>
+          )}
           <SentimentBadge
             label={article.sentiment_label}
             score={article.sentiment_score}

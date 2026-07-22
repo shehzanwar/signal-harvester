@@ -10,6 +10,8 @@ interface Props {
   skipSearchFilter?: boolean;
   compact: boolean;
   mode?: "tiered" | "foryou";
+  briefMode?: boolean;
+  newSince?: Date | null;
   forYouOrder?: (reps: Article[]) => Article[];
   isMuted?: (a: Article) => boolean;
   lowInterest?: (a: Article) => boolean;
@@ -21,6 +23,7 @@ interface Props {
   onDetail: (article: Article) => void;
   onToggleSave: (id: string) => void;
   onToggleRead: (id: string) => void;
+  onExitBriefMode?: () => void;
 }
 
 const T1_PREVIEW_COUNT = 10;
@@ -31,6 +34,8 @@ export function TieredFeed({
   skipSearchFilter,
   compact,
   mode = "tiered",
+  briefMode = false,
+  newSince,
   forYouOrder,
   isMuted,
   lowInterest,
@@ -42,6 +47,7 @@ export function TieredFeed({
   onDetail,
   onToggleSave,
   onToggleRead,
+  onExitBriefMode,
 }: Props) {
   const isMobile = useIsMobile();
   // T2 compact list mode is only available on desktop — on mobile T2 always
@@ -85,6 +91,7 @@ export function TieredFeed({
     isRead: readIds.has(a.id),
     isSaved: savedIds.has(a.id),
     isFocused: focusedId === a.id,
+    isNew: newSince != null && !!a.published_at && new Date(a.published_at) > newSince,
     onDetail,
     onToggleSave,
     onToggleRead,
@@ -100,6 +107,53 @@ export function TieredFeed({
           : showSavedOnly
           ? "No saved articles. Star items to save them."
           : "Nothing here — try a different category or clear your mutes."}
+      </div>
+    );
+  }
+
+  // ── 5-Minute Brief: all T1 + top 3 T2 by social score, T3/NOISE hidden ────────
+  if (briefMode) {
+    const t1b = reps.filter((a) => a.tier === "T1");
+    const t2b = reps.filter((a) => a.tier === "T2");
+    const top3 = [...t2b].sort((a, b) => (b.social_score ?? 0) - (a.social_score ?? 0)).slice(0, 3);
+    const hiddenT2 = t2b.length - top3.length;
+    const hiddenOther = reps.filter((a) => a.tier === "T3" || a.tier === "NOISE").length;
+
+    return (
+      <div className="space-y-10">
+        {t1b.length > 0 && (
+          <Section title="Critical" emoji="🔴" count={t1b.length} accent="text-red-400">
+            <div className="space-y-4">
+              {t1b.map((a) => (
+                <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+              ))}
+            </div>
+          </Section>
+        )}
+        {top3.length > 0 && (
+          <Section title="Notable" emoji="🟡" count={t2b.length} accent="text-amber-400">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {top3.map((a) => (
+                <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+              ))}
+            </div>
+          </Section>
+        )}
+        <div className="text-center py-4 border-t border-neutral-800">
+          <p className="text-sm text-neutral-500 mb-2">
+            {[hiddenT2 > 0 && `${hiddenT2} more notable`, hiddenOther > 0 && `${hiddenOther} background`]
+              .filter(Boolean).join(" · ")} articles in the full briefing
+          </p>
+          {onExitBriefMode && (
+            <button
+              onClick={onExitBriefMode}
+              className="text-xs px-3 py-1.5 rounded border border-neutral-700 text-neutral-400
+                         hover:text-neutral-200 hover:border-neutral-500 transition-colors"
+            >
+              Read full briefing →
+            </button>
+          )}
+        </div>
       </div>
     );
   }
