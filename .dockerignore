@@ -1,0 +1,45 @@
+# Version control
+.git/
+.gitignore
+
+# Python artifacts
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Runtime data — mounted as volumes at runtime
+output/
+logs/
+*.db
+*.db-wal
+*.db-shm
+site/
+
+# Frontend build artifacts — produced in Docker build stage 1
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Development/secrets
+.env
+.env.*
+.claude/
+ollama/
+
+# Tests and docs — not needed in the image
+tests/
+docs/
+scripts/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

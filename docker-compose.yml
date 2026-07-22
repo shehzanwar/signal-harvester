@@ -1,0 +1,39 @@
+services:
+  # Always-on dashboard API + React frontend
+  api:
+    build: .
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./output:/app/output
+      - ./configs:/app/configs   # mount so profile edits take effect on restart
+    environment:
+      # llama-server runs natively on the host GPU; containers reach it via
+      # host.docker.internal. Change this if your LLM is on a remote host.
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://host.docker.internal:11435/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux: maps to host IP
+    restart: unless-stopped
+
+  # One-shot pipeline runner — invoke with:
+  #   docker compose run --rm pipeline
+  # or add a cron entry:
+  #   0 6 * * * docker compose -f /path/to/docker-compose.yml run --rm pipeline
+  pipeline:
+    build: .
+    volumes:
+      - ./output:/app/output
+      - ./configs:/app/configs
+    environment:
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://host.docker.internal:11435/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - python
+      - -m
+      - harvester
+      - --profile
+      - configs/profiles/daily-briefing.yaml
+      - run
+    profiles:
+      - pipeline   # excluded from `docker compose up`; run explicitly

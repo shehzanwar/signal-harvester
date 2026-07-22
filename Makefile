@@ -1,4 +1,4 @@
-.PHONY: setup model model-primary run serve eval validate test lint fmt clean frontend help
+.PHONY: setup model model-primary run serve eval validate test lint fmt clean frontend docker-build docker-up docker-run docker-down help
 
 PROFILE ?= configs/profiles/security-grc.yaml
 PYTHON   := python
@@ -17,6 +17,10 @@ help:
 	@echo "  fmt            Auto-format with ruff"
 	@echo "  frontend       Build React dashboard"
 	@echo "  clean          Remove output/ and cache files"
+	@echo "  docker-build   Build the Docker image"
+	@echo "  docker-up      Start the dashboard API container (detached)"
+	@echo "  docker-run     Run the pipeline once inside Docker"
+	@echo "  docker-down    Stop all containers"
 
 setup:
 	pip install -e ".[dev]"
@@ -57,3 +61,15 @@ frontend:
 clean:
 	rm -rf output/ .pytest_cache/ .ruff_cache/ .mypy_cache/
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up -d api
+
+docker-run:
+	docker compose run --rm pipeline
+
+docker-down:
+	docker compose down

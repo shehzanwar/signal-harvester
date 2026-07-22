@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -99,13 +101,26 @@ class ProfileConfig(BaseModel):
         return v
 
 
+def _interpolate_env(text: str) -> str:
+    """Expand ${VAR:-default} and ${VAR} placeholders from environment variables.
+
+    Matches Docker Compose variable-substitution syntax so the same profile YAML
+    works both locally (falls back to the default) and inside a container (env var
+    overrides the default without touching the file).
+    """
+    def _replace(m: re.Match[str]) -> str:
+        var, _, default = m.group(1).partition(":-")
+        return os.environ.get(var.strip(), default)
+    return re.sub(r"\$\{([^}]+)\}", _replace, text)
+
+
 def load_profile(path: str | Path) -> ProfileConfig:
     """Load and validate a profile YAML. Raises FileNotFoundError or ValueError on bad config."""
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"Config not found: {p.absolute()}")
     with p.open(encoding="utf-8-sig") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(_interpolate_env(f.read()))
     try:
         return ProfileConfig.model_validate(data)
     except Exception as exc:
