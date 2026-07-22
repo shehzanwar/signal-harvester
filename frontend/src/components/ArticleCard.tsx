@@ -86,7 +86,7 @@ export function ArticleCard({
   if (compact) {
     return (
       <div
-        className={`flex items-start gap-3 py-2 px-3 rounded hover:bg-neutral-800 transition-colors group
+        className={`relative flex items-start gap-3 py-2 px-3 rounded hover:bg-neutral-800 transition-colors group/card
                     cursor-pointer ${dimClass} ${focusRing}`}
         onClick={handleCardClick}
         data-article-id={article.id}
@@ -99,7 +99,7 @@ export function ArticleCard({
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-neutral-200 group-hover:text-white line-clamp-2 leading-snug hover:underline block"
+            className="text-sm text-neutral-200 group-hover/card:text-white line-clamp-2 leading-snug hover:underline block"
             onClick={(e) => {
               e.stopPropagation();
               recordEngagement(article, "open");
@@ -126,8 +126,8 @@ export function ArticleCard({
             <SocialChip article={article} />
           </span>
         </span>
-        {/* Actions — hover-reveal on desktop, always visible + 40px on touch */}
-        <span className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity">
+        {/* Actions — hover-reveal on desktop, always visible on touch */}
+        <span className="flex items-center gap-1 shrink-0 opacity-0 group-hover/card:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity">
           {onToggleSave && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleSave(article.id); }}
@@ -148,6 +148,18 @@ export function ArticleCard({
             </button>
           )}
         </span>
+        {/* Hover summary preview — desktop pointer only, 400ms delay to avoid flashing */}
+        {article.enrich_summary && (
+          <div
+            className="[@media(pointer:coarse)]:hidden absolute left-0 top-full mt-0.5 z-50
+                       w-72 max-w-[calc(100vw-2rem)] p-3 rounded-lg
+                       border border-neutral-700 bg-neutral-900 shadow-2xl
+                       opacity-0 pointer-events-none group-hover/card:opacity-100
+                       transition-opacity duration-150 delay-[400ms]"
+          >
+            <p className="text-xs text-neutral-300 leading-relaxed">{article.enrich_summary}</p>
+          </div>
+        )}
       </div>
     );
   }

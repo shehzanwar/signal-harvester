@@ -28,6 +28,37 @@ interface Props {
 
 const T1_PREVIEW_COUNT = 10;
 
+function dateBucket(publishedAt?: string): "Today" | "Yesterday" | "Earlier" {
+  if (!publishedAt) return "Earlier";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86_400_000);
+  const d = new Date(publishedAt);
+  const pub = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (pub >= today) return "Today";
+  if (pub >= yesterday) return "Yesterday";
+  return "Earlier";
+}
+
+function groupByDate(items: Article[]): Array<{ label: string; items: Article[] }> {
+  const buckets: Partial<Record<string, Article[]>> = {};
+  for (const a of items) {
+    const b = dateBucket(a.published_at);
+    (buckets[b] ??= []).push(a);
+  }
+  return (["Today", "Yesterday", "Earlier"] as const)
+    .filter((l) => buckets[l])
+    .map((l) => ({ label: l, items: buckets[l]! }));
+}
+
+function DateLabel({ label }: { label: string }) {
+  return (
+    <div className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600 mb-2 mt-1">
+      {label}
+    </div>
+  );
+}
+
 export function TieredFeed({
   articles,
   search,
@@ -187,11 +218,24 @@ export function TieredFeed({
       {/* T1 */}
       {t1.length > 0 && (
         <Section title="Critical" emoji="🔴" count={t1.length} accent="text-red-400">
-          <div className="space-y-4">
-            {visibleT1.map((a) => (
-              <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
-            ))}
-          </div>
+          {(() => {
+            const groups = groupByDate(visibleT1);
+            const showHeaders = groups.length > 1;
+            return (
+              <div className="space-y-6">
+                {groups.map(({ label, items }) => (
+                  <div key={label}>
+                    {showHeaders && <DateLabel label={label} />}
+                    <div className="space-y-4">
+                      {items.map((a) => (
+                        <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           {t1.length > T1_PREVIEW_COUNT && (
             <button
               onClick={() => setShowAllT1((v) => !v)}
@@ -206,17 +250,30 @@ export function TieredFeed({
       {/* T2 */}
       {t2.length > 0 && (
         <Section title="Notable" emoji="🟡" count={t2.length} accent="text-amber-400">
-          <div
-            className={
-              t2Compact
-                ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800 overflow-hidden"
-                : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-            }
-          >
-            {t2.map((a) => (
-              <ArticleCard key={a.id} article={a} compact={t2Compact} {...cardProps(a)} />
-            ))}
-          </div>
+          {(() => {
+            const groups = groupByDate(t2);
+            const showHeaders = groups.length > 1;
+            return (
+              <div className="space-y-4">
+                {groups.map(({ label, items }) => (
+                  <div key={label}>
+                    {showHeaders && <DateLabel label={label} />}
+                    <div
+                      className={
+                        t2Compact
+                          ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800"
+                          : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                      }
+                    >
+                      {items.map((a) => (
+                        <ArticleCard key={a.id} article={a} compact={t2Compact} {...cardProps(a)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </Section>
       )}
 
@@ -231,13 +288,24 @@ export function TieredFeed({
           open={showT3}
           onToggle={() => setShowT3((v) => !v)}
         >
-          {showT3 && (
-            <div className="divide-y divide-neutral-800 rounded-lg border border-neutral-800 overflow-hidden">
-              {t3.map((a) => (
-                <ArticleCard key={a.id} article={a} compact {...cardProps(a)} />
-              ))}
-            </div>
-          )}
+          {showT3 && (() => {
+            const groups = groupByDate(t3);
+            const showHeaders = groups.length > 1;
+            return (
+              <div className="space-y-4">
+                {groups.map(({ label, items }) => (
+                  <div key={label}>
+                    {showHeaders && <DateLabel label={label} />}
+                    <div className="divide-y divide-neutral-800 rounded-lg border border-neutral-800">
+                      {items.map((a) => (
+                        <ArticleCard key={a.id} article={a} compact {...cardProps(a)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </Section>
       )}
 

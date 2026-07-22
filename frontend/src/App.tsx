@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IS_STATIC_MODE, api } from "./api/client";
 import { BottomNav } from "./components/BottomNav";
+import { Toast } from "./components/Toast";
 import { BottomSheet } from "./components/BottomSheet";
 import { CategoryBar } from "./components/CategoryBar";
 import { DetailPanel } from "./components/DetailPanel";
@@ -80,6 +81,11 @@ export default function App() {
   const [lastVisit] = useState<Date | null>(() => {
     try { const s = localStorage.getItem("signal-last-visit"); return s ? new Date(s) : null; } catch { return null; }
   });
+  const [toast, setToast] = useState<{ message: string; undo: () => void; key: number } | null>(null);
+  const showToast = useCallback((message: string, undo: () => void) => {
+    setToast({ message, undo, key: Date.now() });
+  }, []);
+  const dismissToast = useCallback(() => setToast(null), []);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchMRef = useRef<HTMLInputElement>(null);
 
@@ -106,13 +112,24 @@ export default function App() {
   );
   const toggleSaveTracked = useCallback(
     (id: string) => {
-      if (!savedIds.has(id)) {
+      const isSaving = !savedIds.has(id);
+      if (isSaving) {
         const a = (articlesDataRef.current ?? []).find((x) => x.id === id);
         if (a) recordEngagement(a, "save");
       }
       toggleSave(id);
+      showToast(isSaving ? "Saved ★" : "Unsaved", () => toggleSave(id));
     },
-    [savedIds, toggleSave],
+    [savedIds, toggleSave, showToast],
+  );
+
+  const toggleReadTracked = useCallback(
+    (id: string) => {
+      const isMarkingRead = !readIds.has(id);
+      toggleRead(id);
+      showToast(isMarkingRead ? "Marked read" : "Marked unread", () => toggleRead(id));
+    },
+    [readIds, toggleRead, showToast],
   );
 
   const { data: profile } = useQuery({
@@ -250,6 +267,7 @@ export default function App() {
 
   const muteArticle = useCallback(
     (a: Article) => {
+      const prevMuted = [...prefs.mutedTags];
       const tags = (a.tags ?? []).map((t) => t.toLowerCase());
       updatePrefs((p) => ({
         ...p,
@@ -257,8 +275,12 @@ export default function App() {
       }));
       recordEngagement(a, "mute");
       setDetailArticle(null);
+      showToast(
+        `Muted "${a.tags[0] ?? "topic"}"`,
+        () => updatePrefs((p) => ({ ...p, mutedTags: prevMuted })),
+      );
     },
-    [updatePrefs],
+    [prefs.mutedTags, updatePrefs, showToast],
   );
 
   // "Why ranked" breakdown for the currently open article (For You only).
@@ -342,7 +364,7 @@ export default function App() {
       }
 
       if (e.key === "r" && focusedId) {
-        toggleRead(focusedId);
+        toggleReadTracked(focusedId);
         return;
       }
 
@@ -355,7 +377,7 @@ export default function App() {
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [flatArticles, focusedId, toggleSaveTracked, toggleRead, openDetail]);
+  }, [flatArticles, focusedId, toggleSaveTracked, toggleReadTracked, openDetail]);
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -594,7 +616,7 @@ export default function App() {
             focusedId={focusedId}
             onDetail={openDetail}
             onToggleSave={toggleSaveTracked}
-            onToggleRead={toggleRead}
+            onToggleRead={toggleReadTracked}
           />
         )}
       </main>
@@ -636,7 +658,7 @@ export default function App() {
         isSaved={detailArticle ? savedIds.has(detailArticle.id) : false}
         isRead={detailArticle ? readIds.has(detailArticle.id) : false}
         onToggleSave={toggleSaveTracked}
-        onToggleRead={toggleRead}
+        onToggleRead={toggleReadTracked}
         onMute={muteArticle}
       />
 
@@ -648,6 +670,16 @@ export default function App() {
         onUpdate={updatePrefs}
         onReplacePrefs={replacePrefs}
       />
+
+      {/* Undo toast */}
+      {toast && (
+        <Toast
+          key={toast.key}
+          message={toast.message}
+          onUndo={toast.undo}
+          onDismiss={dismissToast}
+        />
+      )}
 
       {/* Mobile bottom navigation */}
       <BottomNav
