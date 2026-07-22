@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 from collections import Counter
 from contextlib import contextmanager
@@ -106,6 +107,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_feed_guid ON articles(feed_name, 
     WHERE guid IS NOT NULL;
 """
 
+# FTS5 virtual table + triggers — created separately from _SCHEMA so they can be
+# applied as a migration to existing DBs without touching the main schema script.
+_FTS_INIT: list[str] = [
+    """CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
+        article_id UNINDEXED,
+        title,
+        enrich_summary,
+        tags,
+        tokenize='porter ascii'
+    )""",
+    # INSERT OR REPLACE on enrichments fires DELETE + INSERT, so the delete
+    # trigger cleans up the old FTS row before the insert trigger adds the new one.
+    """CREATE TRIGGER IF NOT EXISTS fts_enrich_after_insert
+    AFTER INSERT ON enrichments BEGIN
+        DELETE FROM articles_fts WHERE article_id = NEW.article_id;
+        INSERT INTO articles_fts(article_id, title, enrich_summary, tags)
+        SELECT NEW.article_id, a.title, NEW.summary, NEW.tags
+        FROM articles a WHERE a.id = NEW.article_id;
+    END""",
+    """CREATE TRIGGER IF NOT EXISTS fts_enrich_after_delete
+    AFTER DELETE ON enrichments BEGIN
+        DELETE FROM articles_fts WHERE article_id = OLD.article_id;
+    END""",
+]
+
 # Maximum LLM retries across all pipeline runs before an article is abandoned
 _MAX_ENRICH_RETRIES = 3
 
@@ -159,6 +185,7 @@ class Database:
                 pass  # column already exists
 
         self._migrate_social_source_check()
+        self._migrate_fts()
 
     def _migrate_social_source_check(self) -> None:
         """Drop the legacy `CHECK (source IN ('hn','reddit'))` on social_signals.
@@ -190,6 +217,24 @@ class Database:
                 DROP TABLE social_signals;
                 ALTER TABLE social_signals_new RENAME TO social_signals;
                 """
+            )
+
+    def _migrate_fts(self) -> None:
+        """Create FTS5 table + triggers and backfill any un-indexed enrichments."""
+        for stmt in _FTS_INIT:
+            try:
+                with self._conn() as con:
+                    con.execute(stmt)
+            except sqlite3.OperationalError:
+                pass  # already exists
+        # Backfill rows that existed before the FTS table was created.
+        with self._conn() as con:
+            con.execute(
+                """INSERT INTO articles_fts(article_id, title, enrich_summary, tags)
+                   SELECT e.article_id, a.title, e.summary, e.tags
+                   FROM enrichments e
+                   JOIN articles a ON a.id = e.article_id
+                   WHERE e.article_id NOT IN (SELECT article_id FROM articles_fts)"""
             )
 
     def insert_new_articles(self, articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -357,6 +402,98 @@ class Database:
                     })
                     d["social_score"] += s["score"] or 0
         return results
+
+    def get_articles_page(
+        self,
+        *,
+        search: str | None = None,
+        tier: str | None = None,
+        today_only: bool = False,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Paginated article listing with optional FTS5 search.
+
+        Returns (total_matching, page_of_articles). Unlike get_enriched_articles,
+        this applies LIMIT/OFFSET at the SQL level and scopes the social-signal
+        query to only the returned rows. Used by the API; not used in the pipeline.
+        """
+        conditions = ["a.status = 'enriched'"]
+        params: list[Any] = []
+
+        if today_only:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            conditions.append("a.fetched_at >= ?")
+            params.append(today)
+        if tier:
+            conditions.append("e.tier = ?")
+            params.append(tier.upper())
+
+        fts_params: list[str] = []
+        if search:
+            tokens = re.findall(r"\w+", search)
+            if tokens:
+                fts_query = " ".join(f"{t}*" for t in tokens)
+                conditions.append(
+                    "e.article_id IN (SELECT article_id FROM articles_fts WHERE articles_fts MATCH ?)"
+                )
+                fts_params.append(fts_query)
+
+        where = " AND ".join(conditions)
+        all_params = params + fts_params
+        order = (
+            "ORDER BY CASE e.tier WHEN 'T1' THEN 1 WHEN 'T2' THEN 2"
+            "              WHEN 'T3' THEN 3 ELSE 4 END, a.published_at DESC"
+        )
+
+        with self._conn() as con:
+            total: int = con.execute(
+                f"""SELECT COUNT(*) FROM articles a
+                    JOIN enrichments e ON a.id = e.article_id
+                    WHERE {where}""",
+                all_params,
+            ).fetchone()[0]
+
+            rows = con.execute(
+                f"""SELECT a.*, e.summary AS enrich_summary, e.tier, e.tier_rationale,
+                           e.sentiment_label, e.sentiment_score, e.sentiment_rationale,
+                           e.tags, e.model, e.enriched_at, e.latency_ms, e.prompt_version
+                    FROM articles a
+                    JOIN enrichments e ON a.id = e.article_id
+                    WHERE {where}
+                    {order}
+                    LIMIT ? OFFSET ?""",
+                all_params + [limit, offset],
+            ).fetchall()
+
+            results: list[dict[str, Any]] = []
+            by_id: dict[str, dict[str, Any]] = {}
+            for r in rows:
+                d = dict(r)
+                d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
+                d["social"] = []
+                d["social_score"] = 0
+                results.append(d)
+                by_id[d["id"]] = d
+
+            if by_id:
+                placeholders = ",".join("?" * len(by_id))
+                for s in con.execute(
+                    f"SELECT article_id, source, score, comments, permalink"
+                    f" FROM social_signals WHERE article_id IN ({placeholders})",
+                    list(by_id.keys()),
+                ).fetchall():
+                    d = by_id.get(s["article_id"])
+                    if d:
+                        d["social"].append({
+                            "source": s["source"],
+                            "score": s["score"] or 0,
+                            "comments": s["comments"] or 0,
+                            "permalink": s["permalink"],
+                        })
+                        d["social_score"] += s["score"] or 0
+
+        return total, results
 
     def get_articles_for_backfill(
         self,

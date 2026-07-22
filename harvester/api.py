@@ -39,26 +39,21 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
         tier: str | None = Query(None, description="Filter by tier: T1, T2, T3, NOISE"),
         limit: int = Query(2000, ge=1, le=5000),
         offset: int = Query(0, ge=0),
-        search: str | None = Query(None, description="Full-text search on title and summary"),
+        search: str | None = Query(None, description="FTS5 full-text search on title, summary, and tags"),
         today_only: bool = Query(False),
     ) -> dict[str, Any]:
-        articles = _db().get_enriched_articles(today_only=today_only, tier=tier)
-        if search:
-            q = search.lower()
-            articles = [
-                a for a in articles
-                if q in (a.get("title") or "").lower()
-                or q in (a.get("enrich_summary") or "").lower()
-                or any(q in tag.lower() for tag in (a.get("tags") or []))
-            ]
-        # Attach cluster metadata (cluster_size, cluster_sources) to all articles
+        total, articles = _db().get_articles_page(
+            search=search,
+            tier=tier,
+            today_only=today_only,
+            limit=limit,
+            offset=offset,
+        )
         attach_cluster_metadata(articles)
-        # Tag each article with its feed's category for the dashboard nav.
         cat_map = cfg.feed_category_map() if cfg else {}
         for a in articles:
             a["category"] = cat_map.get(a.get("feed_name", ""), "general")
-        total = len(articles)
-        return {"total": total, "items": articles[offset: offset + limit]}
+        return {"total": total, "items": articles}
 
     @app.get("/api/stats")
     def stats() -> dict[str, Any]:
