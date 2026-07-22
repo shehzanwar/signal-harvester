@@ -620,6 +620,17 @@ class Database:
                      AND e.prompt_version = ?""",
                 (seven_days_ago, PROMPT_VERSION),
             ).fetchone()[0]
+            version_rows = con.execute(
+                "SELECT prompt_version, COUNT(*) FROM enrichments GROUP BY prompt_version ORDER BY COUNT(*) DESC"
+            ).fetchall()
+        prompt_coverage = {r[0]: r[1] for r in version_rows}
+        # "pre-filter" is the version tag for noise articles skipped by the title
+        # regex — they were never sent to the LLM so they're not "stale" in the
+        # backfill sense.
+        stale_count = sum(
+            v for k, v in prompt_coverage.items()
+            if k != PROMPT_VERSION and k != "pre-filter"
+        )
         return {
             "total_articles": total,
             "enriched_articles": enriched,
@@ -631,6 +642,9 @@ class Database:
             "tiers": dict(tier_rows),
             "t1_7d": t1_7d,
             "last_run": dict(last_run) if last_run else None,
+            "prompt_version": PROMPT_VERSION,
+            "prompt_coverage": prompt_coverage,
+            "stale_count": stale_count,
         }
 
     def get_trends(self, days: int = 30) -> dict[str, Any]:

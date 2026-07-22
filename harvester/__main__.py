@@ -51,6 +51,9 @@ def main() -> None:
         help="Re-enrich only articles enriched with this exact prompt version (e.g. v1)",
     )
 
+    # prompt-stats
+    sub.add_parser("prompt-stats", help="Show prompt version coverage and stale article count")
+
     # validate-config
     sub.add_parser("validate-config", help="Validate profile YAML and exit")
 
@@ -77,6 +80,33 @@ def main() -> None:
     from harvester.logging_setup import setup_logging
 
     setup_logging(level=args.log_level)
+
+    # ── prompt-stats ──────────────────────────────────────────────────────────
+    if args.command == "prompt-stats":
+        from harvester.config import load_profile
+        from harvester.enrich.prompts import PROMPT_VERSION
+        from harvester.store.db import Database
+
+        cfg = load_profile(args.profile)
+        db = Database.from_config(cfg)
+        db.init_schema()
+        stats = db.get_stats()
+        coverage = stats["prompt_coverage"]
+        total_enriched = stats["enriched_articles"]
+        stale = stats["stale_count"]
+
+        print(f"\nPrompt version coverage ({total_enriched:,} enrichments, current: {PROMPT_VERSION})\n")
+        for version, count in sorted(coverage.items(), key=lambda x: x[1], reverse=True):
+            pct = count / total_enriched * 100 if total_enriched else 0
+            tag = "  [current]" if version == PROMPT_VERSION else ""
+            print(f"  {version:<8}{tag:<12} {count:>6,}  ({pct:.1f}%)")
+
+        if stale:
+            print(f"\n  {stale:,} stale article(s) — run: harvester backfill --stale")
+        else:
+            print("\n  All articles are on the current prompt version.")
+        print()
+        return
 
     # ── validate-config ───────────────────────────────────────────────────────
     if args.command == "validate-config":
