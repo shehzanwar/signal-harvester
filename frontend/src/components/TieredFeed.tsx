@@ -104,7 +104,12 @@ export function TieredFeed({
     return (
       <div className="space-y-3">
         {ranked.map((a) => (
-          <ArticleCard key={a.id} article={a} compact={compactFor(a)} {...cardProps(a)} />
+          <ArticleCard
+            key={a.id}
+            article={a}
+            compact={a.tier === "T1" || a.tier === "T2" ? false : compactFor(a)}
+            {...cardProps(a)}
+          />
         ))}
       </div>
     );
@@ -124,7 +129,7 @@ export function TieredFeed({
         <Section title="Critical" emoji="🔴" count={t1.length} accent="text-red-400">
           <div className="space-y-4">
             {visibleT1.map((a) => (
-              <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
+              <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
             ))}
           </div>
           {t1.length > T1_PREVIEW_COUNT && (
@@ -141,15 +146,9 @@ export function TieredFeed({
       {/* T2 */}
       {t2.length > 0 && (
         <Section title="Notable" emoji="🟡" count={t2.length} accent="text-amber-400">
-          <div
-            className={
-              compact
-                ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800 overflow-hidden"
-                : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-            }
-          >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {t2.map((a) => (
-              <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
+              <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
             ))}
           </div>
         </Section>

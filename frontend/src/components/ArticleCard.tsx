@@ -193,7 +193,7 @@ export function ArticleCard({
         href={article.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block text-base font-semibold text-neutral-100 hover:text-white leading-snug mb-2 hover:underline"
+        className={`block ${article.tier === "T1" ? "text-xl font-bold" : "text-base font-semibold"} text-neutral-100 hover:text-white leading-snug mb-2 hover:underline`}
         onClick={(e) => {
           e.stopPropagation();
           recordEngagement(article, "open");
@@ -203,7 +203,7 @@ export function ArticleCard({
       </a>
 
       {article.enrich_summary && (
-        <p className="text-sm text-neutral-300 leading-relaxed mb-3 line-clamp-3">
+        <p className={`text-sm text-neutral-300 leading-relaxed mb-3 ${article.tier === "T1" ? "" : "line-clamp-2"}`}>
           {article.enrich_summary}
         </p>
       )}
