@@ -40,6 +40,9 @@ class LLMConfig(BaseModel):
     top_k: int = 40
     repeat_penalty: float = 1.05
     seed: int | None = None
+    # Parallel enrichment workers. Requires -np N on llama-server to match.
+    # llamacpp only — Ollama path always runs sequentially (crash/respawn cycle).
+    concurrency: int = 1
 
 
 class PromptsConfig(BaseModel):

@@ -116,36 +116,62 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     to_enrich = db.get_articles_for_enrichment()
     log.info("enrich_start count=%d", len(to_enrich))
 
-    for art in to_enrich:
-        # Fast-path: obvious noise by title -- skip LLM entirely
+    def _enrich_one(art: dict[str, Any]) -> str:
+        """Returns 'prefiltered' | 'enriched' | 'failed'."""
         title = art.get("title", "")
         if _is_title_noise(title):
             log.debug("noise_prefiltered id=%s title=%r", art["id"], title[:60])
             db.save_enrichment(art["id"], _noise_enrichment_dict(cfg.llm.model))
-            counts["enriched"] += 1
-            counts["noise_prefiltered"] += 1
-            continue
-
+            return "prefiltered"
         try:
             t0 = time.monotonic()
             enrichment = client.enrich(art, cfg)
             latency_ms = int((time.monotonic() - t0) * 1000)
             db.save_enrichment(art["id"], enrichment, latency_ms=latency_ms)
-            counts["enriched"] += 1
             log.debug(
                 "enriched id=%s tier=%s latency_ms=%d",
                 art["id"], enrichment["tier"], latency_ms,
             )
+            return "enriched"
         except Exception as exc:
             log.warning("enrich_failed id=%s error=%s", art["id"], exc)
             db.mark_failed(art["id"], "failed_llm")
-            counts["failed"] += 1
-            counts["failed_llm"] += 1
-        # The inter-article pause exists only to let Ollama's llama-server crash and
-        # respawn between requests. A standalone llama-server doesn't crash, so the
-        # llamacpp backend skips the wait entirely (this is most of a run's wall time).
-        if cfg.llm.backend == "ollama":
-            time.sleep(_INTER_ARTICLE_SLEEP)
+            return "failed"
+
+    # llamacpp supports concurrent slots (-np N on llama-server must match concurrency).
+    # Ollama always runs sequentially — it needs the inter-article sleep to survive
+    # the crash/respawn cycle, and parallelism would amplify those crashes.
+    concurrency = cfg.llm.concurrency if cfg.llm.backend == "llamacpp" else 1
+
+    if concurrency > 1:
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures = {pool.submit(_enrich_one, art): art for art in to_enrich}
+            for future in as_completed(futures):
+                result = future.result()
+                if result == "prefiltered":
+                    counts["enriched"] += 1
+                    counts["noise_prefiltered"] += 1
+                elif result == "enriched":
+                    counts["enriched"] += 1
+                else:
+                    counts["failed"] += 1
+                    counts["failed_llm"] += 1
+    else:
+        for art in to_enrich:
+            result = _enrich_one(art)
+            if result == "prefiltered":
+                counts["enriched"] += 1
+                counts["noise_prefiltered"] += 1
+            elif result == "enriched":
+                counts["enriched"] += 1
+            else:
+                counts["failed"] += 1
+                counts["failed_llm"] += 1
+            # The inter-article pause exists only to let Ollama's llama-server crash and
+            # respawn between requests. A standalone llama-server doesn't crash, so the
+            # llamacpp backend skips the wait entirely (this is most of a run's wall time).
+            if cfg.llm.backend == "ollama":
+                time.sleep(_INTER_ARTICLE_SLEEP)
 
     # -- Stage 4: Cluster ----------------------------------------------------
     # Cluster over a rolling 48h window of ALL enriched articles (not just this
@@ -257,19 +283,38 @@ def backfill(
 
     client = EnrichmentClient(cfg)
     success = fail = 0
-    for art in articles:
+
+    def _backfill_one(art: dict[str, Any]) -> bool:
+        """Returns True on success, False on failure."""
         db.reset_enrichment(art["id"])
         try:
             t0 = time.monotonic()
             enrichment = client.enrich(art, cfg)
             latency_ms = int((time.monotonic() - t0) * 1000)
             db.save_enrichment(art["id"], enrichment, latency_ms=latency_ms)
-            success += 1
+            return True
         except Exception as exc:
             log.warning("backfill_failed id=%s error=%s", art["id"], exc)
             db.mark_failed(art["id"], "failed_llm")
-            fail += 1
-        if cfg.llm.backend == "ollama":
-            time.sleep(_INTER_ARTICLE_SLEEP)
+            return False
+
+    concurrency = cfg.llm.concurrency if cfg.llm.backend == "llamacpp" else 1
+
+    if concurrency > 1:
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures = {pool.submit(_backfill_one, art): art for art in articles}
+            for future in as_completed(futures):
+                if future.result():
+                    success += 1
+                else:
+                    fail += 1
+    else:
+        for art in articles:
+            if _backfill_one(art):
+                success += 1
+            else:
+                fail += 1
+            if cfg.llm.backend == "ollama":
+                time.sleep(_INTER_ARTICLE_SLEEP)
 
     print(f"Backfill complete: {success} enriched, {fail} failed (of {len(articles)} total)")

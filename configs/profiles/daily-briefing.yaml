@@ -187,6 +187,9 @@ llm:
   base_url: http://localhost:11435/v1
   num_ctx: 8192
   max_article_tokens: 1500
+  # Parallel enrichment workers. Must match -np N in scripts/start_llamaserver.ps1.
+  # Default 1 (full 8192 ctx/request). Set to 2 + change -np to 2 for 2x throughput.
+  concurrency: 1
 
 output:
   root: "output/daily-briefing"
