@@ -278,8 +278,6 @@ export default function App() {
 
   // Mobile forces compact cards; the toggle only exists on desktop.
   const effectiveCompact = compact || isMobile;
-  const activeFilterCount = [todayOnly, hideRead, showSavedOnly].filter(Boolean).length;
-
   // ── Personalization ────────────────────────────────────────────────────────
   const orderedCats = useMemo(() => orderedCategories(prefs.categoryOrder), [prefs.categoryOrder]);
   const isMutedFn = useCallback((a: Article) => isMuted(a, prefs), [prefs]);

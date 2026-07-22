@@ -1,4 +1,4 @@
-import { useIsMobile, useLocalStorageState } from "../lib/hooks";
+import { useLocalStorageState } from "../lib/hooks";
 import type { TrendsDay, TrendingTag, TrendsResponse } from "../types";
 
 interface Props {
@@ -98,7 +98,6 @@ function TierBars({ days }: { days: TrendsDay[] }) {
 
 // ── Main TrendsStrip ─────────────────────────────────────────────────────────
 export function TrendsStrip({ trends }: Props) {
-  const isMobile = useIsMobile();
   // Collapsed by default — articles load above the fold immediately.
   // User's choice is remembered across sessions.
   const [open, setOpen] = useLocalStorageState<boolean>("signal-trends-open", false);
