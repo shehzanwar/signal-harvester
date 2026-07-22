@@ -64,6 +64,42 @@ class EnrichmentResult(BaseModel):
         }
 
 
+class CommentSentimentResult(BaseModel):
+    label: Literal["positive", "negative", "neutral", "mixed"]
+    score: float = Field(ge=-1.0, le=1.0)
+    dominant_emotion: Literal[
+        "anger", "approval", "concern", "indifference",
+        "amusement", "fear", "sadness", "enthusiasm"
+    ]
+    confidence: Literal["high", "medium", "low"]
+    rationale: str = Field(max_length=300)
+
+    @model_validator(mode="after")
+    def label_score_consistent(self) -> "CommentSentimentResult":
+        if self.label == "positive" and self.score < 0:
+            raise ValueError(f"label=positive but score={self.score:.2f} < 0")
+        if self.label == "negative" and self.score > 0:
+            raise ValueError(f"label=negative but score={self.score:.2f} > 0")
+        return self
+
+
+COMMENT_SENTIMENT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "label": {"type": "string", "enum": ["positive", "negative", "neutral", "mixed"]},
+        "score": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+        "dominant_emotion": {"type": "string", "enum": [
+            "anger", "approval", "concern", "indifference",
+            "amusement", "fear", "sadness", "enthusiasm",
+        ]},
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "rationale": {"type": "string", "maxLength": 300},
+    },
+    "required": ["label", "score", "dominant_emotion", "confidence", "rationale"],
+    "additionalProperties": False,
+}
+
+
 _SENTIMENT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {

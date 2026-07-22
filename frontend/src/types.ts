@@ -23,6 +23,12 @@ export interface Article {
   predicted_reaction_label?: SentimentLabel;
   predicted_reaction_score?: number;
   predicted_reaction_rationale?: string;
+  // Phase 3: comment-informed public sentiment + perception gap
+  public_sentiment_label?: SentimentLabel;
+  public_sentiment_score?: number;
+  dominant_emotion?: string;
+  sentiment_confidence?: "high" | "medium" | "low" | "predicted";
+  perception_gap?: number;
   tags: string[];
   model?: string;
   enriched_at?: string;

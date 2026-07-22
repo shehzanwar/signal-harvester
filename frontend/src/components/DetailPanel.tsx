@@ -210,8 +210,8 @@ export function DetailPanel({
             </section>
           )}
 
-          {/* Perception: editorial tone + predicted public reaction */}
-          {(article.sentiment_rationale || article.predicted_reaction_label) && (
+          {/* Perception: editorial tone + predicted/actual public reaction + gap */}
+          {(article.sentiment_rationale || article.predicted_reaction_label || article.perception_gap != null) && (
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
                 Perception
@@ -230,19 +230,52 @@ export function DetailPanel({
                     </div>
                   </div>
                 )}
-                {article.predicted_reaction_label && article.predicted_reaction_score != null && (
+                {/* Show comment-informed public sentiment if available, else predicted */}
+                {(article.public_sentiment_label ?? article.predicted_reaction_label) && (
                   <div className="flex items-start gap-2">
-                    <span className="text-xs text-neutral-600 w-20 shrink-0 pt-0.5">Public</span>
+                    <span className="text-xs text-neutral-600 w-20 shrink-0 pt-0.5">
+                      {article.public_sentiment_label ? "Public" : "Predicted"}
+                    </span>
                     <div className="flex-1 min-w-0">
                       <SentimentBadge
-                        label={article.predicted_reaction_label}
-                        score={article.predicted_reaction_score}
+                        label={(article.public_sentiment_label ?? article.predicted_reaction_label)!}
+                        score={(article.public_sentiment_score ?? article.predicted_reaction_score)!}
                         compact
                       />
-                      {article.predicted_reaction_rationale && (
+                      {article.dominant_emotion && (
+                        <span className="ml-2 text-xs text-neutral-500 italic">{article.dominant_emotion}</span>
+                      )}
+                      {!article.public_sentiment_label && article.predicted_reaction_rationale && (
                         <p className="text-xs text-neutral-500 mt-0.5">{article.predicted_reaction_rationale}</p>
                       )}
                     </div>
+                  </div>
+                )}
+                {/* Perception gap */}
+                {article.perception_gap != null && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-neutral-800 mt-1">
+                    <span className="text-xs text-neutral-600 w-20 shrink-0">Gap</span>
+                    <span
+                      className={`text-sm font-semibold tabular-nums ${
+                        article.perception_gap < -0.2 ? "text-red-400"
+                        : article.perception_gap > 0.2 ? "text-emerald-400"
+                        : "text-neutral-400"
+                      }`}
+                    >
+                      {article.perception_gap > 0 ? "+" : ""}{article.perception_gap.toFixed(2)}
+                    </span>
+                    <span className="text-xs text-neutral-600">
+                      {article.perception_gap < -0.2
+                        ? "public angrier than press"
+                        : article.perception_gap > 0.2
+                        ? "public more positive than press"
+                        : "press and public broadly agree"}
+                    </span>
+                    {article.sentiment_confidence && article.sentiment_confidence !== "predicted" && (
+                      <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-500 border border-neutral-700">
+                        {article.sentiment_confidence}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

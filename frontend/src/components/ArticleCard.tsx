@@ -212,6 +212,16 @@ export function ArticleCard({
               rationale={article.predicted_reaction_rationale}
             />
           )}
+          {article.perception_gap != null && Math.abs(article.perception_gap) >= 0.2 && (
+            <span
+              className={`text-xs tabular-nums font-medium ${
+                article.perception_gap < 0 ? "text-red-400" : "text-emerald-400"
+              }`}
+              title={`Perception gap ${article.perception_gap > 0 ? "+" : ""}${article.perception_gap.toFixed(2)}: public ${article.perception_gap < 0 ? "angrier" : "more positive"} than press`}
+            >
+              {article.perception_gap > 0 ? "↑" : "↓"}{Math.abs(article.perception_gap).toFixed(1)}
+            </span>
+          )}
           <CorroborationBadge count={article.cluster_size ?? 1} />
           <SocialChip article={article} />
         </div>

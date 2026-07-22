@@ -11,7 +11,12 @@ from pydantic import ValidationError
 
 from harvester.config import ProfileConfig
 from harvester.enrich.prompts import PROMPT_VERSION, build_system_prompt, build_user_message
-from harvester.enrich.schemas import ENRICHMENT_JSON_SCHEMA, EnrichmentResult
+from harvester.enrich.schemas import (
+    COMMENT_SENTIMENT_SCHEMA,
+    ENRICHMENT_JSON_SCHEMA,
+    CommentSentimentResult,
+    EnrichmentResult,
+)
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +48,14 @@ _CHATML_REPAIR = (
     "Output ONLY the corrected JSON object. No markdown, no explanation.\n"
     "<|im_end|>\n"
     "<|im_start|>assistant\n<think>\n\n</think>\n"
+)
+
+_COMMENT_SENTIMENT_SYSTEM = (
+    "You are a public sentiment analyst. Given a news article summary and social media comments, "
+    "assess how the general public is reacting to this news.\n\n"
+    "Analyze ONLY what the comments actually express — do not infer from the article content. "
+    "If comments are sparse or ambiguous, use confidence: \"low\".\n\n"
+    "Respond with JSON ONLY — no markdown, no preamble, no explanation."
 )
 
 _STOPWORDS = frozenset({
@@ -129,11 +142,11 @@ class EnrichmentClient:
             raw = self._call_llamacpp(user_msg)
         return raw
 
-    def _call_llamacpp(self, user_msg: str) -> str:
+    def _call_llamacpp(self, user_msg: str, *, override_system: str | None = None) -> str:
         payload: dict[str, Any] = {
             "model": self._cfg.llm.model,
             "messages": [
-                {"role": "system", "content": self._system_prompt},
+                {"role": "system", "content": override_system or self._system_prompt},
                 {"role": "user", "content": user_msg},
             ],
             "temperature": self._cfg.llm.temperature,
@@ -183,7 +196,7 @@ class EnrichmentClient:
             f"llama-server /v1/chat/completions failed after 3 attempts: {last_exc}"
         )
 
-    def _call_llm(self, prompt: str) -> str:
+    def _call_llm(self, prompt: str, *, json_schema: dict[str, Any] | None = None) -> str:
         payload: dict[str, Any] = {
             "model": self._cfg.llm.model,
             "prompt": prompt,
@@ -201,7 +214,7 @@ class EnrichmentClient:
             # format: grammar-constrained decoding — forces the model to produce tokens
             # that conform to the JSON schema.  Orthogonal to raw/stream; reduces repair
             # retries by eliminating malformed JSON at the source.
-            "format": ENRICHMENT_JSON_SCHEMA,
+            "format": json_schema if json_schema is not None else ENRICHMENT_JSON_SCHEMA,
             "options": {
                 "temperature": self._cfg.llm.temperature,
                 "top_p": self._cfg.llm.top_p,
@@ -277,6 +290,55 @@ class EnrichmentClient:
                 raise RuntimeError("Ollama returned empty response after 3 attempts") from last_exc
 
         return full_response
+
+    def assess_comments(
+        self,
+        summary: str,
+        comments: list[dict[str, Any]],
+    ) -> CommentSentimentResult | None:
+        """Assess public sentiment from stored comments. Returns None on any failure.
+
+        Caller should fall back to predicted_reaction when this returns None.
+        """
+        if not comments:
+            return None
+        user_msg = _build_comment_user_msg(summary, comments)
+        try:
+            if self._cfg.llm.backend == "llamacpp":
+                raw = self._call_llamacpp(user_msg, override_system=_COMMENT_SENTIMENT_SYSTEM)
+            else:
+                prompt = _CHATML.format(system=_COMMENT_SENTIMENT_SYSTEM, user=user_msg)
+                raw = self._call_llm(prompt, json_schema=COMMENT_SENTIMENT_SCHEMA)
+            return _parse_comment_sentiment(raw)
+        except Exception as exc:
+            log.debug("comment_sentiment_failed err=%s", exc)
+            return None
+
+
+def _build_comment_user_msg(summary: str, comments: list[dict[str, Any]]) -> str:
+    sources = sorted({c.get("source", "social") for c in comments})
+    source_str = " + ".join(sources) if sources else "social media"
+    lines = [
+        f"ARTICLE SUMMARY: {summary[:400]}",
+        "",
+        f"COMMENTS (from {source_str}):",
+    ]
+    for i, c in enumerate(comments[:10], 1):
+        lines.append(f"{i}. {c['text'][:300]}")
+    return "\n".join(lines)
+
+
+def _parse_comment_sentiment(raw: str) -> CommentSentimentResult:
+    text = raw.strip()
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1)
+    obj_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not obj_match:
+        raise ValueError(f"No JSON object in comment sentiment response (length={len(raw)})")
+    data = json.loads(obj_match.group(0))
+    return CommentSentimentResult.model_validate(data)
 
 
 def _parse_and_validate(raw: str, article: dict[str, Any] | None = None) -> EnrichmentResult:

@@ -72,6 +72,11 @@ CREATE TABLE IF NOT EXISTS enrichments (
     predicted_reaction_label     TEXT CHECK (predicted_reaction_label IN ('positive','negative','neutral','mixed')),
     predicted_reaction_score     REAL CHECK (predicted_reaction_score BETWEEN -1.0 AND 1.0),
     predicted_reaction_rationale TEXT,
+    public_sentiment_label       TEXT CHECK (public_sentiment_label IN ('positive','negative','neutral','mixed')),
+    public_sentiment_score       REAL CHECK (public_sentiment_score BETWEEN -1.0 AND 1.0),
+    dominant_emotion             TEXT,
+    sentiment_confidence         TEXT CHECK (sentiment_confidence IN ('high','medium','low','predicted')),
+    perception_gap               REAL,
     tags                         TEXT NOT NULL,
     model                        TEXT NOT NULL,
     prompt_version               TEXT NOT NULL,
@@ -204,6 +209,11 @@ class Database:
             "ALTER TABLE enrichments ADD COLUMN predicted_reaction_label TEXT",
             "ALTER TABLE enrichments ADD COLUMN predicted_reaction_score REAL",
             "ALTER TABLE enrichments ADD COLUMN predicted_reaction_rationale TEXT",
+            "ALTER TABLE enrichments ADD COLUMN public_sentiment_label TEXT",
+            "ALTER TABLE enrichments ADD COLUMN public_sentiment_score REAL",
+            "ALTER TABLE enrichments ADD COLUMN dominant_emotion TEXT",
+            "ALTER TABLE enrichments ADD COLUMN sentiment_confidence TEXT",
+            "ALTER TABLE enrichments ADD COLUMN perception_gap REAL",
         ]:
             try:
                 with self._conn() as con:
@@ -410,6 +420,60 @@ class Database:
                     pass
         return inserted
 
+    def get_comments(self, article_id: str) -> list[dict[str, Any]]:
+        """Return all comments for an article across all sources, best-score first."""
+        with self._conn() as con:
+            rows = con.execute(
+                """SELECT source, comment_text AS text, comment_score AS score, comment_author AS author
+                   FROM article_comments WHERE article_id = ?
+                   ORDER BY CASE WHEN comment_score IS NULL THEN 0 ELSE comment_score END DESC""",
+                (article_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_articles_needing_perception(self) -> list[dict[str, Any]]:
+        """Return v5+ enriched articles that don't yet have a perception_gap score.
+
+        Includes articles with and without comments — articles without comments get a
+        'predicted' confidence score from existing predicted_reaction data, no LLM call.
+        """
+        with self._conn() as con:
+            rows = con.execute(
+                """SELECT a.id, a.status,
+                          e.summary AS enrich_summary,
+                          e.sentiment_score,
+                          e.predicted_reaction_score,
+                          e.predicted_reaction_label
+                   FROM articles a
+                   JOIN enrichments e ON a.id = e.article_id
+                   WHERE a.status = 'enriched'
+                     AND e.perception_gap IS NULL
+                     AND e.predicted_reaction_score IS NOT NULL
+                   ORDER BY a.fetched_at DESC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def save_perception(self, article_id: str, perception: dict[str, Any]) -> None:
+        """Write public sentiment and perception gap back to the enrichment row."""
+        with self._conn() as con:
+            con.execute(
+                """UPDATE enrichments SET
+                       public_sentiment_label = ?,
+                       public_sentiment_score  = ?,
+                       dominant_emotion        = ?,
+                       sentiment_confidence    = ?,
+                       perception_gap          = ?
+                   WHERE article_id = ?""",
+                (
+                    perception.get("public_sentiment_label"),
+                    perception.get("public_sentiment_score"),
+                    perception.get("dominant_emotion"),
+                    perception.get("sentiment_confidence"),
+                    perception.get("perception_gap"),
+                    article_id,
+                ),
+            )
+
     def get_enriched_articles(
         self,
         today_only: bool = False,
@@ -435,6 +499,8 @@ class Database:
                            e.sentiment_label, e.sentiment_score, e.sentiment_rationale,
                            e.predicted_reaction_label, e.predicted_reaction_score,
                            e.predicted_reaction_rationale,
+                           e.public_sentiment_label, e.public_sentiment_score,
+                           e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
                            e.tags, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
@@ -528,6 +594,8 @@ class Database:
                            e.sentiment_label, e.sentiment_score, e.sentiment_rationale,
                            e.predicted_reaction_label, e.predicted_reaction_score,
                            e.predicted_reaction_rationale,
+                           e.public_sentiment_label, e.public_sentiment_score,
+                           e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
                            e.tags, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id

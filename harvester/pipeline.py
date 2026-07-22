@@ -13,6 +13,7 @@ from harvester.config import ProfileConfig
 from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
+from harvester.enrich.perception import compute_perception
 from harvester.social import SocialFetcher, fetch_hn_comments, fetch_reddit_comments
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
@@ -248,6 +249,45 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
                 comment_count += db.save_comments(article_id, "reddit", comments)
         if comment_count:
             log.info("comments_done inserted=%d", comment_count)
+
+    # -- Stage 5.6: Perception gap (LLM comment sentiment + Python blend) ------
+    # For v5+ articles without a perception_gap score: if comments exist, call
+    # the LLM to assess public sentiment from them; otherwise use the already-
+    # computed predicted_reaction score directly. Saves perception_gap to every
+    # qualifying article so the frontend can show the press-vs-public delta.
+    articles_needing_perception = db.get_articles_needing_perception()
+    if articles_needing_perception:
+        perception_count = 0
+        for art in articles_needing_perception:
+            article_id = art["id"]
+            editorial_score = art["sentiment_score"] or 0.0
+            predicted_score = art["predicted_reaction_score"] or 0.0
+            summary = art.get("enrich_summary") or ""
+            comments = db.get_comments(article_id)
+            comment_count = len(comments)
+
+            public_score: float | None = None
+            public_label: str | None = None
+            emotion: str | None = None
+            if comment_count >= 2:
+                result = client.assess_comments(summary, comments)
+                if result:
+                    public_score = result.score
+                    public_label = result.label
+                    emotion = result.dominant_emotion
+
+            blend = compute_perception(editorial_score, predicted_score, public_score, comment_count)
+            db.save_perception(article_id, {
+                "public_sentiment_label": public_label,
+                "public_sentiment_score": public_score,
+                "dominant_emotion": emotion,
+                "sentiment_confidence": blend["confidence"],
+                "perception_gap": blend["perception_gap"],
+            })
+            perception_count += 1
+            if cfg.llm.backend == "ollama" and comment_count >= 2:
+                time.sleep(_INTER_ARTICLE_SLEEP)
+        log.info("perception_done articles=%d", perception_count)
 
     # -- Stage 6: Write ------------------------------------------------------
     enriched_all = db.get_enriched_articles(today_only=True)
