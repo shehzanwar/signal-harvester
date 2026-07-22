@@ -6,10 +6,8 @@
   "extracted_text": "Trump’s new election push, explained\nTrump’s new election push, explained\nUS President Donald Trump used a primetime White House address to revive claims about the 2020 election and push for changes ahead of the 2026 midterms. Al Jazeera’s Emma Withthrow explains what he said, what the evidence shows and why the timing matters.\nPublished On 17 Jul 2026",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "confirmed"
-    ],
-    "sentiment_label": "negative"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

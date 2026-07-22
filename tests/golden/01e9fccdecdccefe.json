@@ -1,16 +1,16 @@
 {
-    "id":  "01e9fccdecdccefe48a017f921e335d5",
-    "title":  "New Iran strikes on Gulf as US attacks escalate: What we know",
-    "url":  "https://www.aljazeera.com/news/2026/7/13/new-iran-strikes-on-gulf-as-us-attacks-escalate-what-we-know?traffic_source=rss",
-    "feed_name":  "Al Jazeera",
-    "extracted_text":  "New Iran strikes on Gulf as US attacks escalate: What we know\nIran targets its Gulf neighbours in third round of tit-for-tat attacks with US in a week.\nIran’s Islamic Revolutionary Guard Corps (IRGC) has targeted US military facilities in Bahrain, claimed it has destroyed radar systems in Oman and hit Jordan and Kuwait in its latest round of overnight retaliatory strikes against the United States.\nTehran’s attacks on Monday came as a response to Washington’s escalating strikes as prospects of peace between the two countries recede.\nHere is a recap of the latest attacks:\nWhere were the latest Iran attacks?\nOman: The IRGC said it attacked Oman as part of its latest phase of retaliation. It said it targeted “the FPS long-range aerial radar and the vessel detection radar in Oman”, adding that these radar systems were destroyed.\nBahrain: The IRGC also said it launched missile and drone attacks targeting “installations and infrastructure of the aggressive US army” in Juffair, Bahrain.\nBahrain’s Ministry of Interior said on Monday that sirens had been sounded in the country as it warned people to remain calm and head to the nearest safe place.\nThe IRGC earlier said it targeted several facilities at the Sheikh Isa Air Base in Bahrain.\nJordan: Jordan’s military said on Monday that it intercepted and downed “four missiles that entered Jordanian airspace” and came from Iranian territory.\nEarlier, the IRGC said it targeted Jordan’s Prince Hassan Air Base with missiles and drones and set fire to several fuel depots and ammunition storage facilities.\nKuwait: The IRGC said on Monday that it also targeted a US surface-to-surface missile base in Kuwait, “setting fire to two HIMARS missile launchers and missile-packed warehouses, completely destroying them”.\nHIMARS stands for high mobility artillery rocket systems, which are mobile rocket launchers manufactured by the US.\nEarlier, the General Staff of Kuwait’s Army said air defence systems were engaging “hostile aerial targets” insid",
-    "expected":  {
-                     "tier":  "T1",
-                     "tier_rationale_contains":  [
-                                                     "Iran",
-                                                     "strikes"
-                                                 ],
-                     "sentiment_label":  "negative"
-                 },
-    "notes":  "Iran retaliating against US military facilities across multiple Gulf states. Active US-Iran military exchange with confirmed strikes. Unambiguous T1."
+  "id": "01e9fccdecdccefe48a017f921e335d5",
+  "title": "New Iran strikes on Gulf as US attacks escalate: What we know",
+  "url": "https://www.aljazeera.com/news/2026/7/13/new-iran-strikes-on-gulf-as-us-attacks-escalate-what-we-know?traffic_source=rss",
+  "feed_name": "Al Jazeera",
+  "extracted_text": "New Iran strikes on Gulf as US attacks escalate: What we know\nIran targets its Gulf neighbours in third round of tit-for-tat attacks with US in a week.\nIran’s Islamic Revolutionary Guard Corps (IRGC) has targeted US military facilities in Bahrain, claimed it has destroyed radar systems in Oman and hit Jordan and Kuwait in its latest round of overnight retaliatory strikes against the United States.\nTehran’s attacks on Monday came as a response to Washington’s escalating strikes as prospects of peace between the two countries recede.\nHere is a recap of the latest attacks:\nWhere were the latest Iran attacks?\nOman: The IRGC said it attacked Oman as part of its latest phase of retaliation. It said it targeted “the FPS long-range aerial radar and the vessel detection radar in Oman”, adding that these radar systems were destroyed.\nBahrain: The IRGC also said it launched missile and drone attacks targeting “installations and infrastructure of the aggressive US army” in Juffair, Bahrain.\nBahrain’s Ministry of Interior said on Monday that sirens had been sounded in the country as it warned people to remain calm and head to the nearest safe place.\nThe IRGC earlier said it targeted several facilities at the Sheikh Isa Air Base in Bahrain.\nJordan: Jordan’s military said on Monday that it intercepted and downed “four missiles that entered Jordanian airspace” and came from Iranian territory.\nEarlier, the IRGC said it targeted Jordan’s Prince Hassan Air Base with missiles and drones and set fire to several fuel depots and ammunition storage facilities.\nKuwait: The IRGC said on Monday that it also targeted a US surface-to-surface missile base in Kuwait, “setting fire to two HIMARS missile launchers and missile-packed warehouses, completely destroying them”.\nHIMARS stands for high mobility artillery rocket systems, which are mobile rocket launchers manufactured by the US.\nEarlier, the General Staff of Kuwait’s Army said air defence systems were engaging “hostile aerial targets” insid",
+  "expected": {
+    "tier": "T1",
+    "tier_rationale_contains": [
+      "escalation",
+      "conflict zone"
+    ],
+    "sentiment_label": "negative"
+  },
+  "notes": "Iran retaliating against US military facilities across multiple Gulf states. Active US-Iran military exchange with confirmed strikes. Unambiguous T1."
 }

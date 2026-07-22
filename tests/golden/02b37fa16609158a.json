@@ -6,11 +6,8 @@
   "extracted_text": "Leeds United have agreed a deal worth €40million (£34.1m) with Sassuolo to sign centre-back Tarik Muharemovic.\nThe 23-year-old defender is set to fly to England on Thursday for a medical to complete the transfer.\nThe Athletic reported on Tuesday that Leeds were working on a deal for Muharemovic, whose contract with Sassuolo had been to June 2031.\nAdvertisement\nThe Bosnia and Herzegovina international made three appearances at this summer’s World Cup, and was on the receiving end of the Folarin Balogun’s foul which saw the United States forward shown a straight red card in the round of 16.\nMuharemovic, a left-footed, 6ft 4in centre-back, is set to become Leeds’ second signing of the transfer window, following the free transfer of Harry Wilson after he left Fulham.\nIt comes after the departure of Pascal Struijk, who joined Brighton & Hove Albion this summer and was Daniel Farke’s previous first-choice left-footed central defender.\nStruijk left Elland Road alongside goalkeepers Illan Meslier and Karl Darlow, who have joined Arsenal and Manchester United respectively.\nMuharemovic appeared in 32 of Sassuolo’s 38 Serie A matches last season, helping his side record an 11th-place finish on their return to the top-flight. In the previous campaign, he was a key member of the squad which finished as champions of Italy’s second tier.\nMuharemovic spent his early career in Austria, before moving to Juventus’ youth set-up in 2021. He did not make a first-team appearance for the Turin club.\nThe defender ticks boxes for Leeds team\nLeeds came into the summer with one eye on central defence after last season’s switch to three centre-backs. Struijk’s sale to Brighton only hastened that need for reinforcements.\nMuharemovic fills a lot of the holes Struijk left behind. Most importantly, the Bosnia international is left-footed. He can fill that left-sided berth in a back-three or back-four.\nHe is also 6ft 4in and proven aerially dominant during his time with Sassuolo in Italy’s top two t",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "threshold",
-      "below"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

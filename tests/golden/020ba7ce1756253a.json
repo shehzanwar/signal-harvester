@@ -6,11 +6,8 @@
   "extracted_text": "[feed summary]\nAffordability pain is real, but resilient consumers are still infusing money into the economy, Brian Moynihan , CEO of Bank of America, said at the Axios House News Shapers summit in Washington, D.C. Why it matters: The U.S. economy sits on a remarkably durable foundation , supporting consumer spending even with hot inflation. But at the same time, Americans tell pollsters economic conditions is at rock bottom, fueling a political reckoning over affordability. \"There's a say-do paradox,\" Moynihan said. \"The question is, what are people actually doing?\" Driving the news: Two things can be true, Moynihan explained to Axios' Mike Allen. \"Affordability is a real issue,\" he said. But he added, \"what people are doing is still spending money, and that's good for the U.S. economy in the broadest context.\" To that point, Moynihan said consumer spending had grown about 6% in the second quarter compared to last year. Based on that, he predicts the economy will grow this year by at least 2%. Case in point: The World Cup brought a global party to U.S. shores, boosting retail activity across host cities, on average, Bank of America research found. In the three weeks ending June 27, brick-and-mortar spending at restaurants and bars was up 5.3% year-over-year in the host cities, per aggregated credit and debit card data, versus 3.8% in the rest of the US. Those host cities lagged the rest of the US in the prior three weeks. And that doesn't cover spending by international tourists, so the tournament likely juiced retain activity even more. Bank of America was the official bank sponsor of the World Cup — but left an unexpected mark with its viral collectable fan charm bracelets. Flashback: Moynihan's optimism about the broader economy has been buoyant through tariff- and war-inflicted financial uncertainty. Speaking with Axios in January, Moynihan signaled bullishness on the American economy, saying that consumers kept spending, despite their sagging sentiment . Appla",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "classified as background"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

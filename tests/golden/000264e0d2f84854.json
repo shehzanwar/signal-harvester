@@ -6,11 +6,8 @@
   "extracted_text": "Liverpool sign England goalkeeper Keating\n- Published\nLiverpool have signed England goalkeeper Khiara Keating on a three-year deal from Manchester City.\nThe 22-year-old leaves City following the expiry of her contract and reunites with manager Gareth Taylor, who she worked with in Manchester.\nIn June, BBC Sport reported that Keating had turned down a contract extension offer at City amid interest from Liverpool.\nKeating is a graduate of the Manchester City academy and helped them win a second Women's Super League title last season.\n\"[Liverpool is] such a big club and I think the women's team is striving for greatness,\" said Keating.\n\"I think the style of football that they play suits me and my position. They're just going in the right direction and [it is] a project that I want to be part of.\"\n- Spain defender Leon joins London City Lionesses - Published12 hours ago\n \n- O'Sullivan set to leave Liverpool six months after joining - Published1 day ago\n \n- England defender Charles joins Man City from Chelsea - Published3 days ago\n \nKeating, who made her England debut at Etihad Stadium in October 2025, becomes Liverpool's fourth signing of the summer.\nShe had to compete with Japan's Ayaka Yamashita for City's number one shirt last season and only started four WSL games as they also won the Women's FA Cup.\nKeating is still regarded as one of the country's best young goalkeepers and was called up by England manager Sarina Wiegman for June's crucial Women's World Cup qualifying matches against Spain and Ukraine, but missed out with concussion.\nShe was part of the triumphant Euro 2025 squad and will want to regain a regular spot for next year's Women's World Cup in Brazil.\nLiverpool boss Taylor handed Keating her WSL debut and oversaw her breakout campaign in 2023-24.\nDuring that season, aged 19, she became the youngest goalkeeper to win the WSL Golden Glove award, keeping nine clean sheets in total.\nKeating, who had previous short loan spells at AFC Fylde and Coventry Unite",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "classified as background"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

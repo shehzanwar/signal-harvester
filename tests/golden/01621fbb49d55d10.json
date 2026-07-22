@@ -1,15 +1,13 @@
 {
-    "id":  "01621fbb49d55d1037997ee2d217517e",
-    "title":  "How to file a renters insurance claim — and what to do if a claim is denied",
-    "url":  "https://finance.yahoo.com/personal-finance/insurance/article/how-to-file-a-renters-insurance-claim-165131785.html",
-    "feed_name":  "Yahoo Finance",
-    "extracted_text":  "Some offers on this page are from advertisers who pay us, which may affect which products we write about, but not our recommendations. See our Advertiser Disclosure.\nIf you\u0027re wondering how to file a renters insurance claim, there\u0027s a good chance something stressful has already happened. Whether your belongings were stolen, damaged by a fire, or ruined by a burst pipe, knowing what to do next can help the claims process go smoothly.\nWhen should you file a renters insurance claim?\nIn general, it may make sense to file a claim with renters insurance when two things happen:\n-       The damage or loss is caused by a covered event. \n-       The cost to replace or repair your belongings exceeds your deductible. \nHere\u0027s an example:\nIf a fire destroys $8,000 worth of furniture and electronics and your deductible is $500, filing a claim could save you $7,500. If a covered water leak ruins a $300 coffee table and your deductible is $500, filing a claim likely won\u0027t result in a payout.\nSome of the most common reasons renters file claims include theft, fire damage, vandalism, certain types of water damage, and liability incidents involving guests.\nLearn more: 7 best renters insurance companies of 2026\nWhat to do before you file: Document everything\nBefore you throw anything away, start repairs, or replace damaged items, take time to document exactly what happened. The more evidence you have, the easier it will be for your provider to verify your renters insurance claim.\nTake photos and videos immediately\nStart by photographing all damaged property from multiple angles.\nIf there\u0027s water damage, photograph the source of the leak if it\u0027s visible. If there\u0027s a break-in, photograph damaged doors, broken windows, or other signs of forced entry. A quick video walkthrough can also help capture the full extent of the damage and make sure you don\u0027t overlook something.\nCreate a list of damaged or stolen items\nNext, make a detailed inventory of everything affected.\nFor each item, try to in",
-    "expected":  {
-                     "tier":  "NOISE",
-                     "sentiment_label":  "neutral",
-                     "tier_rationale_contains":  [
-
-                                                 ]
-                 },
-    "notes":  "Consumer how-to guide for filing renters insurance claims. Service journalism, not news. DB enrichment incorrectly rated T3."
+  "id": "01621fbb49d55d1037997ee2d217517e",
+  "title": "How to file a renters insurance claim — and what to do if a claim is denied",
+  "url": "https://finance.yahoo.com/personal-finance/insurance/article/how-to-file-a-renters-insurance-claim-165131785.html",
+  "feed_name": "Yahoo Finance",
+  "extracted_text": "Some offers on this page are from advertisers who pay us, which may affect which products we write about, but not our recommendations. See our Advertiser Disclosure.\nIf you're wondering how to file a renters insurance claim, there's a good chance something stressful has already happened. Whether your belongings were stolen, damaged by a fire, or ruined by a burst pipe, knowing what to do next can help the claims process go smoothly.\nWhen should you file a renters insurance claim?\nIn general, it may make sense to file a claim with renters insurance when two things happen:\n-       The damage or loss is caused by a covered event. \n-       The cost to replace or repair your belongings exceeds your deductible. \nHere's an example:\nIf a fire destroys $8,000 worth of furniture and electronics and your deductible is $500, filing a claim could save you $7,500. If a covered water leak ruins a $300 coffee table and your deductible is $500, filing a claim likely won't result in a payout.\nSome of the most common reasons renters file claims include theft, fire damage, vandalism, certain types of water damage, and liability incidents involving guests.\nLearn more: 7 best renters insurance companies of 2026\nWhat to do before you file: Document everything\nBefore you throw anything away, start repairs, or replace damaged items, take time to document exactly what happened. The more evidence you have, the easier it will be for your provider to verify your renters insurance claim.\nTake photos and videos immediately\nStart by photographing all damaged property from multiple angles.\nIf there's water damage, photograph the source of the leak if it's visible. If there's a break-in, photograph damaged doors, broken windows, or other signs of forced entry. A quick video walkthrough can also help capture the full extent of the damage and make sure you don't overlook something.\nCreate a list of damaged or stolen items\nNext, make a detailed inventory of everything affected.\nFor each item, try to in",
+  "expected": {
+    "tier": "NOISE",
+    "sentiment_label": "neutral",
+    "tier_rationale_contains": []
+  },
+  "notes": "Consumer how-to guide for filing renters insurance claims. Service journalism, not news. DB enrichment incorrectly rated T3."
 }

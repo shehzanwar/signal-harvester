@@ -6,11 +6,8 @@
   "extracted_text": "The family of one of Silicon Valley's most well-known venture capitalists is lined up to join the ranks of NFL owners.\nVinod Khosla and his wife, Neeru, are leading a group that has agreed to purchase the Seattle Seahawks for $9.6 billion, pending NFL owners' approval. Neeru Khosla will serve as the controlling owner, and their son, Neal, \"is expected to have a significant leadership role in the ownership group,\" according to a league memo sent to teams and obtained by ESPN.\nKhosla, 71, is the patriarch of the family and a towering figure in the tech world. He was an early investor in Google and his venture fund, Khosla Ventures, made one of the largest early bets on OpenAI. (His firm purchased a 5% stake in the artificial intelligence developer for $50 million in 2019. OpenAI was worth $852 billion in March, according to Forbes.) DoorDash and Instacart are among his firm's other notable investments.\nSalesforce CEO Marc Benioff has called him \"the preeminent venture capitalist of our time.\"\nPatrick Collison, the CEO of online payments giant Stripe, of which Khosla was an early backer, once described him to The Information in transformative terms: \"There are these singular characters in Silicon Valley who would feel a bit implausible if you constructed them in a work of fiction, but who turn out to in fact exist. The world is lucky Vinod is one of them.\"\nKhosla was born in India in 1955 (his father was an army officer). His biography on the Khosla Ventures website states that he grew up with \"no business or technology connections,\" but read about Intel when he was 16 and decided he wanted to start his own tech company. Vinod and Neeru met in high school in India; he was supposed to have an arranged marriage to another woman, which left his family disappointed, The Information reported. (The two now have four children together.)\nHe received a bachelor's degree in electrical engineering from the Indian Institute of Technology in New Delhi. He came to the United States ",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "classified as background"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

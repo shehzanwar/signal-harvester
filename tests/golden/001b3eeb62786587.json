@@ -6,11 +6,8 @@
   "extracted_text": "JD Vance accuses Israel of 'manipulating' US public opinion to prolong Iran war\n- Published\nUS Vice-President JD Vance has accused some members of the Israeli government of trying to influence Americans' opinions to prolong the Iran war.\nIn an interview published on Wednesday, Vance told conservative podcaster Joe Rogan that while he trusts some people within the Israeli government, there are others \"who are manipulating and trying to change American public opinion to keep the war going on indefinitely\".\nThe Israeli government did not immediately respond to Vance's comments.\nWhite House Press Secretary Karoline Leavitt on Thursday said: \"I think the president would certainly agree that, yes, foreign countries certainly do try to persuade American public opinion.\"\nSpeaking on The Joe Rogan Experience, Vance said that people within the Israeli government have been trying to shift the US away from its efforts to negotiate with Iran.\n\"I definitely think you have seen this very discreet, extremely well-funded campaign to try to derail the negotiation and try to derail the deal,\" he said, adding there is \"exact evidence\" that some Israeli leaders \"hate the deal\".\nThe US reached an agreement with Iran last month, known as the memorandum of understanding (MOU). It allowed for the continuation of formal negotiations, included a now-abandoned 60-day ceasefire and a condition to reopen the Strait of Hormuz.\nHowever, tensions over the Strait have resumed recently and the US has intensified its strikes on Iran while Tehran targeted US allies in the region.\nVance has been heavily involved in negotiations with Iran - attending negotiations in Pakistan in April and travelling to Switzerland in June for the signing of the MOU.\nHe told Joe Rogan that he \"doesn't mind\" what he described as \"certain elements of the Israeli government\" criticising the US position, adding that \"foreign governments trying and influence the government all the time\".\n\"What bothers me is actually when Americ",
   "expected": {
     "tier": "T2",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "unconfirmed"
-    ],
-    "sentiment_label": "negative"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T2."
 }

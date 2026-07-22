@@ -1,17 +1,16 @@
 {
-    "id":  "02693328d5cef1c4b84eeaff4778fa21",
-    "title":  "Chelsea agree record £117m deal for Villa\u0027s Rogers",
-    "url":  "https://www.bbc.co.uk/sport/football/articles/c0ej1jyy8yyo?at_medium=RSS\u0026at_campaign=rss",
-    "feed_name":  "BBC Sport",
-    "extracted_text":  "Chelsea agree record £117m deal for Villa\u0027s Rogers\n- Published\nChelsea have agreed a club record £117m deal to sign England midfielder Morgan Rogers from Aston Villa.\nThe 23-year-old will sign a six-year contract at Stamford Bridge, with an option for a further year.\nRogers will have a medical on Monday after returning from international duty with England at the 2026 World Cup.\nThe deal would set a new transfer record for an English player, eclipsing the £116m fee Manchester City agreed with Nottingham Forest for another Three Lions midfielder in Elliot Anderson earlier this summer.\nRogers becomes the most expensive signing in Chelsea\u0027s history, surpassing the £107m spent on Argentina midfielder Enzo Fernandez in 2023.\nThe move comes as new Chelsea manager Xabi Alonso shapes his squad before the new Premier League season.\nRogers, who was previously on the books of Manchester City, joined Villa from Middlesbrough in February 2024 in a deal worth £8m, rising to £15m.\nDue to a clause giving Middlesbrough 20% of any profit made by Villa for selling Rogers in the future, the Championship club will earn at least £20.4m from his transfer to Chelsea, depending on how many add-ons have been triggered at Villa Park.\nBoro believe it is also an English record for the largest transfer sell-on fee.\nRogers scored 21 goals in 85 league appearances for Unai Emery\u0027s men and was part of the team that won the Europa League last season.\nHe has made 22 senior England appearances, scoring once, and featured in seven games at this summer\u0027s World Cup.\nRogers is the second Villa midfielder to depart this week following Youri Tielemans\u0027 £35m move to Manchester United, but they have brought in Switzerland international Johan Manzambi in a deal worth more than £50m from Freiburg and lined up Wolves\u0027 Joao Gomes for £38m.\nAnalysis: What impact will Rogers arrival have on Palmer?\nRogers has been a Chelsea target for more than two years, although the move coming now is something of a surprise given",
-    "expected":  {
-                     "tier":  "T2",
-                     "tier_rationale_contains":  [
-                                                     "50M",
-                                                     "transfer",
-                                                     "record"
-                                                 ],
-                     "sentiment_label":  "neutral"
-                 },
-    "notes":  "Chelsea sign Rogers for confirmed £117M — explicitly above the £50M T2 hard floor for confirmed player transfers. DB enrichment incorrectly rated T3."
+  "id": "02693328d5cef1c4b84eeaff4778fa21",
+  "title": "Chelsea agree record £117m deal for Villa's Rogers",
+  "url": "https://www.bbc.co.uk/sport/football/articles/c0ej1jyy8yyo?at_medium=RSS&at_campaign=rss",
+  "feed_name": "BBC Sport",
+  "extracted_text": "Chelsea agree record £117m deal for Villa's Rogers\n- Published\nChelsea have agreed a club record £117m deal to sign England midfielder Morgan Rogers from Aston Villa.\nThe 23-year-old will sign a six-year contract at Stamford Bridge, with an option for a further year.\nRogers will have a medical on Monday after returning from international duty with England at the 2026 World Cup.\nThe deal would set a new transfer record for an English player, eclipsing the £116m fee Manchester City agreed with Nottingham Forest for another Three Lions midfielder in Elliot Anderson earlier this summer.\nRogers becomes the most expensive signing in Chelsea's history, surpassing the £107m spent on Argentina midfielder Enzo Fernandez in 2023.\nThe move comes as new Chelsea manager Xabi Alonso shapes his squad before the new Premier League season.\nRogers, who was previously on the books of Manchester City, joined Villa from Middlesbrough in February 2024 in a deal worth £8m, rising to £15m.\nDue to a clause giving Middlesbrough 20% of any profit made by Villa for selling Rogers in the future, the Championship club will earn at least £20.4m from his transfer to Chelsea, depending on how many add-ons have been triggered at Villa Park.\nBoro believe it is also an English record for the largest transfer sell-on fee.\nRogers scored 21 goals in 85 league appearances for Unai Emery's men and was part of the team that won the Europa League last season.\nHe has made 22 senior England appearances, scoring once, and featured in seven games at this summer's World Cup.\nRogers is the second Villa midfielder to depart this week following Youri Tielemans' £35m move to Manchester United, but they have brought in Switzerland international Johan Manzambi in a deal worth more than £50m from Freiburg and lined up Wolves' Joao Gomes for £38m.\nAnalysis: What impact will Rogers arrival have on Palmer?\nRogers has been a Chelsea target for more than two years, although the move coming now is something of a surprise given",
+  "expected": {
+    "tier": "T2",
+    "tier_rationale_contains": [
+      "50m",
+      "threshold"
+    ],
+    "sentiment_label": ""
+  },
+  "notes": "Chelsea sign Rogers for confirmed £117M — explicitly above the £50M T2 hard floor for confirmed player transfers. DB enrichment incorrectly rated T3."
 }

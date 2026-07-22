@@ -6,11 +6,8 @@
   "extracted_text": "With two heavyweight semi-finals on the horizon, the possibility of penalties deciding who reaches the World Cup final cannot be ignored. History, recent form and even this tournament’s statistics all point towards a spot-kick becoming a decisive factor, as Spain face France and England meet Argentina.\nFew international fixtures carry as much penalty shootout baggage as England against Argentina.\nAdvertisement\nThe most famous such meeting came at the 1998 World Cup, when England were knocked out on penalties after David Beckham’s first-half red card in Saint-Étienne. Four years later Beckham gained a measure of revenge, converting the only goal from the penalty spot as England beat Argentina 1-0 at the 2002 World Cup.\nPenalty drama could again be central this time around.\nEngland captain Harry Kane has already scored twice from the spot at this tournament, more than any other player. By contrast, Argentina talisman Lionel Messi has endured a difficult campaign from 12 yards, failing to convert two penalties.\nArgentina have been awarded three penalties during the tournament, with Lautaro Martínez converting the other against Jordan.\nArgentina — who became world champions in 2022 via a shootout — are also no strangers to extended knockout ties at this tournament. Two of their knockout matches have already gone beyond 90 minutes, overcoming Cape Verde in extra time before beating Switzerland after another marathon encounter. England, meanwhile, needed extra time to get past Norway.\nWith fatigue likely to play a role deep into the tournament, another match stretching all the way to penalties would hardly be a surprise.\nBookmakers certainly believe it’s a realistic outcome. England or Argentina to win on penalties is priced at 13/2 if selecting the match winner, while either semi-final to be decided by a shootout is available at around 3/1.\nSpain’s semi-final with France is also a game where both nations have their own reasons to view a shootout with caution.\nFor Spain, ",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "confirmed"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

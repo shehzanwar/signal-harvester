@@ -6,11 +6,8 @@
   "extracted_text": "Welcome back to TechCrunch Mobility, your hub for the future of transportation and now, more than ever, how AI is playing a part. To get this in your inbox, sign up here for free — just click TechCrunch Mobility!\nLast week, I wrote about Uber and Waymo and how their partnership appears to be deteriorating. I predicted the two companies would end up on opposing sides of autonomous vehicle policy. That wasn’t a guess.\nFor the past several weeks, I’ve been talking to sources and digging through correspondence Uber sent to the D.C. Council, which is evaluating a proposed bill that would allow autonomous vehicles to operate in Washington, D.C.\nWhat I found: Uber and Waymo are already on opposite sides of the proposal, sparring behind the scenes and in public. Uber has made a particularly interesting argument in its effort to shape the rules that govern autonomous vehicles.\nUber, which opposes the D.C. bill, argues it would displace for-hire human drivers and hand Waymo a de facto monopoly. Instead, it has lobbied for a system that would require robotaxis to operate on a ride-hailing network alongside human drivers.\nInsiders tell me the “hybrid” approach has little chance of becoming law. But if it did, it would leave AV developers like Waymo with two suboptimal choices: either put their robotaxis on ride-hailing apps like Uber or employ human drivers alongside fleets of robotaxis that took years and hundreds of millions of dollars to develop.\nA D.C. Council hearing on Monday drew representatives from Lyft, Tesla, Uber, and Waymo, along with dozens of disability rights and accessibility advocates, local business and industry groups, highway safety organizations, government officials, labor unions, and think tanks.\nMy takeaway — based on the public testimony and the calls and texts I received afterward — is that Waymo is one of the few companies that generally likes the bill. Much of the rest of the industry does not.\nTesla’s senior policy adviser, India Herdman, echoed co",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "classified as background"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

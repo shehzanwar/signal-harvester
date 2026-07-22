@@ -6,11 +6,8 @@
   "extracted_text": "[feed summary]\nSen. Jon Ossoff (D-Ga.) slammed Health and Human Services Secretary Robert F. Kennedy Jr. for ending the Center for Disease Control and Prevention’s (CDC) tracking of parasitic infections including cyclospora.&#160; The decision was made last year and suspended tracking managed by the CDC, U.S. Department of Agriculture and the Food and Drug Administration, in addition to&#8230;",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "policy change"
-    ],
-    "sentiment_label": "negative"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

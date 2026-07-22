@@ -6,11 +6,8 @@
   "extracted_text": "NEW ORLEANS (AP) — Tropical Storm Bertha formed Monday evening in the Gulf of Mexico south of the Florida Panhandle and is expected to strengthen further as it approaches populated coastal areas bearing a threat of heavy rain, storm surge and damaging wind gusts, forecasters say.\nThe center of Bertha was located at about 8 p.m. some 110 miles (180 kilometers) south of Panama City, Florida, in the northern Gulf. Maximum sustained winds were around 40 mph (65 kph) and some additional strengthening is expected as the storm approaches land, according to the Miami-based National Hurricane Center.\nThe slow-moving storm has been drifting erratically, but is expected to stay near or along the northern Gulf Coast early this week, unleashing heavy rain on coastal areas of northern Florida, Alabama, Mississippi and Louisiana as it pushes west toward Texas.\nBertha is the second tropical storm of the Atlantic hurricane season. Tropical Storm Arthur last month brought heavy rainfall to the southeastern United States.\nThe Miami-based center said the storm was moving west-northwest near 3 mph (6 kph) toward the northern rim of the Gulf.\nA tropical storm watch is in effect for a wide area from the Ochlockonee River in Florida westward to southeastern Louisiana at the Jefferson and Plaquemines parish line.\nA storm surge watch also has been posted from the mouth of the Mississippi River to the Alabama-Florida border on the Gulf Coast.\nPotentially life-threatening storm surges of up to four feet (1.2 meters) could occur in portions of the Louisiana and Mississippi coastlines, the hurricane center said, warning Bertha could spin off an isolated tornado or two over the Florida Big Bend region in the week.\nAreas of flash flooding will also be possible through Friday along the coast, from western Florida to middle Texas, forecasters said. It added that rainfall could reach 3 to 5 inches (7 to 12 centimeters) along the Louisiana coastline with higher amounts expected in some areas, notably ",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "classified as background"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

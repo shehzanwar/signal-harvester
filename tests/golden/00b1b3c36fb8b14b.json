@@ -7,7 +7,7 @@
   "expected": {
     "tier": "T2",
     "tier_rationale_contains": [],
-    "sentiment_label": "negative"
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T2."
 }

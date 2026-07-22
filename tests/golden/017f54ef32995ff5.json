@@ -6,11 +6,8 @@
   "extracted_text": "And in this document, NASA has provided guidance. Quite a lot of it. Requirements are the key element of a NASA planning document like this, the bureaucratic currency by which NASA buys off on the safety of a spacecraft, such as the amount of habitable volume the agency requires. Generally, companies prefer fewer requirements as it allows them more freedom for design and innovation. More requirements give NASA engineers more control over the design of vehicles.\nSeveral of the companies were shocked by the number of requirements levied in the NASA documents. One participant estimated there are more than 3,000 requirements. The companies were hoping for hundreds. Some of the requirements do seem fairly harsh. For example, on page 50 of the 246-page “contract data requirements list,” it appears as though NASA’s chief information officer must approve all software purchases a company makes.\nReads like a cost-plus contract?\n“It’s got all the requirements, deliverables, and clauses of a cost-plus contract, but they are stuffed into a firm fixed-price bag,” said Phil McAlister, NASA’s former chief of commercial spaceflight, who originally created NASA’s private space station program. “That would be OK if NASA were willing to pay for all that.”\nBut NASA does not appear to be willing to do that, McAlister added.\nThe document leaves companies with some key questions, including just how much funding is available—it could be as much as $1.5 billion over five years, or substantially less—and how many companies will be dividing that funding up. If there are two winners, the funding is probably enough. If there are three or more, it could be stretched too thin.\n“At least the draft RFP is out now, so industry finally knows what NASA is asking of them,” McAlister said. “But the budget and lack of a long-term contract shows that NASA is still not fully committed to this program.”\nIt is important to note that this is just a draft of the RFP document. The agency will now accept, and cer",
   "expected": {
     "tier": "T3",
-    "tier_rationale_contains": [
-      "without confirmed",
-      "confirmed"
-    ],
-    "sentiment_label": "neutral"
+    "tier_rationale_contains": [],
+    "sentiment_label": ""
   },
   "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
 }

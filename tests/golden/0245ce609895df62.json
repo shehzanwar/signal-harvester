@@ -1,16 +1,16 @@
 {
-    "id":  "0245ce609895df62f7ed69b0e9b57fa8",
-    "title":  "Who is Andy Burnham? Ex-Manchester mayor set to be the next prime minister",
-    "url":  "https://www.bbc.co.uk/news/articles/cp8pml5z8p6o?at_medium=RSS\u0026at_campaign=rss",
-    "feed_name":  "BBC Politics",
-    "extracted_text":  "Who is Andy Burnham? Ex-Manchester mayor set to be the next prime minister\n- Published\nAndy Burnham now looks set to be the 59th prime minister of the UK after Labour MPs backed him to take over as their party leader.\nHe will not be the first Andrew to occupy Number 10 - Andrew Bonar Law got there first in 1922.\nBut he will be the first Andy.\nHis political brand is all about being matey and approachable, and the \"vote Andy\" slogan has brought him a lot of success at the ballot box over the years.\nHe will also be the first self-proclaimed Northerner to be prime minister since Harold Wilson in the 1960s and 70s.\nPMs since then may have had northern English roots, but none have made it a core part of their appeal in the way that Burnham has.\nHe even has the nickname King of North, earned after he made a defiant, open-air speech in 2020 telling the government Greater Manchester would not accept any more Covid restrictions.\nBut the 56-year-old began his long political career as the archetypal Westminster insider - and although he has only been an MP for less than a month this time, his rise to power has been decades in the making.\nHe first stood to be Labour leader in 2010 and then again in 2015, when he came a distant second to Jeremy Corbyn.\nHe might have gone down as a footnote in political history if he had not taken the gamble, in 2017, to seek election as the first mayor of the Greater Manchester region.\nRegional mayors were an untested concept at the time but Burnham made the role his own - and used it to build a powerful platform, untainted by the London-centric Westminster politics he professes to despise.\nEarly life: Everton fan and indie music lover\nBorn in Liverpool in 1970, Burnham grew up in Culcheth, a quiet commuter belt village in Cheshire, near Warrington.\nHis father, a BT engineer, and his mother, a GP receptionist, were both staunch Labour supporters and he developed an early interest in politics.\nBurnham has described how he was inspired to join the ",
-    "expected":  {
-                     "tier":  "T2",
-                     "tier_rationale_contains":  [
-                                                     "Labour",
-                                                     "leader"
-                                                 ],
-                     "sentiment_label":  "neutral"
-                 },
-    "notes":  "Andy Burnham wins Labour leadership — opposition party leadership contest. T2 not T1: T1 requires change in governing power. T2 not T3: confirmed leadership result is a notable political event."
+  "id": "0245ce609895df62f7ed69b0e9b57fa8",
+  "title": "Who is Andy Burnham? Ex-Manchester mayor set to be the next prime minister",
+  "url": "https://www.bbc.co.uk/news/articles/cp8pml5z8p6o?at_medium=RSS&at_campaign=rss",
+  "feed_name": "BBC Politics",
+  "extracted_text": "Who is Andy Burnham? Ex-Manchester mayor set to be the next prime minister\n- Published\nAndy Burnham now looks set to be the 59th prime minister of the UK after Labour MPs backed him to take over as their party leader.\nHe will not be the first Andrew to occupy Number 10 - Andrew Bonar Law got there first in 1922.\nBut he will be the first Andy.\nHis political brand is all about being matey and approachable, and the \"vote Andy\" slogan has brought him a lot of success at the ballot box over the years.\nHe will also be the first self-proclaimed Northerner to be prime minister since Harold Wilson in the 1960s and 70s.\nPMs since then may have had northern English roots, but none have made it a core part of their appeal in the way that Burnham has.\nHe even has the nickname King of North, earned after he made a defiant, open-air speech in 2020 telling the government Greater Manchester would not accept any more Covid restrictions.\nBut the 56-year-old began his long political career as the archetypal Westminster insider - and although he has only been an MP for less than a month this time, his rise to power has been decades in the making.\nHe first stood to be Labour leader in 2010 and then again in 2015, when he came a distant second to Jeremy Corbyn.\nHe might have gone down as a footnote in political history if he had not taken the gamble, in 2017, to seek election as the first mayor of the Greater Manchester region.\nRegional mayors were an untested concept at the time but Burnham made the role his own - and used it to build a powerful platform, untainted by the London-centric Westminster politics he professes to despise.\nEarly life: Everton fan and indie music lover\nBorn in Liverpool in 1970, Burnham grew up in Culcheth, a quiet commuter belt village in Cheshire, near Warrington.\nHis father, a BT engineer, and his mother, a GP receptionist, were both staunch Labour supporters and he developed an early interest in politics.\nBurnham has described how he was inspired to join the ",
+  "expected": {
+    "tier": "T2",
+    "tier_rationale_contains": [
+      "opposition",
+      "governing"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Andy Burnham wins Labour leadership — opposition party leadership contest. T2 not T1: T1 requires change in governing power. T2 not T3: confirmed leadership result is a notable political event."
 }
