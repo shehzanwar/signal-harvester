@@ -13,7 +13,7 @@ from harvester.config import ProfileConfig
 from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
-from harvester.social import SocialFetcher
+from harvester.social import SocialFetcher, fetch_hn_comments, fetch_reddit_comments
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
 from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
@@ -54,7 +54,8 @@ def _noise_enrichment_dict(model: str) -> dict[str, Any]:
         "summary": "Pre-filtered as routine noise by title pattern.",
         "tier": "NOISE",
         "tier_rationale": "Title matched a noise pattern (lineup, tee-time, live-updates, or watch guide).",
-        "sentiment": {"label": "neutral", "score": 0.0, "rationale": "N/A — noise article."},
+        "editorial_tone": {"label": "neutral", "score": 0.0, "rationale": "N/A — noise article."},
+        "predicted_reaction": {"label": "neutral", "score": 0.0, "rationale": "N/A — noise article."},
         "tags": ["noise"],
         "_model": f"{model}:pre-filter",
         "_prompt_version": "pre-filter",
@@ -200,6 +201,7 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     # -- Stage 5: Social signals (best-effort, parallel) ---------------------
     today_articles = db.get_enriched_articles(today_only=True)
     enriched_today = [a for a in today_articles if a.get("tier") not in ("NOISE",)]
+    all_signals: list[dict[str, Any]] = []
     if enriched_today:
         # One fetcher per run: it does the Mastodon batch prefetch + any gated
         # auth (Bluesky/Reddit) once, then reuses them across articles.
@@ -209,7 +211,6 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             signals = fetcher.fetch(art["url"])
             return [{"article_id": art["id"], **s} for s in signals]
 
-        all_signals: list[dict[str, Any]] = []
         # Reddit throttle (1 req/s) means we can't use too many workers for social
         with ThreadPoolExecutor(max_workers=3) as pool:
             for signals in pool.map(_fetch_social, enriched_today[:50]):  # cap to avoid overload
@@ -217,6 +218,36 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
         if all_signals:
             db.save_social_signals(all_signals)
             log.info("social_done signals=%d", len(all_signals))
+
+    # -- Stage 5.5: Comment fetching (best-effort, sequential to respect rate limits) --
+    # For each HN/Reddit signal fetched this run, pull the top 10 comments and
+    # store them for use in Phase 3 composite-sentiment scoring. Skip articles
+    # that already have comments from a previous run.
+    if all_signals:
+        hn_signals = {s["article_id"]: s for s in all_signals if s["source"] == "hn"}
+        reddit_signals = {s["article_id"]: s for s in all_signals if s["source"] == "reddit"}
+        comment_count = 0
+        for article_id, sig in hn_signals.items():
+            if db.has_comments(article_id, "hn"):
+                continue
+            permalink = sig.get("permalink", "")
+            story_id = permalink.split("id=")[-1] if "id=" in permalink else ""
+            if not story_id:
+                continue
+            comments = fetch_hn_comments(story_id)
+            if comments:
+                comment_count += db.save_comments(article_id, "hn", comments)
+        for article_id, sig in reddit_signals.items():
+            if db.has_comments(article_id, "reddit"):
+                continue
+            permalink = sig.get("permalink", "")
+            if not permalink:
+                continue
+            comments = fetch_reddit_comments(permalink)
+            if comments:
+                comment_count += db.save_comments(article_id, "reddit", comments)
+        if comment_count:
+            log.info("comments_done inserted=%d", comment_count)
 
     # -- Stage 6: Write ------------------------------------------------------
     enriched_all = db.get_enriched_articles(today_only=True)

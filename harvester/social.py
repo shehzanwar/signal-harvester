@@ -28,6 +28,7 @@ _UA = "signal-harvester/0.1 (local intelligence pipeline)"
 _TIMEOUT = 15.0
 
 _HN_SEARCH = "https://hn.algolia.com/api/v1/search"
+_HN_ITEM = "https://hn.algolia.com/api/v1/items"
 _LEMMY_SEARCH = "https://lemmy.world/api/v3/search"
 _MASTODON_TRENDS = "https://mastodon.social/api/v1/trends/links"
 _BSKY_BASE = "https://bsky.social/xrpc"
@@ -54,6 +55,7 @@ class _Throttle:
 _lemmy_throttle = _Throttle(1.1)
 _bsky_throttle = _Throttle(0.5)
 _reddit_throttle = _Throttle(1.1)
+_reddit_comments_throttle = _Throttle(1.1)
 
 
 def _norm_url(u: str) -> str:
@@ -279,3 +281,87 @@ class SocialFetcher:
 def fetch_social_signals(url: str) -> list[dict[str, Any]]:
     """Backwards-compatible one-shot fetch (creates a fresh fetcher each call)."""
     return SocialFetcher().fetch(url)
+
+
+# ── Comment fetchers ──────────────────────────────────────────────────────────
+
+import re as _re  # noqa: E402 — placed here to avoid cluttering the top-level imports
+
+
+def _strip_html(text: str) -> str:
+    """Strip HTML tags and decode common entities."""
+    text = _re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&#x27;", "'").replace("&quot;", '"')
+    return " ".join(text.split())
+
+
+def fetch_hn_comments(story_id: str, top_n: int = 10) -> list[dict[str, Any]]:
+    """Fetch top comments for an HN story via the Algolia items endpoint.
+
+    Returns [{text, score, author}], truncated to top_n by text length (a rough
+    proxy for substance — very short comments are usually noise).
+    """
+    try:
+        resp = httpx.get(
+            f"{_HN_ITEM}/{story_id}",
+            headers={"User-Agent": _UA},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        item = resp.json()
+        comments: list[dict[str, Any]] = []
+
+        def _walk(node: dict[str, Any], depth: int = 0) -> None:
+            if depth > 2:  # top 2 reply levels only
+                return
+            raw = node.get("text") or ""
+            text = _strip_html(raw)
+            if len(text) > 40:
+                comments.append({
+                    "text": text[:500],
+                    "score": None,  # HN comments don't surface vote counts in the API
+                    "author": node.get("author"),
+                })
+            for child in node.get("children", []):
+                _walk(child, depth + 1)
+
+        for child in item.get("children", []):
+            _walk(child)
+
+        comments.sort(key=lambda c: len(c["text"]), reverse=True)
+        return comments[:top_n]
+    except Exception as exc:
+        log.debug("hn_comments_failed story_id=%s err=%s", story_id, exc)
+        return []
+
+
+def fetch_reddit_comments(permalink: str, top_n: int = 10) -> list[dict[str, Any]]:
+    """Fetch top Reddit comments from a submission permalink.
+
+    permalink may be the full https://reddit.com/... URL or a bare /r/... path.
+    Returns [{text, score, author}].
+    """
+    _reddit_comments_throttle.wait()
+    path = permalink.replace("https://reddit.com", "").replace("https://www.reddit.com", "")
+    path = path.rstrip("/")
+    if not path.startswith("/"):
+        path = "/" + path
+    url = f"https://www.reddit.com{path}.json?limit={top_n}&sort=top"
+    try:
+        resp = httpx.get(url, headers={"User-Agent": _UA}, timeout=_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+        children = data[1]["data"]["children"]
+        comments: list[dict[str, Any]] = []
+        for child in children:
+            body = (child["data"].get("body") or "").strip()
+            if len(body) > 40 and body not in ("[deleted]", "[removed]"):
+                comments.append({
+                    "text": body[:500],
+                    "score": child["data"].get("score") or 0,
+                    "author": child["data"].get("author"),
+                })
+        return comments[:top_n]
+    except Exception as exc:
+        log.debug("reddit_comments_failed permalink=%s err=%s", permalink[:60], exc)
+        return []

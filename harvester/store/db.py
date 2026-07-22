@@ -110,6 +110,17 @@ CREATE TABLE IF NOT EXISTS feed_health (
     error         TEXT
 );
 
+CREATE TABLE IF NOT EXISTS article_comments (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id     TEXT NOT NULL REFERENCES articles(id),
+    source         TEXT NOT NULL,
+    comment_text   TEXT NOT NULL,
+    comment_score  INTEGER,
+    comment_author TEXT,
+    fetched_at     TEXT NOT NULL,
+    UNIQUE(article_id, source, comment_text)
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_status     ON articles(status);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched_at ON articles(fetched_at);
 CREATE INDEX IF NOT EXISTS idx_enrichments_tier    ON enrichments(tier);
@@ -117,6 +128,7 @@ CREATE INDEX IF NOT EXISTS idx_enrichments_at      ON enrichments(enriched_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_feed_guid ON articles(feed_name, guid)
     WHERE guid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_feed_health_feed ON feed_health(feed_name, checked_at);
+CREATE INDEX IF NOT EXISTS idx_comments_article ON article_comments(article_id);
 """
 
 # FTS5 virtual table + triggers — created separately from _SCHEMA so they can be
@@ -363,6 +375,40 @@ class Database:
                    VALUES (:article_id, :source, :score, :comments, :permalink, :fetched_at)""",
                 [{**s, "fetched_at": _now_utc()} for s in signals],
             )
+
+    def has_comments(self, article_id: str, source: str) -> bool:
+        """Return True if we already have comments for this article from this source."""
+        with self._conn() as con:
+            row = con.execute(
+                "SELECT 1 FROM article_comments WHERE article_id=? AND source=? LIMIT 1",
+                (article_id, source),
+            ).fetchone()
+        return row is not None
+
+    def save_comments(
+        self,
+        article_id: str,
+        source: str,
+        comments: list[dict[str, Any]],
+    ) -> int:
+        """Insert comments, skipping exact duplicates. Returns count inserted."""
+        if not comments:
+            return 0
+        now = _now_utc()
+        inserted = 0
+        with self._conn() as con:
+            for c in comments:
+                try:
+                    con.execute(
+                        """INSERT OR IGNORE INTO article_comments
+                           (article_id, source, comment_text, comment_score, comment_author, fetched_at)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (article_id, source, c["text"], c.get("score"), c.get("author"), now),
+                    )
+                    inserted += con.execute("SELECT changes()").fetchone()[0]
+                except Exception:
+                    pass
+        return inserted
 
     def get_enriched_articles(
         self,
