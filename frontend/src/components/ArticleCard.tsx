@@ -11,9 +11,12 @@ interface Props {
   isSaved?: boolean;
   isFocused?: boolean;
   isNew?: boolean;
+  batchMode?: boolean;
+  isSelected?: boolean;
   onDetail?: (article: Article) => void;
   onToggleSave?: (id: string) => void;
   onToggleRead?: (id: string) => void;
+  onToggleSelect?: (id: string) => void;
 }
 
 function relativeTime(iso?: string): string {
@@ -68,16 +71,20 @@ export function ArticleCard({
   isSaved = false,
   isFocused = false,
   isNew = false,
+  batchMode = false,
+  isSelected = false,
   onDetail,
   onToggleSave,
   onToggleRead,
+  onToggleSelect,
 }: Props) {
   const border = tierBorderClass(article.tier);
-  const dimClass = isRead ? "opacity-40" : "";
+  const dimClass = isRead && !batchMode ? "opacity-40" : "";
   const focusRing = isFocused ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-950" : "";
+  const selectedRing = isSelected ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-950" : "";
 
   const handleCardClick = (e: React.MouseEvent) => {
-    // Don't open detail if clicking a link/button inside the card
+    if (batchMode) { onToggleSelect?.(article.id); return; }
     const target = e.target as HTMLElement;
     if (target.closest("a, button")) return;
     onDetail?.(article);
@@ -87,12 +94,19 @@ export function ArticleCard({
     return (
       <div
         className={`relative flex items-start gap-3 py-2 px-3 rounded hover:bg-neutral-800 transition-colors group/card
-                    cursor-pointer ${dimClass} ${focusRing}`}
+                    cursor-pointer ${dimClass} ${batchMode ? selectedRing : focusRing}`}
         onClick={handleCardClick}
         data-article-id={article.id}
       >
         <span className="mt-0.5 shrink-0">
-          <TierBadge tier={article.tier} compact />
+          {batchMode ? (
+            <span className={`flex items-center justify-center h-4 w-4 rounded border-2 transition-colors
+                              ${isSelected ? "bg-blue-600 border-blue-500" : "border-neutral-600"}`}>
+              {isSelected && <span className="text-white text-[10px] leading-none">✓</span>}
+            </span>
+          ) : (
+            <TierBadge tier={article.tier} compact />
+          )}
         </span>
         <span className="flex-1 min-w-0">
           <a
@@ -167,13 +181,20 @@ export function ArticleCard({
   return (
     <article
       className={`rounded-lg border border-neutral-800 border-l-4 ${border} bg-neutral-900 p-4
-                  hover:bg-neutral-850 transition-colors cursor-pointer ${dimClass} ${focusRing}`}
+                  hover:bg-neutral-850 transition-colors cursor-pointer ${dimClass} ${batchMode ? selectedRing : focusRing}`}
       onClick={handleCardClick}
       data-article-id={article.id}
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <TierBadge tier={article.tier} />
+          {batchMode ? (
+            <span className={`flex items-center justify-center h-5 w-5 rounded border-2 shrink-0 transition-colors
+                              ${isSelected ? "bg-blue-600 border-blue-500" : "border-neutral-600"}`}>
+              {isSelected && <span className="text-white text-xs leading-none">✓</span>}
+            </span>
+          ) : (
+            <TierBadge tier={article.tier} />
+          )}
           {isNew && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white uppercase tracking-wide">
               New

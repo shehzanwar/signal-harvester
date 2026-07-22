@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IS_STATIC_MODE, api } from "./api/client";
+import { BatchBar } from "./components/BatchBar";
 import { BottomNav } from "./components/BottomNav";
+import { StatsPanel } from "./components/StatsPanel";
 import { Toast } from "./components/Toast";
 import { BottomSheet } from "./components/BottomSheet";
 import { CategoryBar } from "./components/CategoryBar";
@@ -81,6 +83,9 @@ export default function App() {
   const [lastVisit] = useState<Date | null>(() => {
     try { const s = localStorage.getItem("signal-last-visit"); return s ? new Date(s) : null; } catch { return null; }
   });
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+  const [statsOpen, setStatsOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; undo: () => void; key: number } | null>(null);
   const showToast = useCallback((message: string, undo: () => void) => {
     setToast({ message, undo, key: Date.now() });
@@ -131,6 +136,37 @@ export default function App() {
     },
     [readIds, toggleRead, showToast],
   );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const batchMarkRead = useCallback(() => {
+    selectedIds.forEach((id) => { if (!readIds.has(id)) toggleRead(id); });
+    setBatchMode(false);
+    setSelectedIds(new Set());
+    showToast(`Marked ${selectedIds.size} read`, () => {
+      selectedIds.forEach((id) => toggleRead(id));
+    });
+  }, [selectedIds, readIds, toggleRead, showToast]);
+
+  const batchSave = useCallback(() => {
+    selectedIds.forEach((id) => { if (!savedIds.has(id)) toggleSave(id); });
+    setBatchMode(false);
+    setSelectedIds(new Set());
+    showToast(`Saved ${selectedIds.size}`, () => {
+      selectedIds.forEach((id) => toggleSave(id));
+    });
+  }, [selectedIds, savedIds, toggleSave, showToast]);
+
+  const exitBatch = useCallback(() => {
+    setBatchMode(false);
+    setSelectedIds(new Set());
+  }, []);
 
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -212,6 +248,13 @@ export default function App() {
 
   // cluster_id -> all members, for listing corroborating coverage in the detail panel
   const clusterMembers = useMemo(() => clusterMembersMap(allArticles), [allArticles]);
+
+  // Reading progress: how many non-noise representative articles have been read
+  const readProgress = useMemo(() => {
+    const reps = collapseClusters(tagFilteredArticles).filter((a) => a.tier !== "NOISE");
+    const read = reps.filter((a) => readIds.has(a.id)).length;
+    return { read, total: reps.length };
+  }, [tagFilteredArticles, readIds]);
 
   // Top tag chips: trending tags first, backfilled from all-time top_tags up to 12.
   const topTags = useMemo(() => {
@@ -327,6 +370,18 @@ export default function App() {
 
       if (inInput) return;
 
+      if (e.key === "x") {
+        setBatchMode((v) => !v);
+        if (batchMode) setSelectedIds(new Set());
+        return;
+      }
+
+      if (e.key === "1" || e.key === "2" || e.key === "3") {
+        const idMap = { "1": "section-t1", "2": "section-t2", "3": "section-t3" } as const;
+        document.getElementById(idMap[e.key])?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
       if (e.key === "j" || e.key === "k") {
         e.preventDefault();
         setFocusedId((prev) => {
@@ -377,7 +432,7 @@ export default function App() {
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [flatArticles, focusedId, toggleSaveTracked, toggleReadTracked, openDetail]);
+  }, [flatArticles, focusedId, batchMode, toggleSaveTracked, toggleReadTracked, openDetail]);
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -512,7 +567,7 @@ export default function App() {
         {/* Keyboard hint — non-touch only */}
         {!isTouch && (
           <p className="text-xs text-neutral-700 mb-3">
-            j/k navigate · Enter open · s save · r read · d detail · / search
+            j/k navigate · 1/2/3 jump tier · Enter open · s save · r read · d detail · x select · / search
           </p>
         )}
 
@@ -561,8 +616,27 @@ export default function App() {
             </button>
           )}
           <button
+            onClick={() => setBatchMode((v) => { if (v) setSelectedIds(new Set()); return !v; })}
+            className={`text-sm px-2.5 py-1.5 rounded-lg border transition-colors ${
+              batchMode
+                ? "bg-blue-900/40 border-blue-700 text-blue-300"
+                : "border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:border-neutral-600"
+            }`}
+            title="Multi-select mode (x)"
+          >
+            ☐ Select
+          </button>
+          <button
+            onClick={() => setStatsOpen(true)}
+            className="flex items-center justify-center h-9 w-9 rounded-lg border border-neutral-700 text-neutral-400 hover:text-neutral-100 hover:border-neutral-500"
+            aria-label="Reading stats"
+            title="Reading stats"
+          >
+            📊
+          </button>
+          <button
             onClick={() => setPrefsOpen(true)}
-            className="ml-auto flex items-center justify-center h-9 w-9 rounded-lg border border-neutral-700 text-neutral-400 hover:text-neutral-100 hover:border-neutral-500"
+            className="flex items-center justify-center h-9 w-9 rounded-lg border border-neutral-700 text-neutral-400 hover:text-neutral-100 hover:border-neutral-500"
             aria-label="Preferences"
             title="Preferences"
           >
@@ -596,6 +670,24 @@ export default function App() {
           </div>
         )}
 
+        {/* Reading progress bar */}
+        {articlesData && readProgress.total > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between text-xs text-neutral-700 mb-1">
+              <span>{readProgress.read} / {readProgress.total} read</span>
+              {readProgress.read === readProgress.total && (
+                <span className="text-emerald-700">All caught up ✓</span>
+              )}
+            </div>
+            <div className="h-0.5 bg-neutral-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-neutral-600 rounded-full transition-all duration-500"
+                style={{ width: `${(readProgress.read / readProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {articlesData && (
           <TieredFeed
             articles={tagFilteredArticles}
@@ -606,6 +698,8 @@ export default function App() {
             onExitBriefMode={() => setBriefMode(false)}
             compact={effectiveCompact}
             mode={sortMode}
+            batchMode={batchMode}
+            selectedIds={selectedIds}
             forYouOrder={forYouOrderFn}
             isMuted={isMutedFn}
             lowInterest={lowInterestFn}
@@ -617,6 +711,7 @@ export default function App() {
             onDetail={openDetail}
             onToggleSave={toggleSaveTracked}
             onToggleRead={toggleReadTracked}
+            onToggleSelect={toggleSelect}
           />
         )}
       </main>
@@ -670,6 +765,26 @@ export default function App() {
         onUpdate={updatePrefs}
         onReplacePrefs={replacePrefs}
       />
+
+      {/* Stats panel */}
+      <StatsPanel
+        open={statsOpen}
+        articles={allArticles}
+        readIds={readIds}
+        savedIds={savedIds}
+        prefs={prefs}
+        onClose={() => setStatsOpen(false)}
+      />
+
+      {/* Batch action bar */}
+      {batchMode && selectedIds.size > 0 && (
+        <BatchBar
+          count={selectedIds.size}
+          onMarkRead={batchMarkRead}
+          onSave={batchSave}
+          onCancel={exitBatch}
+        />
+      )}
 
       {/* Undo toast */}
       {toast && (

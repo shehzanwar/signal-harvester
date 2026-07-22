@@ -12,6 +12,8 @@ interface Props {
   mode?: "tiered" | "foryou";
   briefMode?: boolean;
   newSince?: Date | null;
+  batchMode?: boolean;
+  selectedIds?: ReadonlySet<string>;
   forYouOrder?: (reps: Article[]) => Article[];
   isMuted?: (a: Article) => boolean;
   lowInterest?: (a: Article) => boolean;
@@ -23,6 +25,7 @@ interface Props {
   onDetail: (article: Article) => void;
   onToggleSave: (id: string) => void;
   onToggleRead: (id: string) => void;
+  onToggleSelect?: (id: string) => void;
   onExitBriefMode?: () => void;
 }
 
@@ -67,6 +70,8 @@ export function TieredFeed({
   mode = "tiered",
   briefMode = false,
   newSince,
+  batchMode = false,
+  selectedIds,
   forYouOrder,
   isMuted,
   lowInterest,
@@ -78,6 +83,7 @@ export function TieredFeed({
   onDetail,
   onToggleSave,
   onToggleRead,
+  onToggleSelect,
   onExitBriefMode,
 }: Props) {
   const isMobile = useIsMobile();
@@ -123,9 +129,12 @@ export function TieredFeed({
     isSaved: savedIds.has(a.id),
     isFocused: focusedId === a.id,
     isNew: newSince != null && !!a.published_at && new Date(a.published_at) > newSince,
+    batchMode,
+    isSelected: selectedIds?.has(a.id) ?? false,
     onDetail,
     onToggleSave,
     onToggleRead,
+    onToggleSelect,
   });
   // Low-interest categories render compact so they take less space.
   const compactFor = (a: Article) => compact || (lowInterest?.(a) ?? false);
@@ -217,7 +226,7 @@ export function TieredFeed({
     <div className="space-y-10">
       {/* T1 */}
       {t1.length > 0 && (
-        <Section title="Critical" emoji="🔴" count={t1.length} accent="text-red-400">
+        <Section id="section-t1" title="Critical" emoji="🔴" count={t1.length} accent="text-red-400">
           {(() => {
             const groups = groupByDate(visibleT1);
             const showHeaders = groups.length > 1;
@@ -249,7 +258,7 @@ export function TieredFeed({
 
       {/* T2 */}
       {t2.length > 0 && (
-        <Section title="Notable" emoji="🟡" count={t2.length} accent="text-amber-400">
+        <Section id="section-t2" title="Notable" emoji="🟡" count={t2.length} accent="text-amber-400">
           {(() => {
             const groups = groupByDate(t2);
             const showHeaders = groups.length > 1;
@@ -280,6 +289,7 @@ export function TieredFeed({
       {/* T3 */}
       {t3.length > 0 && (
         <Section
+          id="section-t3"
           title="Background"
           emoji="🔵"
           count={t3.length}
@@ -334,6 +344,7 @@ export function TieredFeed({
 }
 
 function Section({
+  id,
   title,
   emoji,
   count,
@@ -343,6 +354,7 @@ function Section({
   open,
   onToggle,
 }: {
+  id?: string;
   title: string;
   emoji: string;
   count: number;
@@ -353,7 +365,7 @@ function Section({
   onToggle?: () => void;
 }) {
   return (
-    <section>
+    <section id={id}>
       <div className="flex items-center gap-2 mb-4">
         {collapsible ? (
           <button
