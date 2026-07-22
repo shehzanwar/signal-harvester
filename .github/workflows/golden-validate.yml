@@ -1,0 +1,36 @@
+name: Validate golden set
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "prompts/**"
+      - "configs/profiles/**"
+      - "tests/golden/**"
+      - "harvester/enrich/**"
+  pull_request:
+    paths:
+      - "prompts/**"
+      - "configs/profiles/**"
+      - "tests/golden/**"
+      - "harvester/enrich/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" --quiet
+
+      - name: Validate golden file schema
+        run: python scripts/validate_golden.py tests/golden/
+
+      - name: Run fast tests (no LLM)
+        run: pytest tests/ -m "not slow" -q

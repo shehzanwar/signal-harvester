@@ -1,0 +1,16 @@
+{
+  "id": "012405b664b591d66a41f77c5ce9ae09",
+  "title": "Trump backs Lindsey Graham's sister in Senate special election",
+  "url": "https://www.axios.com/2026/07/17/trump-darline-graham-nordone-senate-endorsement",
+  "feed_name": "Axios",
+  "extracted_text": "[feed summary]\nPresident Trump has endorsed Darline Graham Nordone, the sister of late Sen. Lindsey Graham (R-S.C.), in next month's special election to replace Graham as the GOP candidate on the November ballot. Why it matters: Nordone has not publicly confirmed plans to run, but Trump's endorsement will vault her ahead of other GOP candidates vying to replace her late brother. The winner of November's election will serve until January 2033. Nordone was sworn in earlier this week to replace her brother for the remainder of the current term, which ends on January 3, 2027. What they're saying: \"I asked Darline, for the Good of our Nation, to run for the U.S. Senate in the Special Republican Primary on Tuesday, August 11, 2026,\" Trump wrote in a post on Truth Social Friday. \"I hope Darline does this, in that there would be nobody better to honor the legacy of her beloved brother, Lindsey.\" \"Darline, who comes from an absolutely incredible family, has been a WINNER all of her life and, should she accept, has my Complete and Total Endorsement in the Special Election for U.S. Senate in South Carolina — SHE WILL NEVER LET YOU DOWN. RUN, DARLINE, RUN!\" Nordone's Senate office did not immediately respond to Axios' request for comment. The intrigue: Nordone, who had never held public office before her appointment by South Carolina Gov. Henry McMaster (R), indicated that she's exploring her options, Semafor first reported on Friday. Nordone was originally picked to fulfill the remainder of Graham's term following his sudden death last week. She was sworn into the Senate on Tuesday, becoming the first woman to represent South Carolina in the upper chamber. Nordone was a fixture in her brother's campaigns for decades and was considered Graham's closest family member, as he never married or had children. Zoom out: Candidates can file to run in the special election from July 21 to 28. Yes, but: Trump's endorsement could put a damper on plans for any other candidates if Nordone de",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "without confirmed",
+      "classified as background"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

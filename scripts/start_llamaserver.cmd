@@ -18,6 +18,9 @@ REM ping is used instead of timeout because timeout blocks in hidden-window mode
 REM (launched from the Startup folder VBS with window style 0).
 ping 127.0.0.1 -n 31 >nul
 
+REM -np must match llm.concurrency in the profile YAML.
+REM Sequential pipeline (default, concurrency=1) -> -np 1 (full 8192 context per request)
+REM Concurrent pipeline (concurrency=2, ThreadPoolExecutor) -> -np 2 (4096 per slot)
 "%LLAMA_DIR%\llama-server.exe" ^
   -m "%MODEL%" ^
   -c 8192 -np 1 -ngl 999 ^

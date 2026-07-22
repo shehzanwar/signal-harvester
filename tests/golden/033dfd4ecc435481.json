@@ -1,0 +1,17 @@
+{
+  "id": "033dfd4ecc435481c61571ef94c4b421",
+  "title": "Korea Plans Measures on Leveraged ETFs Driving Wild Volatility",
+  "url": "https://www.bloomberg.com/news/articles/2026-07-16/korea-to-announce-measures-on-single-stock-leveraged-etfs-soon",
+  "feed_name": "Bloomberg Markets",
+  "extracted_text": "[feed summary]\nSouth Korea will soon announce measures regarding the leveraged exchange-traded funds tied to shares of Samsung Electronics Co. and SK Hynix Inc. that have fueled a surge in market volatility.",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "not enacted",
+      "background",
+      "T3"
+    ],
+    "sentiment_label": "negative"
+  },
+  "notes": "T3, not T2. 'Korea Plans Measures' = proposed regulation not yet enacted. T2 for trade/regulatory actions requires the measure to be officially signed and in force. Proposals and announced plans are explicitly T3."
+}

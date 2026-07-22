@@ -1,0 +1,15 @@
+{
+  "id": "013feac75ffc15fd4bbc524df7311e1a",
+  "title": "How World Cup final could be pivotal in Ballon d'Or race",
+  "url": "https://www.bbc.co.uk/sport/football/articles/c87ngl370p4o?at_medium=RSS&at_campaign=rss",
+  "feed_name": "BBC Sport",
+  "extracted_text": "How World Cup final could be pivotal in Ballon d'Or race\n- Published\nWhen Spain and Argentina meet in Sunday's World Cup final, the thought of lifting the famous trophy will be the only thing on the players' minds.\nHowever, the result at New York New Jersey Stadium could prove significant beyond crowning the world champions - it could effectively decide who wins the 2026 Ballon d'Or.\nThe era of Lionel Messi and Cristiano Ronaldo domination may be long gone, but in recent years there has still always been a clear favourite to scoop the prize.\nIn 2026, it is different.\nThere are plenty of contenders, although history tells us it is difficult to take top spot without also winning the Champions League or a major international tournament in the same year.\nCould the World Cup final decide who will earn the award - perhaps swinging it the way of Lamine Yamal or Messi - or will the winner be someone else?\nIn one of the tightest races in history, the decisive moment might not have happened yet.\n- What next for England? How does Tuchel fix key problems for Euro 2028? - Published21 hours ago\n \n- How coach-on-pitch Messi undid England's tactics on the fly - Published1 day ago\n \nBiggest prizes usually precede Ballon d'Or\nHarry Kane, Erling Haaland and Kylian Mbappe all put up extraordinary goalscoring numbers in 2025-26, but that is only one part of the story.\nMore often than not, a nominee needs to win a major continental or international trophy.\nOnly four of the past 19 Ballon d'Or wins have gone to a player who did not triumph in the Uefa Champions League, World Cup, European Championship or Copa America in the same year.\nMessi accounts for three of those (2010, 2012, 2019) and Ronaldo the other (2013).\nRightly or wrongly, that means the odds are stacked against Kane, Haaland, Mbappe, Michael Olise, Declan Rice and Jude Bellingham.\nOusmane Dembele took the 2025 prize after winning the Champions League with Paris St-Germain. A successful defence this year means Dembele and tea",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "confirmed"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

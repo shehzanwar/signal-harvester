@@ -93,7 +93,7 @@ def load_profile(path: str | Path) -> ProfileConfig:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"Config not found: {p.absolute()}")
-    with p.open(encoding="utf-8") as f:
+    with p.open(encoding="utf-8-sig") as f:
         data = yaml.safe_load(f)
     try:
         return ProfileConfig.model_validate(data)

@@ -1,0 +1,16 @@
+{
+  "id": "00c9595d3b611a6ca9985528d5db730e",
+  "title": "Former Labour leader 'thrilled to bits' as son becomes new Welsh secretary",
+  "url": "https://www.bbc.co.uk/news/articles/c5y3m14km87o?at_medium=RSS&at_campaign=rss",
+  "feed_name": "BBC Politics",
+  "extracted_text": "Former Labour leader 'thrilled to bits' as son becomes new Welsh secretary\n- Published\nFormer Labour leader Lord Neil Kinnock is \"thrilled to bits\" his son has been promoted to the cabinet as the new Secretary of State for Wales.\nStephen Kinnock was appointed on Monday as Andy Burnham unveiled his prime ministerial team.\nKinnock, who was a junior health minister in the UK Labour government, replaces Cardiff East MP Jo Stevens, who previously said on X she was \"proud\" of her role in government.\nLord Kinnock, 84, who was the party's leader from 1983 to 1992, his son would \"press the case for Welsh interests\".\nStevens, who took up the role of Welsh secretary when Labour came to power in 2024, said it had been \"a privilege and an honour\" to have the job.\nOn Tuesday, Lord Kinnock, said he was \"thrilled to bits\".\n\"We had our midnight conversation, not the first in our lives it has to be said, and usually that was because he came home late.\n\"It was a delight.\"\nHe added that [Stephen] Kinnock has earned it, both with a lifetime of action and service and in the last two years as the Minister of State for Health.\n\"Now as Secretary of State he'll be in a position position to directly influence UK affairs in a way that benefits our country.\"\nJo Stevens had faced criticism from some Welsh Labour politicians for not supporting more powers for the Welsh government, such as for policing, with one former minister describing her as \"anti-devolution\".\nBut she said Wales saw its biggest budget settlement for public services in the history of devolution while she was in office.\nStevens added: \"Wales has seen the biggest budget settlement for our public services in the history of devolution, our steel industry saved and transformed for the future, the largest public investment in Wales in history through new nuclear at Wylfa, a generational commitment of £14bn for our Welsh railways, the best local growth fund settlement of any of the UK nations and so much more.\n\"I wish the new prime mi",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "classified as background",
+      "governing power"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

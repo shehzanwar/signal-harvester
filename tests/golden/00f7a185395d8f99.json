@@ -1,0 +1,15 @@
+{
+  "id": "00f7a185395d8f99a93ffd7dcedd94dd",
+  "title": "Morgan Stanley posts record quarterly revenue and profit as equities trading surges 69%",
+  "url": "https://www.cnbc.com/2026/07/15/morgan-stanley-ms-earnings-q2-2026-.html",
+  "feed_name": "CNBC Business",
+  "extracted_text": "Morgan Stanley on Wednesday posted record revenue and profit for the second quarter, driven by a 69% surge in equities trading revenue.\nHere's what the company reported:\n- Earnings per share: $3.46 vs. $2.94 LSEG estimate\n- Revenue: $21.35 billion vs. $19.64 billion estimate\nThe company said profit jumped 58% from a year earlier to $5.58 billion. Revenue climbed 27% to $21.35 billion.\nLike at peers Goldman Sachs and JPMorgan Chase, a massive beat in equities trading drove the quarter's outsized results. Heightened activity fueled by the global artificial intelligence boom propelled JPMorgan and Goldman to beat estimates for equities trading by a combined $4.4 billion, while investment banking at the two firms topped estimates by a combined $1 billion.\nEquities trading revenue at Morgan Stanley hit a record $6.3 billion, roughly $1.9 billion more than analysts surveyed by StreetAccount had expected. The firm cited strength across the equities franchise and \"notable strength in Asia,\" another recurring Wall Street theme as the AI trade spreads globally.\nMeanwhile, fixed income trading rose 13% to $2.46 billion, essentially matching the consensus estimate, on good results in credit trading.\n\"Active markets and consistent execution across all three regions drove exceptional results for our integrated firm,\" CEO Ted Pick said in the release.\nInvestment banking revenue surged 58% to $2.44 billion, about $270 million more than analysts had expected, on additional completed mergers, initial public offerings and related equities deals, and rising debt issuance.\nRevenue in the firm's giant wealth management division climbed 14% to $8.86 billion, about $146 million more than expected, as asset levels were buoyed by the rising stock market and growth in deposits and lending.\nRevenue in investment management, the firm's smallest division, rose about 6% to $1.65 billion thanks to rising asset values, essentially matching the estimate.",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "classified as background"
+    ],
+    "sentiment_label": "positive"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

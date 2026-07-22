@@ -1,0 +1,16 @@
+{
+  "id": "00691b9d9781d1a1470722ee07f17276",
+  "title": "Is Microsoft (MSFT) One of the Best Monopoly Stocks to Buy According to Hedge Funds?",
+  "url": "https://finance.yahoo.com/technology/ai/articles/microsoft-msft-one-best-monopoly-151338182.html",
+  "feed_name": "Yahoo Finance",
+  "extracted_text": "Microsoft Corporation (NASDAQ:MSFT) is one of the Best Monopoly Stocks to Buy According to Hedge Funds. On July 2, CNBC reported that Microsoft Corporation (NASDAQ:MSFT) plans to invest $2.5 billion in a new group. This group focuses on assisting clients with AI implementations. With this, Microsoft Corporation (NASDAQ:MSFT) is the latest tech giant that is committing significant resources to support businesses in understanding and adopting the emerging AI technologies.\nWith the new venture, called Microsoft Frontier Co., the company stated that 6,000 employees would be embedded with clients, in a practice called forward deployed engineering. The division will have current Microsoft FDEs, technical consultants, support staffers, and salespeople having experience in particular industries.\nThis comes after Amazon stated that it plans to invest $1 billion towards the FDE initiative to aid fast-paced AI engagements. CNBC further noted that AI labs Anthropic and OpenAI established FDE groups in May, joining hands with PE firms, banks, as well as consulting firms.\nMicrosoft Corporation (NASDAQ:MSFT) is a global technology company that develops and sells a wide range of software, cloud services, devices, and business solutions, serving both individual users and enterprise customers worldwide.\nWhile we acknowledge the potential of MSFT as an investment, we believe certain AI stocks offer greater upside potential and carry less downside risk. If you're looking for an extremely undervalued AI stock that also stands to benefit significantly from Trump-era tariffs and the onshoring trend, see our free report on the best short-term AI stock.\nREAD NEXT: 10 Best FMCG Stocks to Invest In According to Analysts and 11 Best Long-Term Tech Stocks to Buy According to Analysts.\nDisclosure: None. Follow Insider Monkey on Google News.",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "without confirmed",
+      "classified as background"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

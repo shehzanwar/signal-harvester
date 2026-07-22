@@ -32,7 +32,7 @@ Rules:
 
 def build_system_prompt(cfg: ProfileConfig) -> str:
     path = Path(cfg.prompts.enrichment)
-    template_str = path.read_text(encoding="utf-8") if path.exists() else _DEFAULT_SYSTEM_PROMPT
+    template_str = path.read_text(encoding="utf-8-sig") if path.exists() else _DEFAULT_SYSTEM_PROMPT
     return Template(template_str).safe_substitute(
         watch_topics=", ".join(cfg.watch_topics),
         sentiment_target=cfg.sentiment_target,

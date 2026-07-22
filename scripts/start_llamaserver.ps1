@@ -17,6 +17,9 @@ Start-Sleep -Seconds 30
 # Start-Process detaches llama-server as its own independent process so this
 # hidden PS window can exit immediately. Using & with *> in a hidden window
 # causes the native exe to silently fail to start.
+# -np must match llm.concurrency in the profile YAML.
+# Sequential pipeline (default, concurrency=1) -> -np 1 (full 8192 context per request)
+# Concurrent pipeline (concurrency=2, ThreadPoolExecutor) -> -np 2 (4096 per slot)
 Start-Process -FilePath "$llamaDir\llama-server.exe" `
     -ArgumentList "-m `"$model`" -c 8192 -np 1 -ngl 999 --host 127.0.0.1 --port 11435 --flash-attn on" `
     -WorkingDirectory $llamaDir `

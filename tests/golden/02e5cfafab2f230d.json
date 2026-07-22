@@ -1,0 +1,16 @@
+{
+  "id": "02e5cfafab2f230d5851017b6cff88c1",
+  "title": "Slumping AI stocks drag down markets around the world",
+  "url": "https://finance.yahoo.com/markets/world-indices/articles/asian-shares-mostly-decline-south-051353738.html",
+  "feed_name": "Yahoo Finance",
+  "extracted_text": "NEW YORK (AP) — Drops for computer chipmakers and other winners of the artificial-intelligence boom dragged down stock markets worldwide on Thursday.\nThe S&P 500 fell 0.5%, even though more stocks rose within the index than fell. The Dow Jones Industrial Average dipped 105 points, or 0.2%, and the Nasdaq composite sank 1.5%.\nNearly three out of every four stocks rose within the S&P 500 after more of the country's biggest companies reported better earnings for the latest quarter than analysts expected.\nAbbott jumped 10.7% after the healthcare company delivered a fatter profit than expected and raised its forecast for earnings over the full year. J.B. Hunt Transport Services climbed 8% after the freight company likewise topped analysts' expectations for the latest quarter.\nBut a 1% move for Nvidia's stock packs more punch on the S&P 500 than a 1% move for any other company because it's the largest on Wall Street by value.\nAnd Nvidia fell 2.4%, making it the heaviest weight on the index. Other AI winners also sank, giving back some of their stellar gains.\nMicron Technology fell 5.6% to shave its gain for the year so far below 199%. Sandisk fell 12.6% but is nevertheless up 494% for the year so far. Western Digital sank 9.2% but is still up 171% for the year so far.\nSuch stocks have been under pressure for weeks because of worries that their prices shot too high and that voracious demand for computer memory and processors may not be sustainable if AI ends up not producing as much profit and productivity as promised.\nAll told, the S&P 500 fell 38.63 points to 7,533.77. The Dow Jones Industrial Average dropped 105.67 to 52,552.97, and the Nasdaq composite sank 387.28 to 25,881.95.\nThe losses came even though Taiwan Semiconductor Manufacturing Co., a bellwether of the chip industry, reported a stronger profit for the latest quarter than analysts expected. Its stock in Taiwan rose 1.2%, but its stock that trades in the United States fell 2.3%.\nIn South Korea, drops for AI w",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "without confirmed",
+      "major index"
+    ],
+    "sentiment_label": "negative"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

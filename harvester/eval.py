@@ -43,7 +43,7 @@ def run_eval(cfg: ProfileConfig, golden_set_dir: str = "tests/golden") -> None:
 
     results: list[dict[str, Any]] = []
     for fp in files:
-        article = json.loads(fp.read_text(encoding="utf-8"))
+        article = json.loads(fp.read_text(encoding="utf-8-sig"))
         expected = article.pop("expected", {})
         article.pop("notes", None)
 

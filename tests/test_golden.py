@@ -37,7 +37,7 @@ def _golden_files():
 @pytest.mark.slow
 @pytest.mark.parametrize("golden_file", _golden_files(), ids=lambda p: p.stem)
 def test_golden(golden_file: Path, enrich_client, cfg) -> None:
-    data = json.loads(golden_file.read_text(encoding="utf-8"))
+    data = json.loads(golden_file.read_text(encoding="utf-8-sig"))
     expected = data.pop("expected", {})
     data.pop("notes", None)
 

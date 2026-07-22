@@ -49,6 +49,7 @@ known-first-party = ["harvester"]
 testpaths = ["tests"]
 markers = [
     "live: requires a running Ollama instance (skipped in CI)",
+    "slow: requires a running LLM server (llama-server or Ollama); run locally with -m slow",
 ]
 
 [tool.mypy]

@@ -1,0 +1,16 @@
+{
+  "id": "032aec111f5b8041e83e313feafcce8f",
+  "title": "Startup bets that investors want to trade compute like a commodity",
+  "url": "https://www.axios.com/2026/07/06/ornn-gpu-compute-commodity",
+  "feed_name": "Axios",
+  "extracted_text": "[feed summary]\nOrnn, an Andreessen Horowitz-backed startup, raised a $33 million seed round to build a marketplace for trading the computing power that underpins today's AI boom, similar to what exists for oil traders. Why it matters: Investors increasingly want to trade compute like a commodity, betting it could make the historically expensive AI buildout more sustainable and efficient. Catch up quick: Commodity markets let companies use futures contracts to lock in prices for volatile raw materials. Think airlines locking in jet fuel prices or manufacturers hedging metals prices, which helps them reduce the risk of price fluctuations. But AI companies don't have an equivalent market for compute, a problem the 20-something founders of Ornn and a growing number of exchanges are trying to solve. So far, AI companies have tried to lock up supply and prices through long-term pre-purchasing agreements. Follow the money: Goldman Sachs estimates that between 2026 and 2031 roughly $7.6 trillion will be invested globally in building up compute, power and data centers. But the financial infrastructure needed to sustain that level of spend \"has not yet been built,\" the bank adds. Companies like Ornn want to help build that infrastructure. Yes, but: Unlike oil, compute isn't a static commodity. Each new generation of Nvidia chips promises better price performance, which changes the value of older chips. Any benchmark has to chase a depreciating asset. Compute also isn't a tangible good in the same way oil is: GPU capacity can't be stored, so unused compute disappears, making it harder to build standardized contracts and pricing around it. What they're saying: \"We want to make financing AI way more seamless,\" Wayne Nelms, Ornn's chief technology officer, told Axios. His co-founder and CEO, Kush Bavaria, sees this as part of America's potential advantage over China and added that the company does not work with Chinese AI labs. Zoom in: Lenders can use Ornn for benchmarking, whil",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "without confirmed",
+      "classified as background"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

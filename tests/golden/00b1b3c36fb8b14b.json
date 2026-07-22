@@ -1,0 +1,13 @@
+{
+  "id": "00b1b3c36fb8b14bd91764763355f034",
+  "title": "Shock and anger after top Ghanaian politician sentenced to 20 years for illegal mining",
+  "url": "https://www.bbc.co.uk/news/articles/cpvwnjllwvwo?at_medium=RSS&at_campaign=rss",
+  "feed_name": "BBC World News",
+  "extracted_text": "Shock and anger after top Ghanaian politician sentenced to 20 years for illegal mining\n- Published\nGhana's main opposition party has reacted with anger after one of its most influential leaders was sentenced to 20 years in jail, with hard labour, for illegal mining offences.\nThe New Patriotic Party (NPP) alleged that the landmark judgement against Bernard Antwi Boasiako, the party's chairman for the Ashanti region, was politically motivated.\nPopularly known as \"Chairman Wontumi\", Boasiako is the first senior politician in Ghana to be convicted of illegal mining since the government began a crackdown on the practice in 2017.\nAs well as receiving a jail sentence, Boasiako, who had denied the charges, was ordered to pay more than $10,000 (£7,450) in fines.\nHe looked visibly shocked when the judge handed down the sentence in a court in the capital, Accra, on Monday.\nThe NPP politician was found guilty of \"assigning mineral rights without approval\" and \"facilitating an unlicensed mining operation\" through his company, Akonta Mining.\nGhana is Africa's leading gold producer, but a large portion of the country's waters and environment have been polluted by illegal mining, known as locally as \"galamsey\".\nOver the years, governments have attempted to tackle the problem, even deploying the military, to little effect.\n- 'We are poisoning ourselves': Ghana gold rush sparks environmental disaster - Published20 October 2024\n \n- The deadly dig for Ghana's gold - Published6 December 2024\n \nFollowing Boasiako's conviction, NPP general secretary Justin Kodua Frimpong told reporters: ''The fight against illegal mining cannot become credible only when it targets political opponents in respect of whom evidence of wrongdoing does not exist.\"\nHe alleged that the judge had ignored \"clear evidence\" that would have exonerated Boasiako.\nProsecutors say the NPP politician had allowed two individuals, Henry Okum and Michael Gyedu Ayisi, to undertake mining activities on the Akonta Mining's conce",
+  "expected": {
+    "tier": "T2",
+    "tier_rationale_contains": [],
+    "sentiment_label": "negative"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T2."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "029bb396a7596c2ab878e610f06293c1",
+  "title": "Why are people buying so many CDs?",
+  "url": "https://www.theverge.com/entertainment/966726/cd-sales-vinyl-physical-media-luminate",
+  "feed_name": "The Verge",
+  "extracted_text": "CD sales are apparently going up, reportedly thanks to fans realizing they’re an affordable way to support their favorite artists. According to a new report from research firm Luminate, 16.3 million CDs were sold in the first half of 2026 in the US, a 16 percent increase year-over-year. The growth in CD sales was driven by “collection building, price accessibility, massive albums such as BTS’ ARIRANG and a strong K-pop release schedule,” Luminate says.\nWhy are people buying so many CDs?\nA new report shows that CD sales are up over the first half of 2026.\nA new report shows that CD sales are up over the first half of 2026.\nEven if you remove K-pop sales from the data, CD sales still went up in the US, increasing 6.7 percent. And it appears that some people aren’t even buying the CDs to listen to them, as Luminate’s report notes that “approximately” half of the Gen Z and millennial buyers picking up CDs don’t own a CD player.\nThe data suggests that “the CD has been recontextualized from a functional audio format into an affordable collectible,” Luminate says. “This behavior underscores that for younger generations, the act of buying physical music is as much about aesthetic ownership and direct financial support for the artist as it is listening to the music on the product itself.”\nPhysical album sales — vinyls, CDs, and cassettes — were up overall as well, increasing 7.8 percent year-over-year. Vinyl sales were at 21.8 million units and cassette sales hit around 205,000 units, Luminate’s Denise Schenasi tells The Verge. The higher vinyl sales continues a trend of the format outselling CDs that has been going for a few years now.",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "without confirmed",
+      "classified as background"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

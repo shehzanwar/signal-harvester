@@ -156,7 +156,22 @@ class EnrichmentClient:
             try:
                 resp = httpx.post(self._chat_url, json=payload, timeout=120.0)
                 resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
+                body = resp.json()
+                usage = body.get("usage", {})
+                prompt_tok = usage.get("prompt_tokens", "?")
+                completion_tok = usage.get("completion_tokens", "?")
+                total_tok = usage.get("total_tokens", "?")
+                log.debug(
+                    "llamacpp_tokens prompt=%s completion=%s total=%s",
+                    prompt_tok, completion_tok, total_tok,
+                )
+                if isinstance(total_tok, int) and total_tok > 7500:
+                    log.warning(
+                        "context_budget_warning total_tokens=%d (limit=8192) — "
+                        "consider truncating articles or bumping n_ctx",
+                        total_tok,
+                    )
+                content = body["choices"][0]["message"]["content"]
                 if content and content.strip():
                     return content
                 last_exc = ValueError("llama-server returned empty content")

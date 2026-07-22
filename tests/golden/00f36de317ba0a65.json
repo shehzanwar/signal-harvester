@@ -1,0 +1,16 @@
+{
+  "id": "00f36de317ba0a65301be3ba941ccec0",
+  "title": "Nolan Wells' family presses for transparent investigation into his death",
+  "url": "https://www.pbs.org/newshour/show/nolan-wells-family-presses-for-transparent-investigation-into-his-death",
+  "feed_name": "PBS NewsHour",
+  "extracted_text": "Family members are pressing for answers about the death of 18-year-old Nolan Wells. He disappeared during a Fourth of July trip with three high school friends to an island off Mississippi's Gulf Coast. Wells, who is Black, was the only one who did not return to the mainland, and days later his body was found in the water. Geoff Bennett spoke with the Wells' family attorney, Ben Crump.",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "without confirmed",
+      "classified as background"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}

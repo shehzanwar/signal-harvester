@@ -1,0 +1,16 @@
+{
+  "id": "0065d979ed9e619baade2b98dd1484da",
+  "title": "NBA offseason buzz: Latest updates from summer lea...",
+  "url": "https://www.espn.com/nba/story/_/id/48377855/2026-nba-buzz-latest-live-updates-news-intel-nba-draft-offseason",
+  "feed_name": "ESPN",
+  "extracted_text": "NBA free agency is here, and signings, extensions and trades are coming in fast.\nWhich players are agreeing to new contracts? Which franchises are exploring trades? Which stars will join Kawhi Leonard, Giannis Antetokounmpo and Jaylen Brown on the list of blockbuster deals this summer? Where will LeBron James land after informing the Los Angeles Lakers that he won't return to the team in 2026-27?\nCheck back here for all the latest buzz, news and reactions from our ESPN NBA insiders, with the latest info at the top:\nQuick links:\nFree agency grades | Trade grades\nTrade tracker | Transactions\nDepth charts | Trade machine | More\nJuly 12\nKram: Brown trade still central in league discourse\nThroughout Las Vegas summer league, NBA front office members all want to talk about one topic: the Jaylen Brown trade.\nMore than a week after the stunning deal that sent Brown to Philadelphia in exchange for Paul George and draft picks, the debate over Boston's decision is still raging. Conversations I've had with team personnel during summer league have frequently circled around to the many fascinating facets of the Brown trade: whether he's overrated, whether to trust analytics' skepticism of his value, whether Boston is still a title contender even after losing him and so on.\nThe level of interest and outrage isn't as high as what followed the Luka Doncic trade two years ago. But if this week is any indication, the Brown trade will remain a flashpoint in NBA discourse -- not just in public and in the media but inside the league itself -- for quite some time. -- Zach Kram\nJuly 12\nDraymond Green: 'Of course' I pitched LeBron\n\"Us being brothers, I'd be remiss if I don't take the opportunity to throw my pitch in there,\" Green said. \"I'd be crazy if we're together for X amount of days and at no point am I like, 'Yo, we need to chop it up. What the hell's going on? What are we doing?' And so there's that. Of course I did that. And of course the pitch was crazy. I think I'm pretty decent at",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [
+      "without confirmed",
+      "confirmed"
+    ],
+    "sentiment_label": "neutral"
+  },
+  "notes": "Verified against final benchmark run (Qwen3-8B-Q5_K_M, v4 prompt). Model assigned T3."
+}
