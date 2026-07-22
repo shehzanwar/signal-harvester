@@ -91,6 +91,14 @@ export function DetailPanel({
               rationale={article.sentiment_rationale}
               compact
             />
+            {article.predicted_reaction_label && article.predicted_reaction_score != null && (
+              <SentimentBadge
+                label={article.predicted_reaction_label}
+                score={article.predicted_reaction_score}
+                rationale={article.predicted_reaction_rationale}
+                compact
+              />
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -202,13 +210,42 @@ export function DetailPanel({
             </section>
           )}
 
-          {/* Sentiment rationale */}
-          {article.sentiment_rationale && (
+          {/* Perception: editorial tone + predicted public reaction */}
+          {(article.sentiment_rationale || article.predicted_reaction_label) && (
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">
-                Sentiment
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
+                Perception
               </h3>
-              <p className="text-sm text-neutral-400">{article.sentiment_rationale}</p>
+              <div className="space-y-2">
+                {article.sentiment_rationale && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs text-neutral-600 w-20 shrink-0 pt-0.5">Editorial</span>
+                    <div className="flex-1 min-w-0">
+                      <SentimentBadge
+                        label={article.sentiment_label}
+                        score={article.sentiment_score}
+                        compact
+                      />
+                      <p className="text-xs text-neutral-500 mt-0.5">{article.sentiment_rationale}</p>
+                    </div>
+                  </div>
+                )}
+                {article.predicted_reaction_label && article.predicted_reaction_score != null && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs text-neutral-600 w-20 shrink-0 pt-0.5">Public</span>
+                    <div className="flex-1 min-w-0">
+                      <SentimentBadge
+                        label={article.predicted_reaction_label}
+                        score={article.predicted_reaction_score}
+                        compact
+                      />
+                      {article.predicted_reaction_rationale && (
+                        <p className="text-xs text-neutral-500 mt-0.5">{article.predicted_reaction_rationale}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
           )}
 

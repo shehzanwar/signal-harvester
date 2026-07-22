@@ -205,6 +205,13 @@ export function ArticleCard({
             score={article.sentiment_score}
             rationale={article.sentiment_rationale}
           />
+          {article.predicted_reaction_label && article.predicted_reaction_score != null && (
+            <SentimentBadge
+              label={article.predicted_reaction_label}
+              score={article.predicted_reaction_score}
+              rationale={article.predicted_reaction_rationale}
+            />
+          )}
           <CorroborationBadge count={article.cluster_size ?? 1} />
           <SocialChip article={article} />
         </div>

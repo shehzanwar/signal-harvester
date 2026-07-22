@@ -70,11 +70,11 @@ def run_eval(cfg: ProfileConfig, golden_set_dir: str = "tests/golden") -> None:
             "title": article.get("title", "?")[:60],
             "predicted_tier": enrichment["tier"],
             "expected_tier": exp_tier,
-            "predicted_sentiment": enrichment["sentiment"]["label"],
+            "predicted_sentiment": (enrichment.get("editorial_tone") or enrichment.get("sentiment", {})).get("label", "?"),
             "expected_sentiment": expected.get("sentiment_label", "?"),
             "tier_exact": enrichment["tier"] == exp_tier,
             "tier_adjacent": _adjacent(enrichment["tier"], exp_tier),
-            "sentiment_exact": enrichment["sentiment"]["label"] == expected.get("sentiment_label"),
+            "sentiment_exact": (enrichment.get("editorial_tone") or enrichment.get("sentiment", {})).get("label") == expected.get("sentiment_label"),
             "rationale_issues": rationale_issues,
         })
 

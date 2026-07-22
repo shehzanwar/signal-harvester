@@ -19,6 +19,10 @@ export interface Article {
   sentiment_label: SentimentLabel;
   sentiment_score: number;
   sentiment_rationale?: string;
+  // predicted_reaction: how the general public would likely react (present on v5+ enrichments)
+  predicted_reaction_label?: SentimentLabel;
+  predicted_reaction_score?: number;
+  predicted_reaction_rationale?: string;
   tags: string[];
   model?: string;
   enriched_at?: string;

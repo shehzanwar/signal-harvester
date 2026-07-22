@@ -62,19 +62,22 @@ CREATE TABLE IF NOT EXISTS articles (
 );
 
 CREATE TABLE IF NOT EXISTS enrichments (
-    article_id          TEXT PRIMARY KEY REFERENCES articles(id),
-    summary             TEXT NOT NULL,
-    tier                TEXT NOT NULL CHECK (tier IN ('T1','T2','T3','NOISE')),
-    tier_rationale      TEXT,
-    sentiment_label     TEXT NOT NULL CHECK (sentiment_label IN ('positive','negative','neutral','mixed')),
-    sentiment_score     REAL NOT NULL CHECK (sentiment_score BETWEEN -1.0 AND 1.0),
-    sentiment_rationale TEXT,
-    tags                TEXT NOT NULL,
-    model               TEXT NOT NULL,
-    prompt_version      TEXT NOT NULL,
-    raw_response        TEXT,
-    enriched_at         TEXT NOT NULL,
-    latency_ms          INTEGER
+    article_id                   TEXT PRIMARY KEY REFERENCES articles(id),
+    summary                      TEXT NOT NULL,
+    tier                         TEXT NOT NULL CHECK (tier IN ('T1','T2','T3','NOISE')),
+    tier_rationale               TEXT,
+    sentiment_label              TEXT NOT NULL CHECK (sentiment_label IN ('positive','negative','neutral','mixed')),
+    sentiment_score              REAL NOT NULL CHECK (sentiment_score BETWEEN -1.0 AND 1.0),
+    sentiment_rationale          TEXT,
+    predicted_reaction_label     TEXT CHECK (predicted_reaction_label IN ('positive','negative','neutral','mixed')),
+    predicted_reaction_score     REAL CHECK (predicted_reaction_score BETWEEN -1.0 AND 1.0),
+    predicted_reaction_rationale TEXT,
+    tags                         TEXT NOT NULL,
+    model                        TEXT NOT NULL,
+    prompt_version               TEXT NOT NULL,
+    raw_response                 TEXT,
+    enriched_at                  TEXT NOT NULL,
+    latency_ms                   INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS social_signals (
@@ -186,6 +189,9 @@ class Database:
         for stmt in [
             "ALTER TABLE articles ADD COLUMN retry_count INTEGER DEFAULT 0",
             "ALTER TABLE articles ADD COLUMN cluster_id TEXT",
+            "ALTER TABLE enrichments ADD COLUMN predicted_reaction_label TEXT",
+            "ALTER TABLE enrichments ADD COLUMN predicted_reaction_score REAL",
+            "ALTER TABLE enrichments ADD COLUMN predicted_reaction_rationale TEXT",
         ]:
             try:
                 with self._conn() as con:
@@ -309,21 +315,27 @@ class Database:
         *,
         latency_ms: int = 0,
     ) -> None:
+        tone = enrichment.get("editorial_tone") or enrichment.get("sentiment") or {}
+        reaction = enrichment.get("predicted_reaction") or {}
         with self._conn() as con:
             con.execute(
                 """INSERT OR REPLACE INTO enrichments
                    (article_id, summary, tier, tier_rationale, sentiment_label, sentiment_score,
-                    sentiment_rationale, tags, model, prompt_version, raw_response,
+                    sentiment_rationale, predicted_reaction_label, predicted_reaction_score,
+                    predicted_reaction_rationale, tags, model, prompt_version, raw_response,
                     enriched_at, latency_ms)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     article_id,
                     enrichment["summary"],
                     enrichment["tier"],
                     enrichment.get("tier_rationale", ""),
-                    enrichment["sentiment"]["label"],
-                    enrichment["sentiment"]["score"],
-                    enrichment["sentiment"].get("rationale", ""),
+                    tone.get("label", "neutral"),
+                    tone.get("score", 0.0),
+                    tone.get("rationale", ""),
+                    reaction.get("label"),
+                    reaction.get("score"),
+                    reaction.get("rationale"),
                     json.dumps(enrichment.get("tags", [])),
                     enrichment.get("_model", ""),
                     enrichment.get("_prompt_version", "v1"),
@@ -375,6 +387,8 @@ class Database:
             rows = con.execute(
                 f"""SELECT a.*, e.summary AS enrich_summary, e.tier, e.tier_rationale,
                            e.sentiment_label, e.sentiment_score, e.sentiment_rationale,
+                           e.predicted_reaction_label, e.predicted_reaction_score,
+                           e.predicted_reaction_rationale,
                            e.tags, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
@@ -466,6 +480,8 @@ class Database:
             rows = con.execute(
                 f"""SELECT a.*, e.summary AS enrich_summary, e.tier, e.tier_rationale,
                            e.sentiment_label, e.sentiment_score, e.sentiment_rationale,
+                           e.predicted_reaction_label, e.predicted_reaction_score,
+                           e.predicted_reaction_rationale,
                            e.tags, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id

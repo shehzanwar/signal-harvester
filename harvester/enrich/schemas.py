@@ -23,7 +23,8 @@ class EnrichmentResult(BaseModel):
     summary: str = Field(min_length=10, max_length=600)
     tier: Literal["T1", "T2", "T3", "NOISE"]
     tier_rationale: str = Field(max_length=500)
-    sentiment: SentimentResult
+    editorial_tone: SentimentResult
+    predicted_reaction: SentimentResult
     tags: list[str] = Field(min_length=1, max_length=5)
 
     @field_validator("tags")
@@ -46,10 +47,15 @@ class EnrichmentResult(BaseModel):
             "summary": self.summary,
             "tier": self.tier,
             "tier_rationale": self.tier_rationale,
-            "sentiment": {
-                "label": self.sentiment.label,
-                "score": self.sentiment.score,
-                "rationale": self.sentiment.rationale,
+            "editorial_tone": {
+                "label": self.editorial_tone.label,
+                "score": self.editorial_tone.score,
+                "rationale": self.editorial_tone.rationale,
+            },
+            "predicted_reaction": {
+                "label": self.predicted_reaction.label,
+                "score": self.predicted_reaction.score,
+                "rationale": self.predicted_reaction.rationale,
             },
             "tags": self.tags,
             "_model": model,
@@ -58,6 +64,20 @@ class EnrichmentResult(BaseModel):
         }
 
 
+_SENTIMENT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "label": {
+            "type": "string",
+            "enum": ["positive", "negative", "neutral", "mixed"],
+        },
+        "score": {"type": "number", "minimum": -1.0, "maximum": 1.0},
+        "rationale": {"type": "string", "maxLength": 300},
+    },
+    "required": ["label", "score", "rationale"],
+    "additionalProperties": False,
+}
+
 # JSON schema for Ollama structured output — mirrors EnrichmentResult fields
 ENRICHMENT_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -65,21 +85,10 @@ ENRICHMENT_JSON_SCHEMA: dict[str, Any] = {
         "summary": {"type": "string", "minLength": 10, "maxLength": 600},
         "tier": {"type": "string", "enum": ["T1", "T2", "T3", "NOISE"]},
         "tier_rationale": {"type": "string", "maxLength": 500},
-        "sentiment": {
-            "type": "object",
-            "properties": {
-                "label": {
-                    "type": "string",
-                    "enum": ["positive", "negative", "neutral", "mixed"],
-                },
-                "score": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-                "rationale": {"type": "string", "maxLength": 300},
-            },
-            "required": ["label", "score", "rationale"],
-            "additionalProperties": False,
-        },
+        "editorial_tone": _SENTIMENT_SCHEMA,
+        "predicted_reaction": _SENTIMENT_SCHEMA,
         "tags": {"type": "array", "items": {"type": "string", "maxLength": 60}, "minItems": 1, "maxItems": 5},
     },
-    "required": ["summary", "tier", "tier_rationale", "sentiment", "tags"],
+    "required": ["summary", "tier", "tier_rationale", "editorial_tone", "predicted_reaction", "tags"],
     "additionalProperties": False,
 }
