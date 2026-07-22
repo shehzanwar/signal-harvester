@@ -17,6 +17,7 @@ import logging
 import os
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -35,6 +36,8 @@ _BSKY_BASE = "https://bsky.social/xrpc"
 _BSKY_PUBLIC = "https://public.api.bsky.app/xrpc"
 _REDDIT_TOKEN = "https://www.reddit.com/api/v1/access_token"
 _REDDIT_INFO = "https://oauth.reddit.com/api/info.json"
+_YT_SEARCH = "https://www.googleapis.com/youtube/v3/search"
+_YT_COMMENTS = "https://www.googleapis.com/youtube/v3/commentThreads"
 
 
 class _Throttle:
@@ -58,6 +61,7 @@ _bsky_throttle = _Throttle(0.5)
 _bsky_replies_throttle = _Throttle(0.6)
 _reddit_throttle = _Throttle(1.1)
 _reddit_comments_throttle = _Throttle(1.1)
+_yt_throttle = _Throttle(1.0)
 
 
 def _norm_url(u: str) -> str:
@@ -446,3 +450,90 @@ def fetch_bluesky_replies(article_url: str, top_n: int = 10) -> list[dict[str, A
     except Exception as exc:
         log.debug("bluesky_replies_failed url=%s err=%s", article_url[:60], exc)
         return []
+
+
+def fetch_youtube_comments(article_title: str, top_n: int = 15) -> list[dict[str, Any]]:
+    """Fetch YouTube comments for the most relevant video matching an article title.
+
+    Requires YOUTUBE_API_KEY env var (Google Data API v3, free tier: 10k units/day).
+    Each call costs ~102 quota units: 100 for search + ~2 for comment threads.
+    Cap callers to ≤20 articles/run to stay within 20% of daily quota.
+
+    Search strategy: query by article title, restrict to videos published in the
+    last 7 days, take the top 2 results, fetch up to 10 top-level comments each.
+    Returns [{text, score, author}] sorted by like count descending.
+    """
+    api_key = os.environ.get("YOUTUBE_API_KEY", "")
+    if not api_key:
+        return []
+
+    published_after = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    _yt_throttle.wait()
+    try:
+        search_resp = httpx.get(
+            _YT_SEARCH,
+            params={
+                "key": api_key,
+                "q": article_title,
+                "part": "snippet",
+                "type": "video",
+                "order": "relevance",
+                "maxResults": 3,
+                "relevanceLanguage": "en",
+                "publishedAfter": published_after,
+            },
+            headers={"User-Agent": _UA},
+            timeout=_TIMEOUT,
+        )
+        search_resp.raise_for_status()
+        videos = search_resp.json().get("items", [])
+        if not videos:
+            return []
+    except Exception as exc:
+        log.debug("yt_search_failed title=%s err=%s", article_title[:60], exc)
+        return []
+
+    comments: list[dict[str, Any]] = []
+    for video in videos[:2]:
+        video_id = (video.get("id") or {}).get("videoId", "")
+        if not video_id:
+            continue
+        _yt_throttle.wait()
+        try:
+            ct_resp = httpx.get(
+                _YT_COMMENTS,
+                params={
+                    "key": api_key,
+                    "videoId": video_id,
+                    "part": "snippet",
+                    "order": "relevance",
+                    "maxResults": 10,
+                    "textFormat": "plainText",
+                },
+                headers={"User-Agent": _UA},
+                timeout=_TIMEOUT,
+            )
+            if ct_resp.status_code == 403:
+                # Comments disabled on this video — common on news channel uploads
+                log.debug("yt_comments_disabled video_id=%s", video_id)
+                continue
+            ct_resp.raise_for_status()
+            for item in ct_resp.json().get("items", []):
+                snippet = (
+                    item.get("snippet", {})
+                    .get("topLevelComment", {})
+                    .get("snippet", {})
+                )
+                text = (snippet.get("textDisplay") or "").strip()
+                if len(text) > 40:
+                    comments.append({
+                        "text": text[:500],
+                        "score": snippet.get("likeCount") or 0,
+                        "author": snippet.get("authorDisplayName"),
+                    })
+        except Exception as exc:
+            log.debug("yt_comments_failed video_id=%s err=%s", video_id, exc)
+
+    comments.sort(key=lambda c: c.get("score") or 0, reverse=True)
+    return comments[:top_n]

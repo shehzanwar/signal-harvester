@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 import uuid
@@ -14,7 +15,7 @@ from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
-from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_reddit_comments
+from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_reddit_comments, fetch_youtube_comments
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
 from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
@@ -263,6 +264,29 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
 
         if comment_count:
             log.info("comments_done inserted=%d", comment_count)
+
+    # YouTube: official API, no social signal required — targets T1/T2 articles
+    # directly. Each article costs ~102 quota units; cap at 20/run to stay within
+    # 20% of the 10k/day free tier. Gated on YOUTUBE_API_KEY env var.
+    if enriched_today and os.environ.get("YOUTUBE_API_KEY"):
+        art_map = {art["id"]: art for art in enriched_today}
+        yt_candidates = [
+            art["id"] for art in enriched_today
+            if art.get("tier") in ("T1", "T2")
+        ][:20]
+        yt_count = 0
+        for article_id in yt_candidates:
+            if db.has_comments(article_id, "youtube"):
+                continue
+            art = art_map.get(article_id)
+            title = art.get("title", "") if art else ""
+            if not title:
+                continue
+            comments = fetch_youtube_comments(title)
+            if comments:
+                yt_count += db.save_comments(article_id, "youtube", comments)
+        if yt_count:
+            log.info("youtube_comments_done inserted=%d", yt_count)
 
     # -- Stage 5.6: Perception gap (LLM comment sentiment + Python blend) ------
     # For v5+ articles without a perception_gap score: if comments exist, call
