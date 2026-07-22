@@ -4,7 +4,7 @@ Analyze the article and respond with JSON ONLY — no markdown fences, no preamb
 
 Use exactly this JSON structure:
 {
-  "summary": "<2-3 sentence factual executive summary>",
+  "summary": "<1-2 sentence factual executive summary>",
   "tier": "<T1|T2|T3|NOISE>",
   "tier_rationale": "<one sentence citing the specific criterion>",
   "sentiment": {
@@ -19,12 +19,23 @@ Tier criteria:
 - T1 (critical): $tier1_criteria
 - T2 (notable): $tier2_criteria
 - T3 (background): $tier3_criteria
-- NOISE: promotional content, listicles, duplicate content, or items unrelated to watch topics.
+- NOISE: promotional content, listicles, consumer advice guides, how-to articles,
+  buying guides, product reviews, sponsored content, recipes, horoscopes, or
+  items unrelated to watch topics. If an article reads like a service piece
+  rather than news, it is NOISE regardless of the publisher.
 
 Rules:
-1. When uncertain between two tiers, choose the LOWER tier.
+1. When uncertain between T2/T3 or T3/NOISE, choose the LOWER tier.
+   Exception: when uncertain between T1 and T2 for confirmed casualties,
+   active military escalation against civilian infrastructure, or critical
+   infrastructure compromise — prefer T1. Under-alerting on critical events
+   is worse than false-alarming.
 2. T1 is rare — expect 0 or 1 per day across all articles. If you are assigning T1, be certain.
-3. Summary: 2-3 sentences, max 600 characters. Synthesize — do NOT enumerate lists.
+   T2 is also rare — target 10-15% of articles. If you have assigned T2 to more than 1 in 6
+   articles in a batch, you are being too generous. Important-seeming articles are usually T3.
+   T2 requires a CONFIRMED SURPRISING FACT, not just an important topic.
+3. Summary: 1-2 sentences, maximum 35 words. State what happened and why it matters.
+   No filler. No "This article discusses..." or "The article examines...". No restating the headline.
 4. tier_rationale and sentiment.rationale: 1 sentence each, max 300 characters.
 5. Tags: 3-5 items, 1-4 words each, lowercase, max 60 characters each.
 6. sentiment.score is a number, NOT a string.
@@ -76,3 +87,48 @@ EXAMPLE 9 — tempting T2, correct answer is T3:
   Title: "Israeli forces advance into northern Gaza; IDF reports troops in position"
   → tier: "T3"  (troop movement with official statement but no confirmed ceasefire, declaration, or mass-casualty event)
   → tier_rationale: "Troop movement and IDF statement without confirmed ceasefire or 100+ casualties — T3 conflict update."
+
+EXAMPLE 10 — consumer guide that looks like news, correct answer is NOISE:
+  Title: "How to file a renters insurance claim — and what to do if it's denied"
+  → tier: "NOISE"  (procedural how-to guide; service content, not news)
+  → tier_rationale: "Consumer advice guide — classified as NOISE regardless of publisher."
+
+EXAMPLE 11 — opposition party leadership, tempting T1, correct answer is T2:
+  Title: "Andy Burnham wins Labour leadership race, set to be next UK PM"
+  → tier: "T2"  (opposition party contest — Labour leads polls but has not won a general election; no change in governing power)
+  → tier_rationale: "Opposition leadership election — T1 requires change in governing power; Burnham is not yet PM."
+
+EXAMPLE 12 — sports transfer at the threshold boundary:
+  Title: "Chelsea agree record £117m deal for Aston Villa's Rogers"
+  → tier: "T2"  (£117m exceeds the £50M confirmed-transfer threshold — unambiguous T2)
+  → tier_rationale: "Confirmed £117M transfer far exceeds the £50M T2 threshold."
+
+  Title: "Manchester United sign Andrey Santos from Chelsea for £48m"
+  → tier: "T3"  (£48m is below the £50M hard floor — the threshold is exact, not approximate)
+  → tier_rationale: "£48M transfer is below the £50M T2 hard floor — T3."
+
+EXAMPLE 13 — statistics methodology change, tempting T2, correct answer is T3:
+  Title: "BEA adjusts PCE inflation calculation method, expected to show lower inflation"
+  → tier: "T3"  (methodology change is not a data release; the actual PCE number has not been published yet)
+  → tier_rationale: "Statistical methodology announcement — not a data print, so no surprise vs forecast; T3 background."
+
+EXAMPLE 14 — business trend story, tempting T2, correct answer is T3:
+  Title: "Etsy sellers are fleeing the platform as AI-generated content floods search results"
+  → tier: "T3"  (trend analysis, no confirmed sudden event or earnings surprise; market commentary)
+  → tier_rationale: "Trend journalism about ongoing seller dissatisfaction — no new confirmed data point, so T3."
+
+EXAMPLE 16 — domestic attack on government building, tempting T1, correct answer is T2:
+  Title: "Army veteran arrested after setting fire outside federal building, three injured"
+  → tier: "T2"  (violent domestic incident; NOT T1 — T1 civilian-infrastructure attacks apply to
+    state military/militia attacks in international conflict zones, not domestic criminal acts)
+  → tier_rationale: "Domestic arson/criminal attack on a government building — significant T2 but not T1; T1 infrastructure criterion is conflict-zone only."
+
+EXAMPLE 17 — sector market story without confirmed index move, correct answer is T3:
+  Title: "AI stocks slump as investors reassess valuations; Nvidia falls 3%"
+  → tier: "T3"  (sector decline, not a confirmed >3% move on a major broad index like S&P 500 or FTSE)
+  → tier_rationale: "Single-sector/stock decline without confirmed major index move — T3 market commentary."
+
+EXAMPLE 19 — civilian infrastructure attack, correct answer is T1 (escalation category):
+  Title: "Ten killed as Russia attacks merchant ships in Black Sea"
+  → tier: "T1"  (attacks on civilian commercial shipping represent a new category of escalation; significance is the target type, not the body count)
+  → tier_rationale: "First confirmed attacks on merchant shipping in this conflict — new escalation category triggers T1 regardless of casualty count."

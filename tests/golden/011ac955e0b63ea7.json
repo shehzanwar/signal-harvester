@@ -1,0 +1,13 @@
+{
+  "id": "011ac955e0b63ea7c2d4f1c47b06a2da",
+  "title": "'Anti-ICE' army veteran started fire outside Manhattan federal building, say officials",
+  "url": "https://www.bbc.co.uk/news/articles/c1m1rr90dzxo?at_medium=RSS&at_campaign=rss",
+  "feed_name": "BBC World News",
+  "extracted_text": "'Anti-ICE' army veteran started fire outside Manhattan federal building, say officials\n- Published\nA former US Army soldier has been arrested after igniting a fire in front of a federal building in New York City, says the FBI.\nAndrew Arrabaca, 43, allegedly shot a pellet gun and set off fireworks on Monday morning at 26 Federal Plaza, where the FBI, Immigration and Customs Enforcement (ICE), and US Citizenship and Immigration Services have offices.\nFederal agents tackled the suspect, who they say was armed with a machete and other weapons.\nThree people sustained minor injuries in the incident, including an immigrant who was attending a status hearing, said the FBI. The lower Manhattan site has become a flashpoint for protests against President Donald Trump's immigration policies.\nThe suspect, whom the Department of Homeland Security (DHS) called an \"anti-ICE rioter\", launched fireworks before pouring an accelerant on the stairs of an entrance to the building, causing a fire. The BBC has contacted DHS for comment.\nThe fire department put out the blaze.\nArrabaca \"made several anti-government and anti-ICE statements during the incident\", the FBI said.\nFBI New York Assistant Director James Barnacle said during a news conference that Arrabaca was armed with two axes, a machete, three knives and fireworks.\nHe fired about five to seven pellets from an airsoft gun in the direction of the building, Barnacle said.\nOf those injured, two were government employees, Barnacle said.\nDHS said a bystander was grazed, and a security officer who tackled and detained Arrabaca sustained minor injuries.\n\"He is an anti-American, anti-government extremist,\" Barnacle added.\nArrabaca, of Poughkeepsie, New York state, served in the regular Army from 2001-04 and in the Army National Guard-New York from 2004-05, according to the BBC's US partner CBS.\nHe did not have any deployments and left the Army with the rank of specialist.\nNew York City Mayor Zohran Mamdani called the incident \"deeply distu",
+  "expected": {
+    "tier": "T2",
+    "tier_rationale_contains": [],
+    "sentiment_label": "negative"
+  },
+  "notes": "TODO: verify tier, fill in tier_rationale_contains, update notes."
+}

@@ -134,12 +134,21 @@ tiers:
     Use T1 sparingly — it should apply to roughly the top 1-3% of items; expect zero or one
     T1 on most days. T1 means: election result officially announced or government falls;
     major index move greater than 3% (S&P 500, FTSE, Nikkei) with a named catalyst;
-    armed conflict escalation with casualties or ceasefire signed; major natural disaster
-    with confirmed mass casualties; landmark court ruling or legislation passed into law;
+    armed conflict with confirmed casualties OR ceasefire signed OR attacks (by a state
+    military or militia) on civilian infrastructure within an ACTIVE ARMED CONFLICT ZONE
+    (merchant ships, hospitals, power/water systems) that represent a NEW category of
+    escalation — this applies to international conflict zones only, NOT domestic criminal acts — the significance is the escalation pattern, not
+    the body count (ten killed in the first-ever merchant-ship attack in a conflict zone is
+    T1; ten killed in a routine front-line exchange is T2); major natural disaster with
+    confirmed mass casualties; landmark court ruling or legislation passed into law;
     company bankruptcy or acquisition above $10B actually confirmed (not rumoured);
     critical zero-day exploit actively exploited in the wild. NOT T1: routine fixtures,
     tee times, transfer rumours, product announcements without confirmed market impact,
     earnings beats without unusual magnitude, polls, previews, or analysis pieces.
+    POLITICAL NOT T1: opposition party leadership elections, internal party contests, or
+    shadow cabinet appointments — these are T2 at most. T1 requires a CHANGE IN GOVERNING
+    POWER (election result declared, government collapses, head of state removed) or a
+    constitutional crisis — not a change in who might govern next.
   T2: >
     Use T2 very sparingly — target 10-15% of articles. If you have assigned T2 to more than
     1 in 6 articles, you are being too generous. Most important-seeming articles are T3.

@@ -1,0 +1,13 @@
+{
+  "id": "018129b5642ddb4109d283d911f48ab0",
+  "title": "Inflation measurement tweaks make for sunnier data",
+  "url": "https://www.axios.com/2026/07/06/inflation-fed-pce",
+  "feed_name": "Axios",
+  "extracted_text": "[feed summary]\nChanges to the methodology underneath the Federal Reserve's go-to inflation measure are on track to make the numbers look a couple of ticks better later this year. Why it matters: The changes are entirely defensible on technical grounds and should make the Personal Consumption Expenditures Price Index better able to mirror overall price dynamics over time. But coming at a fraught moment — when the independence of statistical agencies has been attacked and the Fed has overshot its inflation target for half a decade — the optics aren't great. State of play: The Bureau of Economic Analysis, which calculates the PCE inflation measure, announced late last month the methodological changes to how price changes are calculated in three subcategories. It will change the calculation of prices for portfolio management and investment advice services, computer software and accessories, and legal services. The changes will be included in data revisions released Sept. 30. By the numbers: Analysts have been modeling how the changes will affect inflation readings, with the consensus view that they will reduce core PCE inflation by about 0.2 percentage point. Core PCE inflation was 3.4% for the 12 months ended in May, and has been above the Fed's 2% target every month since March 2021. Zoom in: There are some good technical reasons behind the changes. The current portfolio management price measure, for example, tends to simply reflect the recent performance of the stock market rather than some measure of the underlying prices and inflation trends. If a person pays a fixed 1% portfolio management fee, for example, and their portfolio rises by 20%, it counts as a 20% rise in prices for asset management services. \"What ought to be recorded as an increased quantity of services consumed is instead recorded as increased prices,\" former Fed governor Stephen Miran said in a speech in December. Of note: Miran, along with Fed staff economists Alessandro Barbarino and Anthony M. D",
+  "expected": {
+    "tier": "T3",
+    "tier_rationale_contains": [],
+    "sentiment_label": "neutral"
+  },
+  "notes": "TODO: verify tier, fill in tier_rationale_contains, update notes."
+}

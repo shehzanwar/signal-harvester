@@ -20,6 +20,6 @@ ping 127.0.0.1 -n 31 >nul
 
 "%LLAMA_DIR%\llama-server.exe" ^
   -m "%MODEL%" ^
-  -c 8192 -np 2 -ngl 999 ^
+  -c 8192 -np 1 -ngl 999 ^
   --host 127.0.0.1 --port 11435 ^
   --flash-attn on >> "%PROJECT_DIR%\logs\llama-server.log" 2>&1

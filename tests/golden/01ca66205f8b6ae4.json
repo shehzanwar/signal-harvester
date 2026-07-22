@@ -1,0 +1,13 @@
+{
+  "id": "01ca66205f8b6ae443f1b4e1e2de0d3f",
+  "title": "U.S. Virgin Islands' housing authority accused of corruption as federal funding is suspended",
+  "url": "https://www.pbs.org/newshour/nation/u-s-virgin-islands-housing-authority-accused-of-corruption-as-federal-funding-is-suspended",
+  "feed_name": "PBS NewsHour",
+  "extracted_text": "SAN JUAN, Puerto Rico (AP) — The U.S. government announced Monday it suspended funding for the U.S. Virgin Islands' housing authority after an investigation found widespread corruption, as residents still struggle to recover from two major hurricanes that hit nearly a decade ago.\nU.S. Housing Secretary Scott Turner said that nine years after the U.S. territory received $1.9 billion in disaster recovery funding, it has spent only $570,000, less than a third of the funds.\nHe noted that a HUD investigation found \"widespread financial mismanagement, inadequate fraud controls, false certifications and improper payments.\" The investigation is ongoing.\n\"This failure has, to date, deprived Virgin Islanders of roughly $1.3 billion worth of assistance that Congress intended them to have,\" stated a July 20 letter that HUD sent to the head of the U.S. Virgin Island's Housing Finance Authority.\nThe director for the U.S. territory's housing authority and its spokesperson did not immediately return messages seeking comment. The authority has the right to appeal the suspension by requesting a hearing.\nIn a post on X, Turner accused officials with the U.S. Virgin Islands' Housing Finance Authority of prioritizing \"kickbacks over helping families recover from disasters.\"\nThe U.S. Virgin Islands was struck by Hurricane Irma, a Category 5 storm, in September 2017. Roughly two weeks later, Hurricane Maria, also a Category 5 storm, struck St. Croix. The U.S. territory is still struggling to recover from the storms.\nIn a July 20 letter to the head of the U.S. Virgin Islands' housing authority, HUD said that its \"record demonstrates that it is an abysmal steward of taxpayer funds.\"\nThe investigation so far has found that the U.S. Virgin Islands' housing authority has completed only two of 95 planned single-family rental rehabilitation projects and zero of 329 single and multifamily housing projects.\nIn addition, the authority had spent only 2% of its electrical grid recovery funding as of ",
+  "expected": {
+    "tier": "T2",
+    "tier_rationale_contains": [],
+    "sentiment_label": "negative"
+  },
+  "notes": "TODO: verify tier, fill in tier_rationale_contains, update notes."
+}
