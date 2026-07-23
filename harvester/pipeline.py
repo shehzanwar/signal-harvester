@@ -366,6 +366,22 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
 
     write_markdown_digest(enriched_all, cfg, run_id=run_id)
 
+    # Obsidian vault — export today's articles if a vault path is configured.
+    if cfg.output.obsidian_vault:
+        try:
+            from harvester.obsidian import export_obsidian
+            obs_result = export_obsidian(
+                enriched_all,
+                vault_path=cfg.output.obsidian_vault,
+                profile_title=cfg.dashboard_title,
+            )
+            log.info(
+                "obsidian_done notes=%d indexes=%d",
+                obs_result["notes_written"], obs_result["indexes_written"],
+            )
+        except Exception as exc:
+            log.warning("obsidian_export_failed err=%s", exc)
+
     # Weekly digest — generated automatically on Sunday (ISO weekday 7).
     now = datetime.now(timezone.utc)
     if now.isoweekday() == 7:

@@ -55,6 +55,7 @@ class OutputConfig(BaseModel):
     root: str = "output"
     formats: list[Literal["json", "markdown"]] = ["json", "markdown"]
     digest_time: str = "07:00"
+    obsidian_vault: str | None = None
 
 
 class ScheduleConfig(BaseModel):
