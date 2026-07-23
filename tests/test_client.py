@@ -30,7 +30,8 @@ _VALID_JSON = json.dumps({
     "summary": "A critical OpenSSL vulnerability affects the TLS handshake and needs urgent patching.",
     "tier": "T1",
     "tier_rationale": "Active exploitation confirmed in the wild.",
-    "sentiment": {"label": "negative", "score": -0.8, "rationale": "Severe security risk."},
+    "editorial_tone": {"label": "negative", "score": -0.8, "rationale": "Severe security risk."},
+    "predicted_reaction": {"label": "negative", "score": -0.7, "rationale": "Public would react with concern."},
     "tags": ["openssl", "vulnerability", "tls"],
 })
 
