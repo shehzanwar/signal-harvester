@@ -93,7 +93,7 @@ export function ArticleCard({
   if (compact) {
     return (
       <div
-        className={`relative flex items-start gap-3 py-2 px-3 rounded hover:bg-neutral-800 transition-colors group/card
+        className={`relative flex items-start gap-2.5 py-1.5 px-3 rounded hover:bg-neutral-800 transition-colors group/card
                     cursor-pointer ${dimClass} ${batchMode ? selectedRing : focusRing}`}
         onClick={handleCardClick}
         data-article-id={article.id}
@@ -113,7 +113,7 @@ export function ArticleCard({
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-neutral-200 group-hover/card:text-white line-clamp-2 leading-snug hover:underline block"
+            className="text-sm text-neutral-200 group-hover/card:text-white line-clamp-2 leading-tight hover:underline block"
             onClick={(e) => {
               e.stopPropagation();
               recordEngagement(article, "open");
@@ -121,7 +121,7 @@ export function ArticleCard({
           >
             {article.title}
           </a>
-          <span className="flex items-center gap-2 mt-1 flex-wrap">
+          <span className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {isNew && (
               <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-blue-600 text-white uppercase tracking-wide">
                 New
