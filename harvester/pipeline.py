@@ -348,6 +348,7 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
                 "dominant_emotion": emotion,
                 "sentiment_confidence": blend["confidence"],
                 "perception_gap": blend["perception_gap"],
+                "composite_sentiment_score": blend["composite_score"],
             })
             perception_count += 1
             if cfg.llm.backend == "ollama" and comment_count >= 2:

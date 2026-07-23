@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS enrichments (
     dominant_emotion             TEXT,
     sentiment_confidence         TEXT CHECK (sentiment_confidence IN ('high','medium','low','predicted')),
     perception_gap               REAL,
+    composite_sentiment_score    REAL CHECK (composite_sentiment_score BETWEEN -1.0 AND 1.0),
     tags                         TEXT NOT NULL,
     model                        TEXT NOT NULL,
     prompt_version               TEXT NOT NULL,
@@ -214,6 +215,7 @@ class Database:
             "ALTER TABLE enrichments ADD COLUMN dominant_emotion TEXT",
             "ALTER TABLE enrichments ADD COLUMN sentiment_confidence TEXT",
             "ALTER TABLE enrichments ADD COLUMN perception_gap REAL",
+            "ALTER TABLE enrichments ADD COLUMN composite_sentiment_score REAL",
         ]:
             try:
                 with self._conn() as con:
@@ -474,11 +476,12 @@ class Database:
         with self._conn() as con:
             con.execute(
                 """UPDATE enrichments SET
-                       public_sentiment_label = ?,
-                       public_sentiment_score  = ?,
-                       dominant_emotion        = ?,
-                       sentiment_confidence    = ?,
-                       perception_gap          = ?
+                       public_sentiment_label    = ?,
+                       public_sentiment_score    = ?,
+                       dominant_emotion          = ?,
+                       sentiment_confidence      = ?,
+                       perception_gap            = ?,
+                       composite_sentiment_score = ?
                    WHERE article_id = ?""",
                 (
                     perception.get("public_sentiment_label"),
@@ -486,6 +489,7 @@ class Database:
                     perception.get("dominant_emotion"),
                     perception.get("sentiment_confidence"),
                     perception.get("perception_gap"),
+                    perception.get("composite_sentiment_score"),
                     article_id,
                 ),
             )
@@ -769,7 +773,8 @@ class Database:
                 (seven_days_ago, PROMPT_VERSION),
             ).fetchone()[0]
             avg_sentiment_7d_row = con.execute(
-                """SELECT AVG(e.sentiment_score) FROM enrichments e
+                """SELECT AVG(COALESCE(e.composite_sentiment_score, e.sentiment_score))
+                   FROM enrichments e
                    JOIN articles a ON e.article_id=a.id
                    WHERE e.tier != 'NOISE' AND a.fetched_at >= ?
                      AND e.prompt_version = ?""",
@@ -811,7 +816,9 @@ class Database:
 
         with self._conn() as con:
             rows = con.execute(
-                """SELECT date(a.fetched_at) AS d, e.tier, e.sentiment_score, e.tags
+                """SELECT date(a.fetched_at) AS d, e.tier,
+                          COALESCE(e.composite_sentiment_score, e.sentiment_score) AS sentiment_score,
+                          e.tags
                    FROM articles a
                    JOIN enrichments e ON a.id = e.article_id
                    WHERE a.fetched_at >= ?
