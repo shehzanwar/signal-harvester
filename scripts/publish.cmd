@@ -35,7 +35,7 @@ IF ERRORLEVEL 1 (
 ECHO.
 ECHO [2/4] Building static frontend...
 CD "%PROJECT_DIR%\frontend"
-CALL npm run build -- --mode static
+CALL npm run build:static
 IF ERRORLEVEL 1 (
     ECHO Frontend build failed. Aborting publish.
     EXIT /B 1

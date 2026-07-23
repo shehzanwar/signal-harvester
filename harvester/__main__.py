@@ -2,7 +2,21 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from pathlib import Path
+
+
+def _load_dotenv() -> None:
+    env = Path(__file__).parent.parent / ".env"
+    if not env.exists():
+        return
+    for line in env.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        os.environ.setdefault(k.strip(), v.strip())
 
 
 def main() -> None:
@@ -126,6 +140,8 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    _load_dotenv()
 
     from harvester.logging_setup import setup_logging
 

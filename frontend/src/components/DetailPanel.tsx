@@ -244,7 +244,7 @@ export function DetailPanel({
                         const sources = (article.social ?? []).filter(s => s.comments > 0);
                         const total = sources.reduce((n, s) => n + s.comments, 0);
                         if (total === 0) return null;
-                        const SOURCE_LABEL: Record<string, string> = { hn: "HN", reddit: "Reddit", bluesky: "Bluesky", lemmy: "Lemmy", mastodon: "Mastodon" };
+                        const SOURCE_LABEL: Record<string, string> = { hn: "HN", reddit: "Reddit", bluesky: "Bluesky", lemmy: "Lemmy", mastodon: "Mastodon", twitter: "Twitter/X", youtube: "YouTube" };
                         const parts = sources.map(s => `${SOURCE_LABEL[s.source] ?? s.source} ${s.comments}`).join(" · ");
                         return (
                           <p className="text-[11px] text-neutral-600 mt-1">

@@ -20,6 +20,11 @@ feeds:
     url: https://techcrunch.com/feed/
     trust: medium
     category: technology
+  - name: TechCrunch AI
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    trust: medium
+    max_articles: 10
+    category: technology
   - name: MIT Technology Review
     url: https://www.technologyreview.com/feed/
     trust: high
@@ -31,6 +36,16 @@ feeds:
   - name: Hacker News Front Page
     url: https://hnrss.org/frontpage
     trust: medium
+    category: technology
+  - name: The Record
+    url: https://therecord.media/feed
+    trust: high
+    max_articles: 15
+    category: technology
+  - name: Krebs on Security
+    url: https://krebsonsecurity.com/feed/
+    trust: high
+    max_articles: 5
     category: technology
 
   # ── Finance ───────────────────────────────────────────────────────────────
@@ -45,6 +60,7 @@ feeds:
   - name: Yahoo Finance
     url: https://finance.yahoo.com/rss/topfinstories
     trust: medium
+    max_articles: 10
     category: finance
   - name: NYT Business
     url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
@@ -53,6 +69,16 @@ feeds:
   - name: Bloomberg Markets
     url: https://feeds.bloomberg.com/markets/news.rss
     trust: high
+    category: finance
+  - name: The Economist Finance
+    url: https://www.economist.com/finance-and-economics/rss.xml
+    trust: high
+    max_articles: 5
+    category: finance
+  - name: Reuters Business
+    url: https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best
+    trust: high
+    max_articles: 20
     category: finance
 
   # ── Politics ──────────────────────────────────────────────────────────────
@@ -67,7 +93,7 @@ feeds:
   - name: The Hill
     url: https://thehill.com/feed/
     trust: medium
-    max_articles: 10
+    max_articles: 20
     category: politics
   - name: BBC Politics
     url: https://feeds.bbci.co.uk/news/politics/rss.xml
@@ -78,6 +104,7 @@ feeds:
   - name: ESPN
     url: https://www.espn.com/espn/rss/news
     trust: medium
+    max_articles: 15
     category: sports
   - name: BBC Sport
     url: https://feeds.bbci.co.uk/sport/rss.xml
@@ -86,7 +113,7 @@ feeds:
   - name: The Athletic
     url: https://theathletic.com/rss/news/
     trust: high
-    max_articles: 5
+    max_articles: 15
     category: sports
   - name: Sky Sports
     url: https://www.skysports.com/rss/12040
@@ -94,6 +121,11 @@ feeds:
     category: sports
 
   # ── World News ────────────────────────────────────────────────────────────
+  - name: Reuters World
+    url: https://www.reutersagency.com/feed/?best-topics=world&post_type=best
+    trust: high
+    max_articles: 20
+    category: world
   - name: NPR World
     url: https://feeds.npr.org/1004/rss.xml
     trust: high
@@ -114,6 +146,21 @@ feeds:
     url: https://www.pbs.org/newshour/feeds/rss/headlines
     trust: high
     category: world
+  - name: DW News
+    url: https://rss.dw.com/rdf/rss-en-world
+    trust: high
+    max_articles: 15
+    category: world
+  - name: France 24
+    url: https://www.france24.com/en/rss
+    trust: high
+    max_articles: 15
+    category: world
+  - name: STAT News
+    url: https://www.statnews.com/feed/
+    trust: high
+    max_articles: 10
+    category: world
 
 watch_topics:
   - breaking news
@@ -126,6 +173,8 @@ watch_topics:
   - elections
   - artificial intelligence
   - geopolitical conflict
+  - cybersecurity and data breaches
+  - global health and medicine
 
 sentiment_target: "a well-informed reader's view of global developments"
 
@@ -217,7 +266,7 @@ social:
   # Setup (one-time):
   #   pip install "signal-harvester[twitter]"
   #   twscrape add_accounts --json '[{"username":"<handle>","cookies":"auth_token=<tok>;ct0=<ct0>"}]'
-  #   twscrape login_all
+  #   twscrape login_accounts
   # The pipeline auto-skips this block if the DB file doesn't exist.
   twitter:
     db_path: "data/twscrape_accounts.db"

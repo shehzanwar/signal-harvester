@@ -1,10 +1,17 @@
 """Pluggable social-signal providers.
 
 Every provider returns the same shape: {source, score, comments, permalink}.
-Two providers need no setup (HN via Algolia, Lemmy via public search) plus a
-batch Mastodon trending-links overlay. Two more are gated behind env-var
-credentials (Bluesky app-password, Reddit OAuth script app) because their
-unauthenticated APIs are dead as of mid-2026.
+
+No-setup providers (run every pipeline):
+  - HN via Algolia search API
+  - Lemmy via public search
+  - Mastodon trending-links batch overlay
+
+Credential-gated providers (skipped when credentials absent):
+  - Bluesky (BSKY_HANDLE + BSKY_APP_PASSWORD env vars)
+  - Reddit (REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET env vars)
+  - Twitter/X (twscrape accounts DB at social.twitter.db_path; T1/T2 only)
+  - YouTube (YOUTUBE_API_KEY env var; T1/T2 only, ~102 quota units/article)
 
 All failures are swallowed at DEBUG — social signals are optional enrichment.
 Create one SocialFetcher per pipeline run (it does the batch prefetch and auth
@@ -286,11 +293,6 @@ class SocialFetcher:
         return signals
 
 
-def fetch_social_signals(url: str) -> list[dict[str, Any]]:
-    """Backwards-compatible one-shot fetch (creates a fresh fetcher each call)."""
-    return SocialFetcher().fetch(url)
-
-
 # ── Comment fetchers ──────────────────────────────────────────────────────────
 
 import re as _re  # noqa: E402 — placed here to avoid cluttering the top-level imports
@@ -563,7 +565,7 @@ def fetch_twitter_comments(
     Requires twscrape to be installed (`pip install signal-harvester[twitter]`)
     and a pre-configured accounts DB created via the twscrape CLI:
         twscrape add_accounts --json '[{"username":"...","cookies":"auth_token=...;ct0=..."}]'
-        twscrape login_all
+        twscrape login_accounts
 
     Search strategy: try URL-based search first; fall back to quoted title keywords
     if the URL yields no results. Returns [{text, score, author}] sorted by

@@ -40,7 +40,7 @@ export interface Article {
   cluster_id?: string;
   cluster_size?: number;
   cluster_sources?: string[];
-  // social signals — aggregated across providers (hn, lemmy, mastodon, bluesky, reddit)
+  // social signals — aggregated across providers (hn, lemmy, mastodon, bluesky, reddit, twitter, youtube)
   social?: SocialSignal[];
   social_score?: number;
 }

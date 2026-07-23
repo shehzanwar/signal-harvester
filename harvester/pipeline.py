@@ -265,8 +265,10 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
         if comment_count:
             log.info("comments_done inserted=%d", comment_count)
 
-    # Twitter: twscrape cookie-based search — targets T1/T2 articles by URL then
-    # title. Silently skipped if twscrape is not installed or accounts DB is absent.
+    # -- Stage 5.5a: Twitter comments (best-effort) --------------------------------
+    # twscrape cookie-based search — targets T1/T2 articles by URL then title.
+    # Silently skipped if twscrape is not installed or accounts DB is absent.
+    # Results written to both article_comments (for LLM) and social_signals (for UI).
     tw_cfg = cfg.social.twitter
     tw_db = tw_cfg.db_path
     if enriched_today and os.path.exists(tw_db):
@@ -289,6 +291,13 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             )
             if comments:
                 tw_count += db.save_comments(article_id, "twitter", comments)
+                db.save_social_signals([{
+                    "article_id": article_id,
+                    "source": "twitter",
+                    "score": sum(c.get("score", 0) for c in comments),
+                    "comments": len(comments),
+                    "permalink": None,
+                }])
         if tw_count:
             log.info("twitter_comments_done inserted=%d", tw_count)
 
@@ -312,6 +321,13 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             comments = fetch_youtube_comments(title, preferred_channels=cfg.social.youtube.preferred_channels)
             if comments:
                 yt_count += db.save_comments(article_id, "youtube", comments)
+                db.save_social_signals([{
+                    "article_id": article_id,
+                    "source": "youtube",
+                    "score": sum(c.get("score", 0) for c in comments),
+                    "comments": len(comments),
+                    "permalink": None,
+                }])
         if yt_count:
             log.info("youtube_comments_done inserted=%d", yt_count)
 
