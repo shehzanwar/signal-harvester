@@ -95,7 +95,10 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
             index = _FRONTEND_DIST / "index.html"
             if not index.exists():
                 raise HTTPException(404, detail="Frontend not built. Run: make frontend")
-            return FileResponse(str(index))
+            return FileResponse(
+                str(index),
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
 
         @app.get("/{full_path:path}", include_in_schema=False, response_model=None)
         def serve_spa(full_path: str) -> FileResponse | JSONResponse:
@@ -115,6 +118,9 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
             index = _FRONTEND_DIST / "index.html"
             if not index.exists():
                 raise HTTPException(404, detail="Frontend not built. Run: make frontend")
-            return FileResponse(str(index))
+            return FileResponse(
+                str(index),
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
 
     return app
