@@ -1,0 +1,146 @@
+profile: personal-finance
+dashboard_title: "Personal Finance"
+
+max_articles_per_feed: 20
+
+feeds:
+  # ── Banking / consumer finance ──────────────────────────────────────────────
+  - name: NerdWallet
+    url: https://www.nerdwallet.com/blog/feed/
+    trust: medium
+    category: banking
+    max_articles: 10
+  - name: The Points Guy
+    url: https://thepointsguy.com/feed/
+    trust: medium
+    category: banking
+    max_articles: 10
+  - name: Clark Howard
+    url: https://clark.com/feed/
+    trust: medium
+    category: banking
+    max_articles: 10
+
+  # ── Investing / retirement ───────────────────────────────────────────────────
+  - name: Bogleheads Blog
+    url: https://www.bogleheads.org/blog/feed/
+    trust: high
+    category: investing
+    max_articles: 5
+  - name: The Financial Diet
+    url: https://thefinancialdiet.com/feed/
+    trust: medium
+    category: investing
+    max_articles: 10
+  - name: The Simple Dollar
+    url: https://www.thesimpledollar.com/feed/
+    trust: medium
+    category: investing
+    max_articles: 5
+
+  # ── Government / policy ──────────────────────────────────────────────────────
+  - name: Federal Reserve Press
+    url: https://www.federalreserve.gov/feeds/press_all.xml
+    trust: high
+    category: policy
+    max_articles: 10
+  - name: CFPB Newsroom
+    url: https://www.consumerfinance.gov/about-us/newsroom/feed/
+    trust: high
+    category: policy
+    max_articles: 5
+
+  # ── General personal finance ─────────────────────────────────────────────────
+  - name: Kiplinger
+    url: https://www.kiplinger.com/feed/all
+    trust: high
+    category: general
+    max_articles: 10
+  - name: CNBC Personal Finance
+    url: https://www.cnbc.com/id/10001054/device/rss/rss.html
+    trust: high
+    category: general
+    max_articles: 10
+  - name: Get Rich Slowly
+    url: https://www.getrichslowly.org/feed/
+    trust: medium
+    category: general
+    max_articles: 5
+  - name: Motley Fool
+    url: https://www.fool.com/feeds/index.aspx
+    trust: medium
+    category: general
+    max_articles: 5
+
+watch_topics:
+  - federal reserve interest rate decisions
+  - tax law changes and IRS guidance
+  - retirement account rules (401k, IRA, Roth)
+  - student loan policy
+  - Social Security and Medicare changes
+  - credit card rewards and fee changes
+  - mortgage rate movements
+  - FDIC and deposit insurance
+  - capital gains tax policy
+
+sentiment_target: >
+  A prudent saver and investor's view of financial developments affecting their
+  personal finances — not a Wall Street trader's view of market movements.
+
+tiers:
+  T1: >
+    Act on immediately. Major tax law changes signed or enacted into law
+    (not proposed). Federal Reserve rate decisions directly affecting
+    mortgages, savings accounts, or student loans. Changes to Social
+    Security, Medicare, or federal retirement account (401k/IRA) rules
+    that are enacted, not proposed. Major bank failure affecting deposit
+    insurance. Student loan policy changes taking effect (forgiveness,
+    repayment restructuring). Changes to capital gains tax rates or
+    retirement account contribution limits that are confirmed and in
+    effect.
+  T2: >
+    Notable but not urgent. Significant credit card policy changes
+    (annual fee increases, rewards devaluations at a major issuer).
+    New retirement account rules or IRS guidance not yet enacted.
+    FDIC insurance rule changes. Major mortgage rate movements
+    (>0.5% in a week). Significant changes to employer retirement
+    plan defaults. State-level tax changes in a high-population state.
+    Proposed (not yet enacted) federal tax or retirement legislation
+    with realistic passage prospects.
+  T3: >
+    Background context. Routine product reviews. Minor rate
+    adjustments. General financial advice with some specificity.
+    Market commentary relevant to individual investors. Earnings
+    reports of major banks. Economic indicator releases (CPI, jobs
+    report) without a direct policy or rate implication.
+
+llm:
+  backend: llamacpp
+  model: harvester-enrich
+  base_url: ${LLM_BASE_URL:-http://localhost:11435/v1}
+  num_ctx: 8192
+  max_article_tokens: 1500
+  concurrency: 1
+
+output:
+  root: "output/personal-finance"
+  formats: [json, markdown]
+
+schedule:
+  interval: daily
+
+retention:
+  article_days: 90
+  health_days: 30
+
+social:
+  twitter:
+    db_path: "data/twscrape_accounts.db"
+    max_articles: 20
+  youtube:
+    preferred_channels:
+      - "CNBC"
+      - "Bloomberg Television"
+      - "The Ramsey Show"
+      - "Graham Stephan"
+      - "The Financial Diet"

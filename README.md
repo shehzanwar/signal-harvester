@@ -14,14 +14,14 @@ Most news aggregators optimize for volume. This pipeline optimizes for **signal*
 
 ---
 
-## Three domains, one engine
+## Multiple domains, one engine
 
 The pipeline is domain-agnostic. All domain knowledge lives in a single YAML profile file.
 
 | Profile | Feeds | Use case |
 |---|---|---|
 | `daily-briefing` (live) | 33 feeds across technology, finance, politics, sports, world | General daily intelligence briefing — the profile actually running in production |
-| `security-grc` | CISA, Krebs, BleepingComputer, MSRC, SANS, + 7 more | Threat intel, vulnerability management, compliance monitoring |
+| `personal-finance` | 12 feeds across banking, investing, policy, general | Tax policy, Fed rate decisions, retirement rules, credit card changes — filtered for personal financial impact, not market news |
 | `soccer-intel` | BBC Sport, The Guardian, The Athletic, StatsBomb, + 4 more | Transfer market, injury reports, tactical analysis |
 | `ai-research` | arXiv (cs.AI/LG/CL), Anthropic, OpenAI, DeepMind, + 6 more | Foundation model releases, benchmark results, policy |
 
@@ -103,21 +103,22 @@ Full setup guide: [docs/setup.md](docs/setup.md)
 ## Configuration reference
 
 ```yaml
-profile: security-grc
-dashboard_title: "Security & Compliance Intelligence"
+profile: personal-finance
+dashboard_title: "Personal Finance"
 
 feeds:
-  - name: Krebs on Security
-    url: https://krebsonsecurity.com/feed/
+  - name: Federal Reserve Press
+    url: https://www.federalreserve.gov/feeds/press_all.xml
     trust: high   # high | medium | low
+    category: policy
 
-watch_topics: [ransomware, "zero-day vulnerability", "SOC 2"]
-sentiment_target: "our organization's security posture"
+watch_topics: ["federal reserve interest rate decisions", "tax law changes and IRS guidance", "retirement account rules (401k, IRA, Roth)"]
+sentiment_target: "a prudent saver and investor's view of financial developments"
 
 tiers:
-  T1: "Active exploitation confirmed; CVSS 9.0+ with public PoC; confirmed breach at peer org"
-  T2: "New disclosure (CVSS 7-8.9); regulatory proposal; significant vendor patch"
-  T3: "Opinion; long-term trends; conference summaries"
+  T1: "Tax law enacted; Fed rate decision affecting mortgages/savings; Social Security/Medicare rule change in effect"
+  T2: "Credit card fee/rewards change at a major issuer; proposed (not yet enacted) legislation; mortgage rate move >0.5%/week"
+  T3: "Routine product reviews; general financial advice; bank earnings; economic data without a policy implication"
 
 llm:
   backend: llamacpp
@@ -127,7 +128,7 @@ llm:
   max_article_tokens: 3500
 
 output:
-  root: "output/security-grc"   # UNC paths work: \\NAS\intel\security
+  root: "output/personal-finance"   # UNC paths work: \\NAS\intel\personal-finance
   formats: [json, markdown]
 ```
 
@@ -283,8 +284,8 @@ Test immediately: `schtasks /Run /TN "SignalHarvester\DailyBriefing"` then tail 
 Each run produces:
 
 ```
-output/security-grc/
-  security-grc.db              ← SQLite state (WAL mode)
+output/daily-briefing/
+  daily-briefing.db             ← SQLite state (WAL mode)
   articles/2026/07/
     a3f8c2d1...json            ← one file per enriched article
   digests/
