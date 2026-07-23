@@ -206,13 +206,24 @@ export function ArticleCard({
             rationale={article.sentiment_rationale}
             kind="editorial"
           />
-          {article.predicted_reaction_label && article.predicted_reaction_score != null && (
+          {article.public_sentiment_label != null &&
+          article.public_sentiment_score != null &&
+          article.sentiment_confidence !== "predicted" ? (
             <SentimentBadge
-              label={article.predicted_reaction_label}
-              score={article.predicted_reaction_score}
-              rationale={article.predicted_reaction_rationale}
-              kind="predicted"
+              label={article.public_sentiment_label}
+              score={article.public_sentiment_score}
+              rationale={article.dominant_emotion ? `Dominant emotion: ${article.dominant_emotion}` : undefined}
+              kind="public"
             />
+          ) : (
+            article.predicted_reaction_label && article.predicted_reaction_score != null && (
+              <SentimentBadge
+                label={article.predicted_reaction_label}
+                score={article.predicted_reaction_score}
+                rationale={article.predicted_reaction_rationale}
+                kind="predicted"
+              />
+            )
           )}
           {article.perception_gap != null && Math.abs(article.perception_gap) >= 0.2 && (
             <span
