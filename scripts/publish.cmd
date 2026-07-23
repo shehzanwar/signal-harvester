@@ -54,7 +54,7 @@ ECHO.
 ECHO [4/4] Committing and pushing site/...
 git add site/
 git commit -m "snapshot: %DATE% %TIME%"
-git push
+git push origin main
 IF ERRORLEVEL 1 (
     ECHO Git push failed. Check your remote is configured.
     EXIT /B 1
