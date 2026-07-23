@@ -250,10 +250,17 @@ output:
 schedule:
   interval: daily
 
-# Data retention. T1 articles are always kept regardless of article_days.
-# Set article_days: 0 to disable pruning.
+# Data retention. Tiered: T1 is always kept regardless of any setting below.
+# T2/untiered use article_days; T3 and NOISE use their own (shorter) windows
+# since they're high-volume and rarely revisited. raw_data_days controls how
+# long the heavy extracted_text/raw_response columns are kept after
+# enrichment — everything the dashboard needs (summary/tier/sentiment/tags)
+# is untouched. Set any *_days to 0 to disable that pruning.
 retention:
-  article_days: 90
+  article_days: 90    # T2 / untiered
+  t3_days: 21
+  noise_days: 3
+  raw_data_days: 7
   health_days: 30
 
 # Social enrichment settings. Requires YOUTUBE_API_KEY env var to activate.

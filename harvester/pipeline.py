@@ -406,16 +406,27 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
         weekly_articles = db.get_enriched_articles(since=seven_days_ago)
         write_weekly_digest(weekly_articles, cfg, week_start=week_start)
 
-    # -- Stage 7: Prune -------------------------------------------------------
+    # -- Stage 7: Prune ---------------------------------------------------------
     r = cfg.retention
-    if r.article_days > 0 or r.health_days > 0:
-        pruned = db.prune(r.article_days, r.health_days)
-        if any(pruned.values()):
+    pruned_any = False
+    if r.article_days > 0 or r.t3_days > 0 or r.noise_days > 0 or r.health_days > 0:
+        pruned = db.prune(r.article_days, r.health_days, t3_days=r.t3_days, noise_days=r.noise_days)
+        pruned_any = any(pruned.values())
+        if pruned_any:
             log.info(
-                "pruned articles=%d enrichments=%d social=%d feed_health=%d",
+                "pruned articles=%d enrichments=%d social=%d comments=%d feed_health=%d",
                 pruned["articles"], pruned["enrichments"],
-                pruned["social_signals"], pruned["feed_health"],
+                pruned["social_signals"], pruned["comments"], pruned["feed_health"],
             )
+
+    slimmed = db.slim_old_enrichments(r.raw_data_days)
+    if slimmed:
+        log.info("slimmed_raw_text articles=%d", slimmed)
+
+    # VACUUM reclaims disk space freed by deletes but rewrites the whole file —
+    # only worth the I/O when something was actually pruned.
+    if pruned_any:
+        db.vacuum()
 
     _finalize(db, run_id, cfg, started_at, counts)
     return counts

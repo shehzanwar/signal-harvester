@@ -63,8 +63,20 @@ class ScheduleConfig(BaseModel):
 
 
 class RetentionConfig(BaseModel):
-    # Days to keep articles and enrichments. 0 = keep forever.
+    # Days to keep T2 (and untiered) articles/enrichments. 0 = keep forever.
+    # T1 is always exempt — see Database.prune(). T3/NOISE use the shorter
+    # windows below since they're high-volume and low future value.
     article_days: int = 90
+    # Days to keep T3 (background) articles — shorter than T2 since there are
+    # far more of them and they're rarely revisited.
+    t3_days: int = 21
+    # Days to keep NOISE (filtered) articles — kept briefly for debugging only.
+    noise_days: int = 3
+    # Days to keep the heavy extracted_text/raw_response columns after
+    # enrichment. Summary, tier, sentiment, and tags are kept per the windows
+    # above; only the raw text (only useful during enrichment/debugging) is
+    # cleared early. 0 = never slim.
+    raw_data_days: int = 7
     # Days to keep feed_health records (cheaper to keep longer).
     health_days: int = 30
 

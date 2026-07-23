@@ -934,58 +934,90 @@ class Database:
         article_days: int,
         health_days: int,
         *,
+        t3_days: int | None = None,
+        noise_days: int | None = None,
         dry_run: bool = False,
     ) -> dict[str, int]:
-        """Delete articles older than article_days and feed_health older than health_days.
+        """Delete articles past their tier's retention window, and feed_health older than health_days.
 
-        Deletes child rows first so FK constraints are satisfied. The FTS trigger
+        Tiered retention: T3 and NOISE use their own (shorter) windows when given;
+        T2 and untiered articles fall back to article_days. T1 articles are exempt
+        from pruning entirely — they represent the most significant events and
+        should be kept indefinitely.
+
+        Deletes child rows first (comments, social_signals, enrichments) so FK
+        constraints are satisfied — article_comments and social_signals both
+        reference articles(id) and this connection runs with
+        `PRAGMA foreign_keys=ON`, so leaving either behind would raise
+        `FOREIGN KEY constraint failed` on the articles DELETE. The FTS trigger
         fires on enrichments DELETE so articles_fts is cleaned up automatically.
-        T1 articles are exempt from pruning — they represent the most significant
-        events and should be kept indefinitely.
 
         Returns counts of rows deleted (or that would be deleted when dry_run=True).
         """
-        cutoff_articles = (
-            datetime.now(timezone.utc) - timedelta(days=article_days)
-        ).isoformat() if article_days > 0 else None
-        cutoff_health = (
-            datetime.now(timezone.utc) - timedelta(days=health_days)
-        ).isoformat() if health_days > 0 else None
+        now = datetime.now(timezone.utc)
 
-        counts: dict[str, int] = {"articles": 0, "enrichments": 0, "social_signals": 0, "feed_health": 0}
+        def _cutoff(days: int) -> str | None:
+            return (now - timedelta(days=days)).isoformat() if days > 0 else None
+
+        # tier -> cutoff. NULL tier (shouldn't normally happen, but defensive)
+        # falls back to the article_days/T2 window via the "else" branch below.
+        tier_cutoffs: dict[str, str | None] = {
+            "T2": _cutoff(article_days),
+            "T3": _cutoff(t3_days if t3_days is not None else article_days),
+            "NOISE": _cutoff(noise_days if noise_days is not None else article_days),
+        }
+        cutoff_health = _cutoff(health_days)
+
+        counts: dict[str, int] = {"articles": 0, "enrichments": 0, "social_signals": 0, "comments": 0, "feed_health": 0}
 
         with self._conn() as con:
-            if cutoff_articles:
-                # T1 articles are exempt — they record significant events worth keeping.
-                ids = [
+            ids: list[str] = []
+            for tier, cutoff in tier_cutoffs.items():
+                if not cutoff:
+                    continue
+                ids.extend(
                     r[0] for r in con.execute(
-                        """SELECT a.id FROM articles a
-                           LEFT JOIN enrichments e ON e.article_id = a.id
-                           WHERE a.fetched_at < ?
-                             AND (e.tier IS NULL OR e.tier != 'T1')""",
-                        (cutoff_articles,),
+                        "SELECT a.id FROM articles a JOIN enrichments e ON e.article_id = a.id "
+                        "WHERE e.tier = ? AND a.fetched_at < ?",
+                        (tier, cutoff),
                     ).fetchall()
-                ]
-                counts["articles"] = len(ids)
-                if ids:
-                    placeholders = ",".join("?" * len(ids))
-                    if dry_run:
-                        counts["enrichments"] = con.execute(
-                            f"SELECT COUNT(*) FROM enrichments WHERE article_id IN ({placeholders})", ids
-                        ).fetchone()[0]
-                        counts["social_signals"] = con.execute(
-                            f"SELECT COUNT(*) FROM social_signals WHERE article_id IN ({placeholders})", ids
-                        ).fetchone()[0]
-                    else:
-                        counts["social_signals"] = con.execute(
-                            f"DELETE FROM social_signals WHERE article_id IN ({placeholders})", ids
-                        ).rowcount
-                        counts["enrichments"] = con.execute(
-                            f"DELETE FROM enrichments WHERE article_id IN ({placeholders})", ids
-                        ).rowcount
-                        con.execute(
-                            f"DELETE FROM articles WHERE id IN ({placeholders})", ids
-                        )
+                )
+            # Untiered articles (enrichment missing/failed) — treated like T2.
+            if tier_cutoffs["T2"]:
+                ids.extend(
+                    r[0] for r in con.execute(
+                        "SELECT a.id FROM articles a LEFT JOIN enrichments e ON e.article_id = a.id "
+                        "WHERE e.article_id IS NULL AND a.fetched_at < ?",
+                        (tier_cutoffs["T2"],),
+                    ).fetchall()
+                )
+
+            counts["articles"] = len(ids)
+            if ids:
+                placeholders = ",".join("?" * len(ids))
+                if dry_run:
+                    counts["enrichments"] = con.execute(
+                        f"SELECT COUNT(*) FROM enrichments WHERE article_id IN ({placeholders})", ids
+                    ).fetchone()[0]
+                    counts["social_signals"] = con.execute(
+                        f"SELECT COUNT(*) FROM social_signals WHERE article_id IN ({placeholders})", ids
+                    ).fetchone()[0]
+                    counts["comments"] = con.execute(
+                        f"SELECT COUNT(*) FROM article_comments WHERE article_id IN ({placeholders})", ids
+                    ).fetchone()[0]
+                else:
+                    counts["comments"] = con.execute(
+                        f"DELETE FROM article_comments WHERE article_id IN ({placeholders})", ids
+                    ).rowcount
+                    counts["social_signals"] = con.execute(
+                        f"DELETE FROM social_signals WHERE article_id IN ({placeholders})", ids
+                    ).rowcount
+                    counts["enrichments"] = con.execute(
+                        f"DELETE FROM enrichments WHERE article_id IN ({placeholders})", ids
+                    ).rowcount
+                    con.execute(
+                        f"DELETE FROM articles WHERE id IN ({placeholders})", ids
+                    )
 
             if cutoff_health:
                 counts["feed_health"] = con.execute(
@@ -995,6 +1027,44 @@ class Database:
                     con.execute("DELETE FROM feed_health WHERE checked_at < ?", (cutoff_health,))
 
         return counts
+
+    def vacuum(self) -> None:
+        """Reclaim disk space freed by prune()/slim_old_enrichments(). Must run
+        outside any open transaction, so this uses its own bare connection
+        rather than the usual _conn() contextmanager."""
+        con = sqlite3.connect(str(self._path), timeout=30)
+        try:
+            con.execute("VACUUM")
+            con.execute("ANALYZE")
+        finally:
+            con.close()
+
+    def slim_old_enrichments(self, days: int) -> int:
+        """NULL out extracted_text/raw_response for articles older than `days`.
+
+        These columns are only needed during enrichment (and for debugging
+        shortly after); everything the dashboard displays — summary, tier,
+        sentiment, tags — lives in other columns and is untouched. Only
+        articles that still have raw data are updated, so re-running this is
+        a cheap no-op on already-slimmed rows. Returns the number of articles
+        slimmed.
+        """
+        if days <= 0:
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        with self._conn() as con:
+            ids = [
+                r[0] for r in con.execute(
+                    "SELECT id FROM articles WHERE fetched_at < ? AND extracted_text IS NOT NULL",
+                    (cutoff,),
+                ).fetchall()
+            ]
+            if not ids:
+                return 0
+            placeholders = ",".join("?" * len(ids))
+            con.execute(f"UPDATE articles SET extracted_text = NULL WHERE id IN ({placeholders})", ids)
+            con.execute(f"UPDATE enrichments SET raw_response = NULL WHERE article_id IN ({placeholders})", ids)
+        return len(ids)
 
     def save_feed_health(self, records: list[dict[str, Any]]) -> None:
         """Persist one health record per feed from the current pipeline run."""

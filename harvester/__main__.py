@@ -187,14 +187,21 @@ def main() -> None:
         health_days = getattr(args, "health_days", None) or cfg.retention.health_days
         dry_run = getattr(args, "dry_run", False)
 
-        counts = db.prune(article_days, health_days, dry_run=dry_run)
+        counts = db.prune(
+            article_days, health_days,
+            t3_days=cfg.retention.t3_days, noise_days=cfg.retention.noise_days,
+            dry_run=dry_run,
+        )
         label = "Would delete" if dry_run else "Deleted"
         print(
             f"\n{'[DRY RUN] ' if dry_run else ''}"
-            f"Retention policy: articles > {article_days}d, feed_health > {health_days}d\n"
+            f"Retention policy: T1 forever, T2/untiered > {article_days}d, "
+            f"T3 > {cfg.retention.t3_days}d, NOISE > {cfg.retention.noise_days}d, "
+            f"feed_health > {health_days}d\n"
             f"  {label}: {counts['articles']:,} articles, "
             f"{counts['enrichments']:,} enrichments, "
             f"{counts['social_signals']:,} social signals, "
+            f"{counts['comments']:,} comments, "
             f"{counts['feed_health']:,} feed_health records\n"
         )
         if dry_run and any(counts.values()):
