@@ -85,21 +85,24 @@ export function KPIStrip({ stats, title, meta, inline }: Props) {
                 </span>
               )}
             </span>
-            <span className="flex items-center gap-3 shrink-0 tabular-nums">
-              <span className="text-sm">
+            <span className="flex items-center divide-x divide-neutral-800 shrink-0 tabular-nums">
+              <span className="text-sm pr-2.5">
                 <span className="text-neutral-500 text-xs mr-1">Today</span>
                 <span className="font-bold text-white">{stats.today_new}</span>
               </span>
-              <span className="text-sm">
+              <span className="text-sm px-2.5">
                 <span className="text-neutral-500 text-xs mr-1">T1</span>
                 <span className={`font-bold ${t1_7d > 0 ? "text-red-400" : "text-neutral-400"}`}>{t1_7d}</span>
               </span>
               {sent7d != null && (
-                <span className={`text-sm font-bold ${sentimentColor(sent7d)}`}>
-                  {sent7d >= 0 ? "+" : ""}{sent7d.toFixed(2)}
+                <span className="text-sm px-2.5">
+                  <span className="text-neutral-500 text-xs mr-1">Sent</span>
+                  <span className={`font-bold ${sentimentColor(sent7d)}`}>
+                    {sent7d >= 0 ? "+" : ""}{sent7d.toFixed(2)}
+                  </span>
                 </span>
               )}
-              <span className="text-neutral-600 text-xs">{expanded ? "▲" : "▼"}</span>
+              <span className="text-neutral-600 text-xs pl-2.5">{expanded ? "▲" : "▼"}</span>
             </span>
           </button>
 
@@ -144,29 +147,38 @@ export function KPIStrip({ stats, title, meta, inline }: Props) {
             )}
           </div>
 
-          <nav className="flex items-center gap-6 flex-wrap" aria-label="Pipeline statistics">
-            <Kpi label="Today (UTC)" value={stats.today_new} />
-            <Kpi
-              label="T1 (7d)"
-              value={t1_7d}
-              valueClass={t1_7d > 0 ? "text-red-400" : "text-neutral-400"}
-            />
-            <div>
+          <nav
+            className="flex items-center flex-wrap divide-x divide-neutral-800"
+            aria-label="Pipeline statistics"
+          >
+            <div className="pr-5">
+              <Kpi label="Today (UTC)" value={stats.today_new} />
+            </div>
+            <div className="px-5">
+              <Kpi
+                label="T1 (7d)"
+                value={t1_7d}
+                valueClass={t1_7d > 0 ? "text-red-400" : "text-neutral-400"}
+              />
+            </div>
+            <div className="px-5">
               <span className="text-xs text-neutral-500 block mb-0.5">Sentiment (7d)</span>
               <SentimentBar score={stats.avg_sentiment_7d ?? null} />
             </div>
-            <Kpi label="Noise Filtered" value={stats.noise_filtered ?? 0} valueClass="text-neutral-500" />
+            <div className="px-5">
+              <Kpi label="Noise Filtered" value={stats.noise_filtered ?? 0} valueClass="text-neutral-500" />
+            </div>
 
             {/* Last run / snapshot date */}
             {isStatic ? (
-              <div>
+              <div className="pl-5">
                 <span className="text-xs text-neutral-500 block mb-0.5">Snapshot</span>
                 <span className="text-sm text-neutral-300">
                   {relativeTime(meta?.exported_at)}
                 </span>
               </div>
             ) : lastRun ? (
-              <div>
+              <div className="pl-5">
                 <span className="text-xs text-neutral-500 block mb-0.5">Last Run</span>
                 <div className="flex items-center gap-1.5">
                   <span
