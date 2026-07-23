@@ -33,15 +33,17 @@ interface Props {
 const T1_PREVIEW_COUNT = 10;
 const BRIEF_T1_LIMIT = 7;
 
-function dateBucket(publishedAt?: string): "Today" | "Yesterday" | "Earlier" {
+function dateBucket(publishedAt?: string): "Today" | "Yesterday" | "This Week" | "Earlier" {
   if (!publishedAt) return "Earlier";
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86_400_000);
+  const weekAgo = new Date(today.getTime() - 7 * 86_400_000);
   const d = new Date(publishedAt);
   const pub = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   if (pub >= today) return "Today";
   if (pub >= yesterday) return "Yesterday";
+  if (pub >= weekAgo) return "This Week";
   return "Earlier";
 }
 
@@ -51,7 +53,7 @@ function groupByDate(items: Article[]): Array<{ label: string; items: Article[] 
     const b = dateBucket(a.published_at);
     (buckets[b] ??= []).push(a);
   }
-  return (["Today", "Yesterday", "Earlier"] as const)
+  return (["Today", "Yesterday", "This Week", "Earlier"] as const)
     .filter((l) => buckets[l])
     .map((l) => ({ label: l, items: buckets[l]! }));
 }
