@@ -195,9 +195,8 @@ llm:
 output:
   root: "output/daily-briefing"
   formats: [json, markdown]
-  # Uncomment and set your Obsidian vault path to auto-export after every run.
   # Articles become individual notes with YAML frontmatter + [[wikilinks]] on tags.
-  # obsidian_vault: "C:/Users/yourname/Documents/Obsidian/SignalHarvester"
+  obsidian_vault: "C:/Users/couga/Documents/Documents/SignalHarvester"
 
 schedule:
   interval: daily
