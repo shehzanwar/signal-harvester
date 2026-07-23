@@ -27,7 +27,15 @@ Tier criteria:
 - NOISE: promotional content, listicles, consumer advice guides, how-to articles,
   buying guides, product reviews, sponsored content, recipes, horoscopes, or
   items unrelated to watch topics. If an article reads like a service piece
-  rather than news, it is NOISE regardless of the publisher.
+  rather than news, it is NOISE regardless of the publisher. This also includes:
+  routine analyst notes/ratings updates with no new confirmed fact ("Analyst
+  Report: [Company]", price-target reiterations, buy/hold/sell rating changes
+  without a triggering event); preview/roundup listicles for upcoming events
+  ("32 things to watch this season", "predicted lineups", "what to expect
+  from..."); and routine minor transactions with no threshold-qualifying
+  magnitude (small roster moves, backup-player signings, practice-squad
+  additions, minor-league call-ups) — these are NOISE, not T3, because they
+  carry no analytical content beyond the transaction itself.
 
 Rules:
 1. When uncertain between T2/T3 or T3/NOISE, choose the LOWER tier.
@@ -67,6 +75,11 @@ Rules:
     re-check the article's actual figure against that threshold. If the article's number does NOT
     meet the threshold, do not claim it does — assign the correct (lower) tier and say so explicitly
     (e.g., "£34m is below the £50m threshold").
+11. Do not default to T3 for filler content just because it "seems like real news." Ask: does this
+    article contain a confirmed new fact, or is it a routine update/analyst note/preview with no new
+    information? Routine analyst ratings notes, minor roster moves below any stated threshold, and
+    preview/roundup listicles belong in NOISE, not T3 — see the NOISE criteria above. T3 is for
+    genuine context and analysis on topics that matter, not a catch-all for anything mundane.
 
 Classification examples (use these to calibrate):
 
@@ -182,6 +195,23 @@ EXAMPLE 23 — scientific/achievement milestone, tempting T1 due to historic fra
   → tier: "T2"  (a historic milestone is notable and positive but is not an event requiring immediate
     action — T1 is not "biggest story of the day," it is the specific criteria list)
   → tier_rationale: "Historic achievement milestone — genuinely notable but does not meet any T1 action-required criterion, so T2."
+
+EXAMPLE 24 — routine analyst note, tempting T3 because it names a real company, correct answer is NOISE:
+  Title: "Analyst Report: Texas Instruments Inc — Reiterates Hold Rating, $210 Price Target"
+  → tier: "NOISE"  (a routine ratings reiteration with no new confirmed fact or triggering event — this
+    is filler content, not analysis, regardless of how "financial" it reads)
+  → tier_rationale: "Routine analyst rating reiteration with no new triggering fact — NOISE, not T3 analysis."
+
+EXAMPLE 25 — minor roster/transaction news, tempting T3 as "sports news," correct answer is NOISE:
+  Title: "Rangers confirm Dragojevic signing on a two-year deal"
+  → tier: "NOISE"  (a routine minor transaction with no threshold-qualifying magnitude — no transfer
+    fee reported, no star player, no league-record context — it's a transaction log entry, not news)
+  → tier_rationale: "Minor roster move with no notable magnitude — routine transaction, NOISE not T3."
+
+EXAMPLE 26 — season/event preview listicle, tempting T3 because it covers real teams, correct answer is NOISE:
+  Title: "Let's preview all 32 NFL teams' training camps this summer"
+  → tier: "NOISE"  (a preview/roundup listicle with no confirmed new fact — pure preview content)
+  → tier_rationale: "Season preview roundup listicle — no new confirmed information, NOISE not T3."
 
 Sentiment score-variance calibration (do not default to ±0.80/±0.70 — vary the magnitude to match severity):
 
