@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { collapseClusters } from "../lib/clusters";
 import { useIsMobile } from "../lib/hooks";
 import type { Article } from "../types";
@@ -27,6 +27,7 @@ interface Props {
   onToggleRead: (id: string) => void;
   onToggleSelect?: (id: string) => void;
   onExitBriefMode?: () => void;
+  statsSlot?: React.ReactNode;
 }
 
 const T1_PREVIEW_COUNT = 10;
@@ -86,6 +87,7 @@ export function TieredFeed({
   onToggleRead,
   onToggleSelect,
   onExitBriefMode,
+  statsSlot,
 }: Props) {
   const isMobile = useIsMobile();
   // T2 compact list mode is only available on desktop — on mobile T2 always
@@ -224,6 +226,7 @@ export function TieredFeed({
   const noise = reps.filter((a) => a.tier === "NOISE");
 
   const visibleT1 = showAllT1 ? t1 : t1.slice(0, T1_PREVIEW_COUNT);
+  const injectInT1 = !!statsSlot && t1.length > 0;
 
   return (
     <div className="space-y-10">
@@ -233,9 +236,28 @@ export function TieredFeed({
           {(() => {
             const groups = groupByDate(visibleT1);
             const showHeaders = groups.length > 1;
+            const [firstGroup, ...tailGroups] = groups;
+            const firstCard = firstGroup?.items[0];
+            const firstGroupTail = firstGroup?.items.slice(1) ?? [];
             return (
               <div className="space-y-6">
-                {groups.map(({ label, items }) => (
+                {firstGroup && firstCard && (
+                  <div>
+                    {showHeaders && <DateLabel label={firstGroup.label} />}
+                    <div className={compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
+                      <ArticleCard article={firstCard} compact={compact} {...cardProps(firstCard)} />
+                    </div>
+                    {injectInT1 && <div className="mt-6">{statsSlot}</div>}
+                    {firstGroupTail.length > 0 && (
+                      <div className={`mt-4 ${compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}`}>
+                        {firstGroupTail.map((a) => (
+                          <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {tailGroups.map(({ label, items }) => (
                   <div key={label}>
                     {showHeaders && <DateLabel label={label} />}
                     <div className={compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
@@ -258,6 +280,9 @@ export function TieredFeed({
           )}
         </Section>
       )}
+
+      {/* Stats slot fallback: shown before T2 when no T1 articles exist */}
+      {!injectInT1 && statsSlot && <div className="mb-2">{statsSlot}</div>}
 
       {/* T2 */}
       {t2.length > 0 && (

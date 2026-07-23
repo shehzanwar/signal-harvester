@@ -434,9 +434,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      {/* Header / KPI strip */}
-      {stats && <KPIStrip stats={stats} title={title} meta={meta ?? null} />}
-
       {/* Trends strip (collapsible) */}
       {trendsData && <TrendsStrip trends={trendsData} />}
 
@@ -710,6 +707,7 @@ export default function App() {
             onToggleSave={toggleSaveTracked}
             onToggleRead={toggleReadTracked}
             onToggleSelect={toggleSelect}
+            statsSlot={stats ? <KPIStrip stats={stats} title={title} meta={meta ?? null} inline /> : undefined}
           />
         )}
       </main>

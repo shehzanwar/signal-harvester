@@ -7,6 +7,7 @@ interface Props {
   stats: Stats;
   title: string;
   meta?: StaticMeta | null;
+  inline?: boolean;
 }
 
 function sentimentColor(score: number): string {
@@ -39,7 +40,7 @@ function SentimentBar({ score }: { score: number | null }) {
   );
 }
 
-export function KPIStrip({ stats, title, meta }: Props) {
+export function KPIStrip({ stats, title, meta, inline }: Props) {
   const t1_7d = stats.t1_7d ?? 0;
   const lastRun = stats.last_run;
   const lastRunAt = lastRun?.finished_at;
@@ -58,13 +59,15 @@ export function KPIStrip({ stats, title, meta }: Props) {
   const [expanded, setExpanded] = useState(false);
   const sent7d = stats.avg_sentiment_7d ?? null;
 
+  const Tag = inline ? "div" : "header";
+  const wrapperClass = inline
+    ? "border border-neutral-800 bg-neutral-900 rounded-lg"
+    : `border-b border-neutral-800 bg-neutral-950 sticky top-0 z-20 transition-transform duration-200 ${
+        isMobile && !headerVisible ? "-translate-y-full" : "translate-y-0"
+      }`;
+
   return (
-    <header
-      className={`border-b border-neutral-800 bg-neutral-950 sticky top-0 z-20
-                  transition-transform duration-200 ${
-                    isMobile && !headerVisible ? "-translate-y-full" : "translate-y-0"
-                  }`}
-    >
+    <Tag className={wrapperClass}>
       <div className="max-w-7xl mx-auto px-4 py-3">
         {/* ── Mobile: condensed, tap-to-expand ─────────────────────────────── */}
         <div className="sm:hidden">
@@ -189,7 +192,7 @@ export function KPIStrip({ stats, title, meta }: Props) {
           </nav>
         </div>
       </div>
-    </header>
+    </Tag>
   );
 }
 
