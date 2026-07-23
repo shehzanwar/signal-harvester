@@ -101,8 +101,11 @@ def _parse_date(entry: Any) -> str | None:
     if not raw:
         return None
     try:
-        dt = parsedate_to_datetime(raw)
-        return dt.astimezone(timezone.utc).isoformat()
+        dt = parsedate_to_datetime(raw).astimezone(timezone.utc)
+        now = datetime.now(timezone.utc)
+        if dt > now:
+            dt = now  # feeds occasionally publish with clock-skewed or future timestamps
+        return dt.isoformat()
     except Exception:
         return raw  # return raw string rather than drop the date
 
