@@ -1,10 +1,28 @@
 import { formatDistanceToNow } from "date-fns";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../api/client";
 import { recordEngagement } from "../lib/affinity";
 import { clusterSiblings } from "../lib/clusters";
-import type { Article } from "../types";
+import type { Article, Comment } from "../types";
 import { SentimentBadge } from "./SentimentBadge";
 import { TierBadge } from "./TierBadge";
+
+const SOURCE_LABEL: Record<string, string> = {
+  hn: "Hacker News", reddit: "Reddit", bluesky: "Bluesky",
+  lemmy: "Lemmy", mastodon: "Mastodon", twitter: "Twitter/X", youtube: "YouTube",
+};
+
+function sourceSearchUrl(source: string, title: string): string {
+  const q = encodeURIComponent(title);
+  switch (source) {
+    case "twitter": return `https://x.com/search?q=${q}`;
+    case "youtube": return `https://www.youtube.com/results?search_query=${q}`;
+    case "hn": return `https://hn.algolia.com/?q=${q}`;
+    case "reddit": return `https://www.reddit.com/search/?q=${q}`;
+    case "bluesky": return `https://bsky.app/search?q=${q}`;
+    default: return "#";
+  }
+}
 
 interface Props {
   article: Article | null;
@@ -47,6 +65,22 @@ export function DetailPanel({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  const [comments, setComments] = useState<Comment[]>([]);
+  useEffect(() => {
+    if (!article) {
+      setComments([]);
+      return;
+    }
+    let cancelled = false;
+    api.comments(article.id).then((c) => {
+      if (!cancelled) setComments(c);
+    }).catch(() => {
+      if (!cancelled) setComments([]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [article?.id]);
 
   if (!article) return null;
 
@@ -54,6 +88,11 @@ export function DetailPanel({
   const hasCluster = (article.cluster_size ?? 1) > 1;
   const social = (article.social ?? []).slice().sort((a, b) => b.score - a.score);
   const hasSocial = social.length > 0;
+
+  const commentsBySource = new Map<string, Comment[]>();
+  for (const c of comments) {
+    (commentsBySource.get(c.source) ?? commentsBySource.set(c.source, []).get(c.source)!).push(c);
+  }
 
   return (
     <>
@@ -368,7 +407,7 @@ export function DetailPanel({
                 {social.map((s) => (
                   <a
                     key={s.source}
-                    href={s.permalink ?? "#"}
+                    href={s.permalink ?? sourceSearchUrl(s.source, article.title)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm text-orange-400 hover:text-orange-300 transition-colors"
@@ -378,8 +417,63 @@ export function DetailPanel({
                       {s.score.toLocaleString()} pts
                       {s.comments > 0 && <> · {s.comments.toLocaleString()} comments</>}
                     </span>
-                    {s.permalink && <span className="text-neutral-600 text-xs">→</span>}
+                    <span className="text-neutral-600 text-xs">→</span>
                   </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Public reaction — actual comment excerpts, top 3 per source */}
+          {commentsBySource.size > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
+                Public Reaction
+              </h3>
+              <div className="flex flex-col gap-4">
+                {[...commentsBySource.entries()].map(([source, srcComments]) => (
+                  <div key={source}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-semibold text-neutral-400">
+                        {SOURCE_LABEL[source] ?? source}
+                      </span>
+                      <a
+                        href={sourceSearchUrl(source, article.title)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-neutral-600 hover:text-neutral-400 transition-colors"
+                      >
+                        View all →
+                      </a>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {srcComments.slice(0, 3).map((c, i) => (
+                        <blockquote
+                          key={i}
+                          className="border-l-2 border-neutral-800 pl-3 py-0.5"
+                        >
+                          <p className="text-sm text-neutral-300 leading-relaxed line-clamp-4">
+                            {c.text}
+                          </p>
+                          <footer className="flex items-center gap-2 mt-1 text-[11px] text-neutral-600">
+                            {c.author && <span>@{c.author}</span>}
+                            {c.score != null && <span>▲ {c.score}</span>}
+                            {c.url && (
+                              <a
+                                href={c.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-neutral-400 transition-colors"
+                                title="Open this comment"
+                              >
+                                ↗
+                              </a>
+                            )}
+                          </footer>
+                        </blockquote>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </section>

@@ -291,12 +291,14 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             )
             if comments:
                 tw_count += db.save_comments(article_id, "twitter", comments)
+                # comments are sorted by score descending, so [0] is the best one
+                # to represent this signal's "view discussion" link.
                 db.save_social_signals([{
                     "article_id": article_id,
                     "source": "twitter",
                     "score": sum(c.get("score", 0) for c in comments),
                     "comments": len(comments),
-                    "permalink": None,
+                    "permalink": comments[0].get("url"),
                 }])
         if tw_count:
             log.info("twitter_comments_done inserted=%d", tw_count)
@@ -334,7 +336,7 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
                     "source": "youtube",
                     "score": sum(c.get("score", 0) for c in comments),
                     "comments": len(comments),
-                    "permalink": None,
+                    "permalink": comments[0].get("url"),
                 }])
         if yt_count:
             log.info("youtube_comments_done inserted=%d", yt_count)

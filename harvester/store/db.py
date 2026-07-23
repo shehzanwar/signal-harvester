@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS article_comments (
     comment_text   TEXT NOT NULL,
     comment_score  INTEGER,
     comment_author TEXT,
+    comment_url    TEXT,
     fetched_at     TEXT NOT NULL,
     UNIQUE(article_id, source, comment_text)
 );
@@ -216,6 +217,7 @@ class Database:
             "ALTER TABLE enrichments ADD COLUMN sentiment_confidence TEXT",
             "ALTER TABLE enrichments ADD COLUMN perception_gap REAL",
             "ALTER TABLE enrichments ADD COLUMN composite_sentiment_score REAL",
+            "ALTER TABLE article_comments ADD COLUMN comment_url TEXT",
         ]:
             try:
                 with self._conn() as con:
@@ -432,10 +434,21 @@ class Database:
                        FROM article_comments WHERE article_id = ? AND source = ?""",
                     (article_id, source),
                 ).fetchone()
+                # Best-scored comment's URL represents this signal's "view discussion"
+                # link; NULL (pre-comment_url-column rows) falls back to a search
+                # link client-side.
+                top_url_row = con.execute(
+                    """SELECT comment_url FROM article_comments
+                       WHERE article_id = ? AND source = ? AND comment_url IS NOT NULL
+                       ORDER BY CASE WHEN comment_score IS NULL THEN 0 ELSE comment_score END DESC
+                       LIMIT 1""",
+                    (article_id, source),
+                ).fetchone()
+                top_url = top_url_row[0] if top_url_row else None
                 con.execute(
                     """INSERT INTO social_signals (article_id, source, score, comments, permalink, fetched_at)
-                       VALUES (?, ?, ?, ?, NULL, ?)""",
-                    (article_id, source, agg[0] or 0, agg[1], now),
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (article_id, source, agg[0] or 0, agg[1], top_url, now),
                 )
         return len(missing)
 
@@ -445,7 +458,13 @@ class Database:
         source: str,
         comments: list[dict[str, Any]],
     ) -> int:
-        """Insert comments, skipping exact duplicates. Returns count inserted."""
+        """Insert comments, skipping exact duplicates. Returns count inserted.
+
+        Each comment dict may include an optional "url" pointing to the exact
+        post/comment (not just the article) — used by the frontend to link out
+        from comment excerpts. Comments without a derivable per-item URL
+        (e.g. HN top-level replies before that support existed) store NULL.
+        """
         if not comments:
             return 0
         now = _now_utc()
@@ -455,9 +474,9 @@ class Database:
                 try:
                     con.execute(
                         """INSERT OR IGNORE INTO article_comments
-                           (article_id, source, comment_text, comment_score, comment_author, fetched_at)
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                        (article_id, source, c["text"], c.get("score"), c.get("author"), now),
+                           (article_id, source, comment_text, comment_score, comment_author, comment_url, fetched_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (article_id, source, c["text"], c.get("score"), c.get("author"), c.get("url"), now),
                     )
                     inserted += con.execute("SELECT changes()").fetchone()[0]
                 except Exception:
@@ -468,12 +487,33 @@ class Database:
         """Return all comments for an article across all sources, best-score first."""
         with self._conn() as con:
             rows = con.execute(
-                """SELECT source, comment_text AS text, comment_score AS score, comment_author AS author
+                """SELECT source, comment_text AS text, comment_score AS score,
+                          comment_author AS author, comment_url AS url
                    FROM article_comments WHERE article_id = ?
                    ORDER BY CASE WHEN comment_score IS NULL THEN 0 ELSE comment_score END DESC""",
                 (article_id,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def get_all_comments_by_article(self) -> dict[str, list[dict[str, Any]]]:
+        """Bulk-fetch every comment, grouped by article_id, for the static site export.
+
+        One query instead of one-per-article — the static export has no live
+        API to call get_comments() per article on demand.
+        """
+        with self._conn() as con:
+            rows = con.execute(
+                """SELECT article_id, source, comment_text AS text, comment_score AS score,
+                          comment_author AS author, comment_url AS url
+                   FROM article_comments
+                   ORDER BY CASE WHEN comment_score IS NULL THEN 0 ELSE comment_score END DESC"""
+            ).fetchall()
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for r in rows:
+            d = dict(r)
+            article_id = d.pop("article_id")
+            grouped.setdefault(article_id, []).append(d)
+        return grouped
 
     def get_articles_needing_perception(self) -> list[dict[str, Any]]:
         """Return v5+ enriched articles that need perception scoring.

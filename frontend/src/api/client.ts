@@ -1,6 +1,7 @@
 import type {
   Article,
   ArticlesResponse,
+  Comment,
   ProfileInfo,
   Run,
   StaticMeta,
@@ -11,6 +12,16 @@ import type {
 const IS_STATIC = import.meta.env.VITE_STATIC === "true";
 const API_BASE = "/api";
 const DATA_BASE = "./data";
+
+// Static mode has no per-article endpoint — comments.json is one blob keyed
+// by article_id, fetched once and cached across the session.
+let _staticCommentsCache: Promise<Record<string, Comment[]>> | null = null;
+function getStaticComments(): Promise<Record<string, Comment[]>> {
+  if (!_staticCommentsCache) {
+    _staticCommentsCache = getStatic<Record<string, Comment[]>>("comments.json").catch(() => ({}));
+  }
+  return _staticCommentsCache;
+}
 
 // ── Live API helpers ─────────────────────────────────────────────────────────
 async function get<T>(path: string): Promise<T> {
@@ -62,6 +73,14 @@ export const api = {
 
   meta: (): Promise<StaticMeta | null> =>
     IS_STATIC ? getStatic<StaticMeta>("meta.json").catch(() => null) : Promise.resolve(null),
+
+  comments: async (articleId: string): Promise<Comment[]> => {
+    if (IS_STATIC) {
+      const all = await getStaticComments();
+      return all[articleId] ?? [];
+    }
+    return get<Comment[]>(`/articles/${articleId}/comments`);
+  },
 };
 
 export const IS_STATIC_MODE = IS_STATIC;

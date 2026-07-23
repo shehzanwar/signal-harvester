@@ -52,6 +52,14 @@ export interface SocialSignal {
   permalink?: string | null;
 }
 
+export interface Comment {
+  source: string;
+  text: string;
+  score: number | null;
+  author: string | null;
+  url: string | null;
+}
+
 export interface Stats {
   total_articles: number;
   enriched_articles: number;

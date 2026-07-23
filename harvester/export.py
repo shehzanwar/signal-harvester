@@ -98,12 +98,15 @@ def export_site(cfg: ProfileConfig, out_dir: str = "site") -> None:
         path.write_text(text, encoding="utf-8")
         return len(text)
 
+    comments_by_article = db.get_all_comments_by_article()
+
     sizes = {
         "articles.json": write("articles.json", {"total": len(clean), "items": clean}),
         "stats.json": write("stats.json", stats),
         "trends.json": write("trends.json", trends),
         "profile.json": write("profile.json", profile_info),
         "meta.json": write("meta.json", meta),
+        "comments.json": write("comments.json", comments_by_article),
     }
 
     print("\nData files written:")

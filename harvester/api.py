@@ -55,6 +55,10 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
             a["category"] = cat_map.get(a.get("feed_name", ""), "general")
         return {"total": total, "items": articles}
 
+    @app.get("/api/articles/{article_id}/comments")
+    def article_comments(article_id: str) -> list[dict[str, Any]]:
+        return _db().get_comments(article_id)
+
     @app.get("/api/stats")
     def stats() -> dict[str, Any]:
         return _db().get_stats()

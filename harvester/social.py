@@ -327,10 +327,12 @@ def fetch_hn_comments(story_id: str, top_n: int = 10) -> list[dict[str, Any]]:
             raw = node.get("text") or ""
             text = _strip_html(raw)
             if len(text) > 40:
+                node_id = node.get("id")
                 comments.append({
                     "text": text[:500],
                     "score": None,  # HN comments don't surface vote counts in the API
                     "author": node.get("author"),
+                    "url": f"https://news.ycombinator.com/item?id={node_id}" if node_id else None,
                 })
             for child in node.get("children", []):
                 _walk(child, depth + 1)
@@ -366,10 +368,12 @@ def fetch_reddit_comments(permalink: str, top_n: int = 10) -> list[dict[str, Any
         for child in children:
             body = (child["data"].get("body") or "").strip()
             if len(body) > 40 and body not in ("[deleted]", "[removed]"):
+                comment_permalink = child["data"].get("permalink")
                 comments.append({
                     "text": body[:500],
                     "score": child["data"].get("score") or 0,
                     "author": child["data"].get("author"),
+                    "url": f"https://reddit.com{comment_permalink}" if comment_permalink else None,
                 })
         return comments[:top_n]
     except Exception as exc:
@@ -423,6 +427,7 @@ def fetch_bluesky_replies(article_url: str, top_n: int = 10) -> list[dict[str, A
                     "text": post_text[:500],
                     "score": score,
                     "author": post.get("author", {}).get("handle"),
+                    "url": _bsky_permalink(post),
                 })
 
             # Expand one level of replies for posts that have them
@@ -445,6 +450,7 @@ def fetch_bluesky_replies(article_url: str, top_n: int = 10) -> list[dict[str, A
                                 "text": rt[:500],
                                 "score": rp.get("likeCount", 0) or 0,
                                 "author": rp.get("author", {}).get("handle"),
+                                "url": _bsky_permalink(rp),
                             })
                 except Exception as exc:
                     log.debug("bsky_thread_failed uri=%s err=%s", uri[:60], exc)
@@ -542,10 +548,15 @@ def fetch_youtube_comments(
                 )
                 text = (snippet.get("textDisplay") or "").strip()
                 if len(text) > 40:
+                    comment_id = item.get("id")
                     comments.append({
                         "text": text[:500],
                         "score": snippet.get("likeCount") or 0,
                         "author": snippet.get("authorDisplayName"),
+                        "url": (
+                            f"https://www.youtube.com/watch?v={video_id}&lc={comment_id}"
+                            if comment_id else f"https://www.youtube.com/watch?v={video_id}"
+                        ),
                     })
         except Exception as exc:
             log.debug("yt_comments_failed video_id=%s err=%s", video_id, exc)
@@ -604,6 +615,10 @@ async def _fetch_twitter_async(
     tweets: list[dict[str, Any]] = []
 
     # Primary: search by URL — finds tweets that link to this article directly.
+    def _tweet_url(tweet: Any) -> str | None:
+        username = tweet.user.username if tweet.user else None
+        return f"https://x.com/{username}/status/{tweet.id}" if username and tweet.id else None
+
     try:
         async for tweet in api.search(article_url, limit=top_n * 2):
             text = (tweet.rawContent or "").strip()
@@ -612,6 +627,7 @@ async def _fetch_twitter_async(
                     "text": text[:500],
                     "score": (tweet.likeCount or 0) + (tweet.retweetCount or 0),
                     "author": tweet.user.displayname if tweet.user else None,
+                    "url": _tweet_url(tweet),
                 })
     except Exception as exc:
         log.debug("twitter_url_search_failed err=%s", exc)
@@ -627,6 +643,7 @@ async def _fetch_twitter_async(
                         "text": text[:500],
                         "score": (tweet.likeCount or 0) + (tweet.retweetCount or 0),
                         "author": tweet.user.displayname if tweet.user else None,
+                        "url": _tweet_url(tweet),
                     })
         except Exception as exc:
             log.debug("twitter_title_search_failed err=%s", exc)
