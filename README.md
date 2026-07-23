@@ -70,11 +70,15 @@ python -m harvester validate-config
 # 4. Run the pipeline
 python -m harvester run
 
-# 5. Build and serve the dashboard
-make frontend
+# 5. Build the frontend and start the dashboard
+cd frontend && npm run build && cd ..
 python -m harvester serve
-# → http://localhost:8000
+# → http://localhost:8001
 ```
+
+**Docker (always-on):** `docker compose up -d api` — the frontend is live-mounted
+so `npm run build` updates the site without a container rebuild. See
+[docs/setup.md](docs/setup.md) for details.
 
 **Time from clone to running:** under 10 minutes (assuming Ollama installed).
 
@@ -167,7 +171,7 @@ python -m harvester eval --golden-set tests/golden
 
 ## Dashboard
 
-The dashboard is a single-page React app served by FastAPI at `localhost:8000`.
+The dashboard is a single-page React app served by FastAPI at `localhost:8001`.
 
 **Visual hierarchy:**
 - **T1** articles: full-width at the top, red accent border, always expanded
@@ -176,6 +180,13 @@ The dashboard is a single-page React app served by FastAPI at `localhost:8000`.
 - **Noise**: hidden, count shown in footer ("41 items filtered as noise")
 - **Sentiment**: color-coded badge (↑ positive / ↓ negative / → neutral / ↕ mixed) + score + rationale on hover
 - **KPI strip** (sticky header): Today's new articles · T1 count · avg sentiment bar · noise count · last run time + health dot
+
+**For You feed:** a learned, cross-tier ranking that personalises the order
+based on your reading behaviour. Signals are collected entirely client-side
+(opens, dwell time, saves, mutes) and stored in `localStorage` — nothing is
+sent anywhere. The score breakdown for any article is visible in its detail
+panel ("Why ranked here?"). Ranking uses Maximal Marginal Relevance (λ=0.7)
+to keep the feed diverse even as the model learns your preferences.
 
 ---
 

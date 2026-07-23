@@ -90,8 +90,9 @@ export function TieredFeed({
   statsSlot,
 }: Props) {
   const isMobile = useIsMobile();
-  // T2 compact list mode is only available on desktop — on mobile T2 always
-  // renders as full cards so the inline summary remains visible.
+  // T1 and T2 compact list mode is only available on desktop — on mobile both
+  // always render as full cards so all badges and the inline summary remain visible.
+  const t1Compact = compact && !isMobile;
   const t2Compact = compact && !isMobile;
 
   const [showNoise, setShowNoise] = useState(false);
@@ -244,14 +245,14 @@ export function TieredFeed({
                 {firstGroup && firstCard && (
                   <div>
                     {showHeaders && <DateLabel label={firstGroup.label} />}
-                    <div className={compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
-                      <ArticleCard article={firstCard} compact={compact} {...cardProps(firstCard)} />
+                    <div className={t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
+                      <ArticleCard article={firstCard} compact={t1Compact} {...cardProps(firstCard)} />
                     </div>
                     {injectInT1 && <div className="mt-6">{statsSlot}</div>}
                     {firstGroupTail.length > 0 && (
-                      <div className={`mt-4 ${compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}`}>
+                      <div className={`mt-4 ${t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}`}>
                         {firstGroupTail.map((a) => (
-                          <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
+                          <ArticleCard key={a.id} article={a} compact={t1Compact} {...cardProps(a)} />
                         ))}
                       </div>
                     )}
@@ -260,9 +261,9 @@ export function TieredFeed({
                 {tailGroups.map(({ label, items }) => (
                   <div key={label}>
                     {showHeaders && <DateLabel label={label} />}
-                    <div className={compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
+                    <div className={t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
                       {items.map((a) => (
-                        <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
+                        <ArticleCard key={a.id} article={a} compact={t1Compact} {...cardProps(a)} />
                       ))}
                     </div>
                   </div>

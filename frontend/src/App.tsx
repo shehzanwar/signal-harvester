@@ -107,14 +107,31 @@ export default function App() {
   // Latest loaded articles, for id->article lookups in event handlers.
   const articlesDataRef = useRef<Article[]>([]);
 
-  // Engagement-tracked wrappers.
+  // Dwell-time tracking: record how long the user spent in the detail panel.
+  const detailOpenRef = useRef<{ article: Article; at: number } | null>(null);
+
+  const recordDwell = useCallback((article: Article) => {
+    if (!detailOpenRef.current || detailOpenRef.current.article.id !== article.id) return;
+    const secs = (Date.now() - detailOpenRef.current.at) / 1000;
+    if (secs > 30) recordEngagement(article, "dwell_long");
+    else if (secs > 10) recordEngagement(article, "dwell_medium");
+    else if (secs < 3) recordEngagement(article, "dwell_short");
+    detailOpenRef.current = null;
+  }, []);
+
   const openDetail = useCallback(
     (a: Article) => {
-      recordEngagement(a, "detail");
+      if (detailOpenRef.current) recordDwell(detailOpenRef.current.article);
+      detailOpenRef.current = { article: a, at: Date.now() };
       setDetailArticle(a);
     },
-    [],
+    [recordDwell],
   );
+
+  const closeDetail = useCallback(() => {
+    if (detailOpenRef.current) recordDwell(detailOpenRef.current.article);
+    setDetailArticle(null);
+  }, [recordDwell]);
   const toggleSaveTracked = useCallback(
     (id: string) => {
       const isSaving = !savedIds.has(id);
@@ -292,10 +309,20 @@ export default function App() {
   const forYouOrderFn = useMemo(() => {
     const weights = getWeights();
     const now = Date.now();
-    return (reps: Article[]) =>
-      forYouOrder(reps, (a) =>
-        scoreArticle(a, { prefs, weights, isRead: readIdsRef.current.has(a.id), now }).total,
-      );
+    return (reps: Article[]) => {
+      const readIds_ = readIdsRef.current;
+      // Count read articles per cluster for story-fatigue scoring.
+      const clusterReadCounts: Record<string, number> = {};
+      for (const a of reps) {
+        if (a.cluster_id && readIds_.has(a.id)) {
+          clusterReadCounts[a.cluster_id] = (clusterReadCounts[a.cluster_id] ?? 0) + 1;
+        }
+      }
+      return forYouOrder(reps, (a) => {
+        const readClusterCount = a.cluster_id ? (clusterReadCounts[a.cluster_id] ?? 0) : 0;
+        return scoreArticle(a, { prefs, weights, isRead: readIds_.has(a.id), now, readClusterCount }).total;
+      });
+    };
     // rankSeed forces a fresh weight/read snapshot on explicit re-rank.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs, rankSeed]);
@@ -327,11 +354,17 @@ export default function App() {
   // "Why ranked" breakdown for the currently open article (For You only).
   const whyRanked = useMemo(() => {
     if (sortMode !== "foryou" || !detailArticle) return null;
+    const readClusterCount = detailArticle.cluster_id
+      ? (articlesDataRef.current ?? []).filter(
+          (a) => a.cluster_id === detailArticle.cluster_id && readIds.has(a.id),
+        ).length
+      : 0;
     const b = scoreArticle(detailArticle, {
       prefs,
       weights: getWeights(),
       isRead: readIds.has(detailArticle.id),
       now: Date.now(),
+      readClusterCount,
     });
     return breakdownRows(b);
   }, [sortMode, detailArticle, prefs, readIds]);
@@ -745,7 +778,7 @@ export default function App() {
         article={detailArticle}
         clusterMembers={clusterMembers}
         whyRanked={whyRanked}
-        onClose={() => setDetailArticle(null)}
+        onClose={closeDetail}
         isSaved={detailArticle ? savedIds.has(detailArticle.id) : false}
         isRead={detailArticle ? readIds.has(detailArticle.id) : false}
         onToggleSave={toggleSaveTracked}
@@ -797,7 +830,7 @@ export default function App() {
         todayOnly={todayOnly}
         showSavedOnly={showSavedOnly}
         savedCount={savedIds.size}
-        filterCount={[hideRead].filter(Boolean).length}
+        filterCount={[hideRead, selectedTags.size > 0].filter(Boolean).length}
         onTodayToggle={() => setTodayOnly((v) => !v)}
         onSearchFocus={() => searchMRef.current?.focus()}
         onSavedToggle={() => setShowSavedOnly((v) => !v)}

@@ -1,30 +1,35 @@
 // Online per-user affinity model — a tiny linear model over article features,
 // learned entirely client-side from engagement signals. Weights decay with a
-// 14-day half-life so interests drift rather than accumulate forever. This is
+// 14-day half-life so interests drift rather than accumulate forever. Mute
+// weights decay much slower (90 days) — an explicit mute should last. This is
 // the "For You" learning layer; it is deliberately inspectable (see topWeights).
 import type { Article } from "../types";
 
 const KEY = "signal-affinity";
 const HALF_LIFE_DAYS = 14;
+const MUTE_HALF_LIFE_DAYS = 90;
 const LEARNING_RATE = 0.04;
-const CLAMP = 8; // keep any single weight bounded
+const CLAMP = 8;
 
-export type EngagementType = "open" | "detail" | "dwell" | "save" | "mute" | "skip";
+// "detail" removed — replaced by dwell_long / dwell_medium / dwell_short so the
+// model learns from how long you actually spent, not just that you opened it.
+export type EngagementType = "open" | "dwell_long" | "dwell_medium" | "dwell_short" | "save" | "mute" | "skip";
 
-// Reward per signal. Mobile taps (open) are the strongest positive; explicit
-// mute is the strongest negative. Tuned to be readable, not optimal.
 const SIGNAL: Record<EngagementType, number> = {
-  open: 3,
-  detail: 2,
-  dwell: 1,
-  save: 4,
-  mute: -5,
-  skip: -0.2,
+  open: 1.0,         // click to open in new tab (lighter — can't track time)
+  dwell_long: 3.0,   // >30 s in detail panel
+  dwell_medium: 1.5, // 10–30 s
+  dwell_short: -0.5, // <3 s — likely clickbait
+  save: 4.0,
+  mute: -8.0,
+  skip: -0.5,        // was -0.2
 };
 
 interface AffinityState {
-  weights: Record<string, number>;
-  updatedAt: number; // ms epoch when decay was last applied
+  weights: Record<string, number>;      // all signals except mutes
+  updatedAt: number;
+  muteWeights: Record<string, number>;  // mute-only, 90-day decay
+  muteUpdatedAt: number;
 }
 
 /** Feature keys for an article: its tags, category, feed, and tier. */
@@ -42,12 +47,17 @@ function load(): AffinityState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const s = JSON.parse(raw) as Partial<AffinityState>;
-      return { weights: s.weights ?? {}, updatedAt: s.updatedAt ?? Date.now() };
+      return {
+        weights: s.weights ?? {},
+        updatedAt: s.updatedAt ?? Date.now(),
+        muteWeights: s.muteWeights ?? {},
+        muteUpdatedAt: s.muteUpdatedAt ?? Date.now(),
+      };
     }
   } catch {
     /* ignore */
   }
-  return { weights: {}, updatedAt: Date.now() };
+  return { weights: {}, updatedAt: Date.now(), muteWeights: {}, muteUpdatedAt: Date.now() };
 }
 
 function persist(s: AffinityState): void {
@@ -61,46 +71,77 @@ function persist(s: AffinityState): void {
 /** Apply time decay since the last update; prune negligible weights. */
 function decay(s: AffinityState, now = Date.now()): AffinityState {
   const days = (now - s.updatedAt) / 86_400_000;
-  if (days <= 0.001) return s;
-  const factor = Math.pow(0.5, days / HALF_LIFE_DAYS);
-  const w: Record<string, number> = {};
-  for (const [k, v] of Object.entries(s.weights)) {
-    const nv = v * factor;
-    if (Math.abs(nv) > 0.02) w[k] = nv;
+  let weights = s.weights;
+  if (days > 0.001) {
+    const factor = Math.pow(0.5, days / HALF_LIFE_DAYS);
+    const w: Record<string, number> = {};
+    for (const [k, v] of Object.entries(s.weights)) {
+      const nv = v * factor;
+      if (Math.abs(nv) > 0.02) w[k] = nv;
+    }
+    weights = w;
   }
-  return { weights: w, updatedAt: now };
+
+  const muteDays = (now - s.muteUpdatedAt) / 86_400_000;
+  let muteWeights = s.muteWeights;
+  if (muteDays > 0.001) {
+    const factor = Math.pow(0.5, muteDays / MUTE_HALF_LIFE_DAYS);
+    const w: Record<string, number> = {};
+    for (const [k, v] of Object.entries(s.muteWeights)) {
+      const nv = v * factor;
+      if (Math.abs(nv) > 0.02) w[k] = nv;
+    }
+    muteWeights = w;
+  }
+
+  return { weights, updatedAt: now, muteWeights, muteUpdatedAt: now };
 }
 
-/** Current decayed weights (also persists the decay so it compounds correctly). */
+/** Current decayed weights merged from regular + mute stores. */
 export function getWeights(): Record<string, number> {
   const s = decay(load());
   persist(s);
-  return s.weights;
+  const merged: Record<string, number> = { ...s.weights };
+  for (const [k, v] of Object.entries(s.muteWeights)) {
+    merged[k] = (merged[k] ?? 0) + v;
+  }
+  return merged;
 }
 
 /** SGD-ish update: nudge each present feature's weight toward the signal. */
 export function recordEngagement(article: Article, type: EngagementType): void {
   const s = decay(load());
   const signal = SIGNAL[type];
-  const w = { ...s.weights };
-  for (const f of articleFeatures(article)) {
-    const nv = (w[f] ?? 0) + LEARNING_RATE * signal;
-    w[f] = Math.max(-CLAMP, Math.min(CLAMP, nv));
+
+  if (type === "mute") {
+    // Mutes go to a separate store with slower 90-day decay so explicit dislikes persist.
+    const w = { ...s.muteWeights };
+    for (const f of articleFeatures(article)) {
+      const nv = (w[f] ?? 0) + LEARNING_RATE * signal;
+      w[f] = Math.max(-CLAMP, Math.min(CLAMP, nv));
+    }
+    persist({ ...s, muteWeights: w, muteUpdatedAt: Date.now() });
+  } else {
+    const w = { ...s.weights };
+    for (const f of articleFeatures(article)) {
+      const nv = (w[f] ?? 0) + LEARNING_RATE * signal;
+      w[f] = Math.max(-CLAMP, Math.min(CLAMP, nv));
+    }
+    persist({ ...s, weights: w, updatedAt: Date.now() });
   }
-  const next = { weights: w, updatedAt: Date.now() };
-  persist(next);
-  // Let interested views (prefs panel) refresh.
+
   window.dispatchEvent(new CustomEvent("affinity-change"));
 }
 
 export function resetWeights(): void {
-  persist({ weights: {}, updatedAt: Date.now() });
+  persist({ weights: {}, updatedAt: Date.now(), muteWeights: {}, muteUpdatedAt: Date.now() });
   window.dispatchEvent(new CustomEvent("affinity-change"));
 }
 
-/** Replace the weight vector (used when importing a backup). */
+/** Replace the regular weight vector (used when importing a backup). Mute weights are preserved. */
 export function importWeights(weights: Record<string, number>): void {
-  persist({ weights: weights ?? {}, updatedAt: Date.now() });
+  const s = load();
+  persist({ ...s, weights: weights ?? {}, updatedAt: Date.now() });
   window.dispatchEvent(new CustomEvent("affinity-change"));
 }
 

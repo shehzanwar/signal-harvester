@@ -47,15 +47,6 @@ export function DetailPanel({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Dwell signal: a read of >10s in the panel is a positive engagement.
-  useEffect(() => {
-    if (!article) return;
-    const a = article;
-    const start = Date.now();
-    return () => {
-      if (Date.now() - start > 10_000) recordEngagement(a, "dwell");
-    };
-  }, [article?.id]);
 
   if (!article) return null;
 

@@ -28,12 +28,12 @@ function Bar({ value, max, className = "" }: { value: number; max: number; class
 }
 
 export function StatsPanel({ open, articles, readIds, savedIds, prefs, onClose }: Props) {
-  const [weights, setWeights] = useState(() => topWeights(6));
+  const [weights, setWeights] = useState(() => topWeights(8));
 
   useEffect(() => {
     if (!open) return;
-    setWeights(topWeights(6));
-    const handler = () => setWeights(topWeights(6));
+    setWeights(topWeights(8));
+    const handler = () => setWeights(topWeights(8));
     window.addEventListener("affinity-change", handler);
     return () => window.removeEventListener("affinity-change", handler);
   }, [open]);
@@ -151,33 +151,55 @@ export function StatsPanel({ open, articles, readIds, savedIds, prefs, onClose }
             </section>
           )}
 
-          {/* Affinity interests */}
-          {(weights.liked.length > 0 || weights.disliked.length > 0) && (
-            <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
-                Your Interests
-              </h3>
-              <div className="space-y-1">
-                {weights.liked.map((r) => (
-                  <div key={r.feature} className="flex items-center justify-between text-xs">
-                    <span className="text-neutral-300 truncate flex-1 mr-2">{r.label}</span>
-                    <span className="text-emerald-500 tabular-nums">+{r.weight.toFixed(1)}</span>
+          {/* What you engage with — learned from opens/saves/mutes, not site-wide tags */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1">
+              What You Engage With
+            </h3>
+            <p className="text-[10px] text-neutral-600 mb-3">
+              Learned from your opens, saves, and mutes — not site-wide trending topics
+            </p>
+            {weights.liked.length === 0 && weights.disliked.length === 0 ? (
+              <p className="text-xs text-neutral-600">
+                Open or save articles to build your engagement profile. This drives the For You feed.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {weights.liked.length > 0 && (
+                  <div>
+                    <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1.5">Boosted</div>
+                    <div className="space-y-1">
+                      {weights.liked.map((r) => (
+                        <div key={r.feature} className="flex items-center justify-between text-xs gap-2">
+                          <span className="text-neutral-300 truncate">{r.label}</span>
+                          <span className="text-[10px] text-neutral-600 shrink-0">
+                            {r.feature.startsWith("feed:") ? "source" : r.feature.startsWith("cat:") ? "category" : "topic"}
+                          </span>
+                          <span className="text-emerald-500 tabular-nums shrink-0">+{r.weight.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-                {weights.disliked.map((r) => (
-                  <div key={r.feature} className="flex items-center justify-between text-xs">
-                    <span className="text-neutral-400 truncate flex-1 mr-2">{r.label}</span>
-                    <span className="text-red-500 tabular-nums">{r.weight.toFixed(1)}</span>
+                )}
+                {weights.disliked.length > 0 && (
+                  <div>
+                    <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1.5">Suppressed</div>
+                    <div className="space-y-1">
+                      {weights.disliked.map((r) => (
+                        <div key={r.feature} className="flex items-center justify-between text-xs gap-2">
+                          <span className="text-neutral-500 truncate">{r.label}</span>
+                          <span className="text-[10px] text-neutral-600 shrink-0">
+                            {r.feature.startsWith("feed:") ? "source" : r.feature.startsWith("cat:") ? "category" : "topic"}
+                          </span>
+                          <span className="text-red-500 tabular-nums shrink-0">{r.weight.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
-              {weights.liked.length === 0 && weights.disliked.length === 0 && (
-                <p className="text-xs text-neutral-600">
-                  Open, save, and read articles to build your interest profile.
-                </p>
-              )}
-            </section>
-          )}
+            )}
+          </section>
 
           {/* Muted topics */}
           {prefs.mutedTags.length > 0 && (

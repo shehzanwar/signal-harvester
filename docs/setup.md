@@ -81,14 +81,49 @@ Output is written to `output/security-grc/`:
 
 ## Step 5 — Start the dashboard
 
+### Option A — Docker (recommended for always-on use)
+
+```bash
+# Build and start
+docker compose up -d api
+
+# Dashboard: http://localhost:8001
+# API docs:  http://localhost:8001/api/docs
+```
+
+The `output/` directory (database, digests) and `configs/` are bind-mounted so
+data persists and profile edits take effect on container restart. The
+`frontend/dist/` directory is also bind-mounted, so:
+
+```bash
+# After any frontend code change — no Docker rebuild needed:
+cd frontend && npm run build
+# Changes are live immediately at http://localhost:8001
+```
+
+**When you DO need to rebuild the image** (Python package changes, new
+`harvester/` backend code, `pyproject.toml` changes):
+
+```bash
+docker compose build api && docker compose up -d api
+```
+
+The pipeline can be run as a one-shot container:
+
+```bash
+docker compose run --rm pipeline
+```
+
+### Option B — native Python
+
 ```bash
 # Build the frontend first (only needed once, or after frontend changes)
-make frontend
+cd frontend && npm run build && cd ..
 
 # Then serve everything as one process
 python -m harvester serve
-# Dashboard: http://127.0.0.1:8000
-# API docs:  http://127.0.0.1:8000/api/docs
+# Dashboard: http://127.0.0.1:8001
+# API docs:  http://127.0.0.1:8001/api/docs
 ```
 
 During development, run the API and frontend dev server separately:
@@ -99,8 +134,11 @@ python -m harvester serve
 
 # Terminal 2:
 cd frontend && npm run dev
-# Dashboard at http://localhost:5173 (proxies /api to :8000)
+# Dashboard at http://localhost:5173 (proxies /api to :8001)
 ```
+
+> **Port note:** The default serve port is `8001`. Port `8000` is reserved for
+> other local services. Change with `--port N` if needed.
 
 ---
 

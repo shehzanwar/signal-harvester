@@ -7,6 +7,7 @@ services:
     volumes:
       - ./output:/app/output
       - ./configs:/app/configs   # mount so profile edits take effect on restart
+      - ./frontend/dist:/app/frontend/dist  # mount so npm run build updates live site without Docker rebuild
     environment:
       # llama-server runs natively on the host GPU; containers reach it via
       # host.docker.internal. Change this if your LLM is on a remote host.
