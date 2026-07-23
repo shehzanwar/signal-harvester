@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python package (deps declared in pyproject.toml)
 COPY pyproject.toml ./
 COPY harvester/ ./harvester/
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir .
 
 # Static assets used at runtime
 COPY prompts/ ./prompts/

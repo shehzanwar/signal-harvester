@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "signal-harvester"
 version = "0.1.0"
 description = "A configurable, fully local RSS intelligence pipeline with LLM enrichment"
-readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "feedparser>=6.0",
