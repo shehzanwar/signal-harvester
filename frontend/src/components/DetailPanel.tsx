@@ -239,6 +239,19 @@ export function DetailPanel({
                       {!article.public_sentiment_label && article.predicted_reaction_rationale && (
                         <p className="text-xs text-neutral-500 mt-0.5">{article.predicted_reaction_rationale}</p>
                       )}
+                      {/* Source attribution — only when real comments drove the score */}
+                      {article.public_sentiment_label && (() => {
+                        const sources = (article.social ?? []).filter(s => s.comments > 0);
+                        const total = sources.reduce((n, s) => n + s.comments, 0);
+                        if (total === 0) return null;
+                        const SOURCE_LABEL: Record<string, string> = { hn: "HN", reddit: "Reddit", bluesky: "Bluesky", lemmy: "Lemmy", mastodon: "Mastodon" };
+                        const parts = sources.map(s => `${SOURCE_LABEL[s.source] ?? s.source} ${s.comments}`).join(" · ");
+                        return (
+                          <p className="text-[11px] text-neutral-600 mt-1">
+                            {total} comment{total !== 1 ? "s" : ""} · {parts}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
