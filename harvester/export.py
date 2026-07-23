@@ -19,7 +19,14 @@ from harvester.config import ProfileConfig
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.store.db import Database
 
-_FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+_FRONTEND_ROOT = Path(__file__).parent.parent / "frontend"
+# Prefer the dedicated static build (VITE_STATIC=true, base=/signal-harvester/)
+# over the live-API Docker build so exports stay self-contained.
+_FRONTEND_DIST = (
+    _FRONTEND_ROOT / "dist-static"
+    if (_FRONTEND_ROOT / "dist-static").exists()
+    else _FRONTEND_ROOT / "dist"
+)
 
 # Fields to strip from articles before publishing (raw body, performance data)
 _STRIP_FIELDS = {"extracted_text", "summary", "raw_response", "latency_ms"}
