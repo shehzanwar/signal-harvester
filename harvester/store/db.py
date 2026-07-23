@@ -397,6 +397,48 @@ class Database:
             ).fetchone()
         return row is not None
 
+    def backfill_social_signals_from_comments(self, source: str) -> int:
+        """Create missing social_signals rows for articles that already have
+        stored comments from `source` but no aggregated signal row.
+
+        Twitter/YouTube fetching skips any article that already has comments
+        from a prior run (has_comments() == True) to avoid re-fetching — but
+        that skip happens before save_social_signals() is ever called, so an
+        article whose comments were fetched before the "write social_signals
+        too" behavior existed (or whose write was interrupted) is left with
+        comments the LLM can see but the UI's source-attribution badges never
+        show. This aggregates score/comment-count directly from the stored
+        comments — no network call — and is safe to run every pipeline run
+        since it only inserts rows that don't already exist. Returns the
+        number of articles backfilled.
+        """
+        with self._conn() as con:
+            missing = con.execute(
+                """SELECT article_id FROM article_comments ac
+                   WHERE ac.source = ?
+                     AND NOT EXISTS (
+                       SELECT 1 FROM social_signals ss
+                       WHERE ss.article_id = ac.article_id AND ss.source = ?
+                     )
+                   GROUP BY article_id""",
+                (source, source),
+            ).fetchall()
+            if not missing:
+                return 0
+            now = _now_utc()
+            for (article_id,) in missing:
+                agg = con.execute(
+                    """SELECT COALESCE(SUM(comment_score), 0), COUNT(*)
+                       FROM article_comments WHERE article_id = ? AND source = ?""",
+                    (article_id, source),
+                ).fetchone()
+                con.execute(
+                    """INSERT INTO social_signals (article_id, source, score, comments, permalink, fetched_at)
+                       VALUES (?, ?, ?, ?, NULL, ?)""",
+                    (article_id, source, agg[0] or 0, agg[1], now),
+                )
+        return len(missing)
+
     def save_comments(
         self,
         article_id: str,

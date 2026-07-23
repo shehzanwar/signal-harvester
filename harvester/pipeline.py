@@ -301,6 +301,14 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
         if tw_count:
             log.info("twitter_comments_done inserted=%d", tw_count)
 
+    # Self-heal: articles whose twitter comments were stored before the
+    # save_social_signals() write existed (or from an interrupted run) never
+    # get fetched again — has_comments() skips them — so their comments are
+    # invisible to the UI's source-attribution badges without this.
+    tw_backfilled = db.backfill_social_signals_from_comments("twitter")
+    if tw_backfilled:
+        log.info("twitter_social_backfilled articles=%d", tw_backfilled)
+
     # YouTube: official API, no social signal required — targets T1/T2 articles
     # directly. Each article costs ~102 quota units; cap at 20/run to stay within
     # 20% of the 10k/day free tier. Gated on YOUTUBE_API_KEY env var.
@@ -330,6 +338,11 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
                 }])
         if yt_count:
             log.info("youtube_comments_done inserted=%d", yt_count)
+
+    # Self-heal: same reasoning as the twitter backfill above.
+    yt_backfilled = db.backfill_social_signals_from_comments("youtube")
+    if yt_backfilled:
+        log.info("youtube_social_backfilled articles=%d", yt_backfilled)
 
     # -- Stage 5.6: Perception gap (LLM comment sentiment + Python blend) ------
     # For v5+ articles without a perception_gap score: if comments exist, call
