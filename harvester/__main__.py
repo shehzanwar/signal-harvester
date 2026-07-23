@@ -105,6 +105,26 @@ def main() -> None:
         help="Output directory (default: site/)",
     )
 
+    # obsidian
+    obs = sub.add_parser("obsidian", help="Export articles to an Obsidian vault")
+    obs.add_argument(
+        "--vault",
+        required=True,
+        metavar="PATH",
+        help="Path to the Obsidian vault root directory",
+    )
+    obs.add_argument(
+        "--since",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Only export articles fetched on or after this date",
+    )
+    obs.add_argument(
+        "--no-overwrite",
+        action="store_true",
+        help="Skip notes that already exist in the vault",
+    )
+
     args = parser.parse_args()
 
     from harvester.logging_setup import setup_logging
@@ -266,6 +286,32 @@ def main() -> None:
 
         cfg = load_profile(args.profile)
         export_site(cfg, out_dir=args.out)
+        return
+
+    # ── obsidian ──────────────────────────────────────────────────────────────
+    if args.command == "obsidian":
+        from harvester.config import load_profile
+        from harvester.obsidian import export_obsidian
+        from harvester.store.db import Database
+
+        cfg = load_profile(args.profile)
+        db = Database.from_config(cfg)
+        articles = db.get_enriched_articles()
+
+        result = export_obsidian(
+            articles,
+            vault_path=args.vault,
+            profile_title=cfg.dashboard_title,
+            since=args.since,
+            overwrite=not args.no_overwrite,
+        )
+        print(
+            f"Obsidian export complete: "
+            f"{result['notes_written']} notes written, "
+            f"{result['indexes_written']} daily indexes, "
+            f"{result['skipped']} skipped"
+        )
+        print(f"Vault: {args.vault}")
         return
 
 
