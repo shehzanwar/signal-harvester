@@ -20,6 +20,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+twitter = [
+    "twscrape>=0.19",
+    "curl-cffi>=0.7",       # browser-like TLS fingerprinting; reduces detection risk
+    "browser-cookie3>=0.19", # reads cookies from browser's SQLite store for auto-refresh
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",

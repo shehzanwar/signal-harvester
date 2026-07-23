@@ -15,7 +15,7 @@ from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
-from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_reddit_comments, fetch_youtube_comments
+from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_reddit_comments, fetch_twitter_comments, fetch_youtube_comments
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
 from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
@@ -264,6 +264,33 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
 
         if comment_count:
             log.info("comments_done inserted=%d", comment_count)
+
+    # Twitter: twscrape cookie-based search — targets T1/T2 articles by URL then
+    # title. Silently skipped if twscrape is not installed or accounts DB is absent.
+    tw_cfg = cfg.social.twitter
+    tw_db = tw_cfg.db_path
+    if enriched_today and os.path.exists(tw_db):
+        tw_art_map = {art["id"]: art for art in enriched_today}
+        tw_candidates = [
+            art["id"] for art in enriched_today
+            if art.get("tier") in ("T1", "T2")
+        ][:tw_cfg.max_articles]
+        tw_count = 0
+        for article_id in tw_candidates:
+            if db.has_comments(article_id, "twitter"):
+                continue
+            art = tw_art_map.get(article_id)
+            if not art:
+                continue
+            comments = fetch_twitter_comments(
+                art.get("url", ""),
+                art.get("title", ""),
+                db_path=tw_db,
+            )
+            if comments:
+                tw_count += db.save_comments(article_id, "twitter", comments)
+        if tw_count:
+            log.info("twitter_comments_done inserted=%d", tw_count)
 
     # YouTube: official API, no social signal required — targets T1/T2 articles
     # directly. Each article costs ~102 quota units; cap at 20/run to stay within

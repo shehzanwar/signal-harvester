@@ -90,8 +90,19 @@ class YouTubeConfig(BaseModel):
     ]
 
 
+class TwitterConfig(BaseModel):
+    # Path to the twscrape accounts SQLite database. Create and populate it once
+    # via the twscrape CLI before running the pipeline. If the file is absent,
+    # Twitter comments are silently skipped — no errors, no pipeline impact.
+    db_path: str = "data/twscrape_accounts.db"
+    # Cap per pipeline run. twscrape burns one search per article; keep this low
+    # to avoid rate-limit pressure on a single-account pool.
+    max_articles: int = 20
+
+
 class SocialConfig(BaseModel):
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
+    twitter: TwitterConfig = Field(default_factory=TwitterConfig)
 
 
 class ProfileConfig(BaseModel):

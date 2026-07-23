@@ -211,6 +211,15 @@ retention:
 # list are still fetched if they appear in the top 5 results; they're just
 # deprioritized. Add or remove channels to tune comment source quality.
 social:
+  # Twitter/X comments via twscrape (cookie-based, no API key).
+  # Setup (one-time):
+  #   pip install "signal-harvester[twitter]"
+  #   twscrape add_accounts --json '[{"username":"<handle>","cookies":"auth_token=<tok>;ct0=<ct0>"}]'
+  #   twscrape login_all
+  # The pipeline auto-skips this block if the DB file doesn't exist.
+  twitter:
+    db_path: "data/twscrape_accounts.db"
+    max_articles: 20
   youtube:
     preferred_channels:
       - "BBC News"

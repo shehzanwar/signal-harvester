@@ -12,6 +12,7 @@ once) and call .fetch(url) per article.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import os
@@ -62,6 +63,7 @@ _bsky_replies_throttle = _Throttle(0.6)
 _reddit_throttle = _Throttle(1.1)
 _reddit_comments_throttle = _Throttle(1.1)
 _yt_throttle = _Throttle(1.0)
+_twitter_throttle = _Throttle(2.0)
 
 
 def _norm_url(u: str) -> str:
@@ -548,3 +550,84 @@ def fetch_youtube_comments(
 
     comments.sort(key=lambda c: c.get("score") or 0, reverse=True)
     return comments[:top_n]
+
+
+def fetch_twitter_comments(
+    article_url: str,
+    article_title: str,
+    top_n: int = 10,
+    db_path: str = "data/twscrape_accounts.db",
+) -> list[dict[str, Any]]:
+    """Fetch tweets about an article via twscrape (cookie-based, no API key needed).
+
+    Requires twscrape to be installed (`pip install signal-harvester[twitter]`)
+    and a pre-configured accounts DB created via the twscrape CLI:
+        twscrape add_accounts --json '[{"username":"...","cookies":"auth_token=...;ct0=..."}]'
+        twscrape login_all
+
+    Search strategy: try URL-based search first; fall back to quoted title keywords
+    if the URL yields no results. Returns [{text, score, author}] sorted by
+    engagement (likes + retweets) descending.
+
+    Silently returns [] if twscrape is not installed, the DB doesn't exist, or
+    the account pool is empty / all accounts are suspended.
+    """
+    try:
+        import twscrape as _twscrape  # optional dependency
+    except ImportError:
+        log.debug("twitter_skip reason=twscrape_not_installed")
+        return []
+
+    if not os.path.exists(db_path):
+        log.debug("twitter_skip reason=no_accounts_db path=%s", db_path)
+        return []
+
+    _twitter_throttle.wait()
+    try:
+        return asyncio.run(_fetch_twitter_async(article_url, article_title, top_n, db_path, _twscrape))
+    except Exception as exc:
+        log.debug("twitter_comments_failed url=%s err=%s", article_url[:60], exc)
+        return []
+
+
+async def _fetch_twitter_async(
+    article_url: str,
+    article_title: str,
+    top_n: int,
+    db_path: str,
+    _twscrape: Any,
+) -> list[dict[str, Any]]:
+    api = _twscrape.API(db_path)
+
+    tweets: list[dict[str, Any]] = []
+
+    # Primary: search by URL — finds tweets that link to this article directly.
+    try:
+        async for tweet in api.search(article_url, limit=top_n * 2):
+            text = (tweet.rawContent or "").strip()
+            if len(text) > 40:
+                tweets.append({
+                    "text": text[:500],
+                    "score": (tweet.likeCount or 0) + (tweet.retweetCount or 0),
+                    "author": tweet.user.displayname if tweet.user else None,
+                })
+    except Exception as exc:
+        log.debug("twitter_url_search_failed err=%s", exc)
+
+    # Fallback: quoted title keyword search if URL turned up nothing.
+    if not tweets and article_title:
+        query = " ".join(article_title.split()[:7])
+        try:
+            async for tweet in api.search(f'"{query}" lang:en', limit=top_n * 2):
+                text = (tweet.rawContent or "").strip()
+                if len(text) > 40:
+                    tweets.append({
+                        "text": text[:500],
+                        "score": (tweet.likeCount or 0) + (tweet.retweetCount or 0),
+                        "author": tweet.user.displayname if tweet.user else None,
+                    })
+        except Exception as exc:
+            log.debug("twitter_title_search_failed err=%s", exc)
+
+    tweets.sort(key=lambda t: t.get("score") or 0, reverse=True)
+    return tweets[:top_n]
