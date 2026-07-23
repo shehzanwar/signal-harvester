@@ -6,7 +6,7 @@ from typing import Any
 
 from harvester.config import ProfileConfig
 
-PROMPT_VERSION = "v5"
+PROMPT_VERSION = "v6"
 
 _DEFAULT_SYSTEM_PROMPT = """\
 You are an intelligence analyst for a monitoring system focused on: $watch_topics.
