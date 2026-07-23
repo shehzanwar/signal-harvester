@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     plugins: [react()],
-    base: env.VITE_BASE_PATH || (mode === "production" ? "/signal-harvester/" : "/"),
+    base: env.VITE_BASE_PATH || "/",
     server: {
       proxy: {
         "/api": "http://localhost:8001",

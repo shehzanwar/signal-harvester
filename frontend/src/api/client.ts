@@ -8,7 +8,7 @@ import type {
   TrendsResponse,
 } from "../types";
 
-const IS_STATIC = import.meta.env.VITE_STATIC === "true" || import.meta.env.PROD;
+const IS_STATIC = import.meta.env.VITE_STATIC === "true";
 const API_BASE = "/api";
 const DATA_BASE = "./data";
 
