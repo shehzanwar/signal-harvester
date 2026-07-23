@@ -1,6 +1,6 @@
 .PHONY: setup model model-primary run serve eval validate test lint fmt clean frontend docker-build docker-up docker-run docker-down help
 
-PROFILE ?= configs/profiles/security-grc.yaml
+PROFILE ?= configs/profiles/daily-briefing.yaml
 PYTHON   := python
 
 help:

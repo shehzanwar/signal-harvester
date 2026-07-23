@@ -6,7 +6,7 @@ The signal-harvester engine is domain-agnostic. A new monitoring domain requires
 
 ## Template
 
-Copy `configs/profiles/security-grc.yaml` and edit these sections:
+Copy an existing profile (e.g. `configs/profiles/personal-finance.yaml` or `configs/profiles/ai-research.yaml`) and edit these sections:
 
 ```yaml
 profile: my-domain              # unique identifier, used in output paths and DB filename

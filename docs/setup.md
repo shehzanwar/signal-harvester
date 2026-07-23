@@ -56,11 +56,11 @@ make model-primary
 ```bash
 python -m harvester validate-config
 # Config valid:
-#   profile       : security-grc
-#   feeds         : 12
-#   watch_topics  : ['ransomware', ...]
-#   model         : qwen3:8b
-#   output.root   : output/security-grc
+#   profile       : daily-briefing
+#   feeds         : 33
+#   watch_topics  : ['breaking news', ...]
+#   model         : harvester-enrich
+#   output.root   : output/daily-briefing
 ```
 
 ---
@@ -69,13 +69,13 @@ python -m harvester validate-config
 
 ```bash
 python -m harvester run
-# [security-grc] Run a3f8c2d1 — fetched=87 new=87 enriched=83 failed=4
+# [daily-briefing] Run a3f8c2d1 — fetched=560 new=560 enriched=534 failed=4
 ```
 
-Output is written to `output/security-grc/`:
+Output is written to `output/daily-briefing/`:
 - `articles/YYYY/MM/<id>.json` — one file per enriched article
 - `digests/YYYY-MM-DD.md` — human-readable daily briefing
-- `security-grc.db` — SQLite state database
+- `daily-briefing.db` — SQLite state database
 
 ---
 
