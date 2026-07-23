@@ -30,7 +30,7 @@ interface Props {
   statsSlot?: React.ReactNode;
 }
 
-const T1_PREVIEW_COUNT = 10;
+const T1_HERO_COUNT = 5;
 const BRIEF_T1_LIMIT = 7;
 
 function dateBucket(publishedAt?: string): "Today" | "Yesterday" | "This Week" | "Earlier" {
@@ -99,7 +99,7 @@ export function TieredFeed({
 
   const [showNoise, setShowNoise] = useState(false);
   const [showT3, setShowT3] = useState(true);
-  const [showAllT1, setShowAllT1] = useState(false);
+  const [showRestT1, setShowRestT1] = useState(false);
 
   let filtered = articles;
 
@@ -228,44 +228,26 @@ export function TieredFeed({
   const t3 = reps.filter((a) => a.tier === "T3");
   const noise = reps.filter((a) => a.tier === "NOISE");
 
-  const visibleT1 = showAllT1 ? t1 : t1.slice(0, T1_PREVIEW_COUNT);
+  const heroT1 = t1.slice(0, T1_HERO_COUNT);
+  const restT1 = t1.slice(T1_HERO_COUNT);
   const injectInT1 = !!statsSlot && t1.length > 0;
 
   return (
     <div className="space-y-10">
-      {/* T1 */}
+      {/* T1 — top 5 rendered as a visually dominant "hero" block; the rest collapsed by default */}
       {t1.length > 0 && (
         <Section id="section-t1" title="Critical" emoji="🔴" count={t1.length} accent="text-red-400">
           {(() => {
-            const groups = groupByDate(visibleT1);
-            const showHeaders = groups.length > 1;
-            const [firstGroup, ...tailGroups] = groups;
-            const firstCard = firstGroup?.items[0];
-            const firstGroupTail = firstGroup?.items.slice(1) ?? [];
+            const heroGroups = groupByDate(heroT1);
+            const showHeroHeaders = heroGroups.length > 1;
             return (
               <div className="space-y-6">
-                {firstGroup && firstCard && (
-                  <div>
-                    {showHeaders && <DateLabel label={firstGroup.label} />}
-                    <div className={t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
-                      <ArticleCard article={firstCard} compact={t1Compact} {...cardProps(firstCard)} />
-                    </div>
-                    {injectInT1 && <div className="mt-6">{statsSlot}</div>}
-                    {firstGroupTail.length > 0 && (
-                      <div className={`mt-4 ${t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}`}>
-                        {firstGroupTail.map((a) => (
-                          <ArticleCard key={a.id} article={a} compact={t1Compact} {...cardProps(a)} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {tailGroups.map(({ label, items }) => (
+                {heroGroups.map(({ label, items }) => (
                   <div key={label}>
-                    {showHeaders && <DateLabel label={label} />}
-                    <div className={t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
+                    {showHeroHeaders && <DateLabel label={label} />}
+                    <div className="space-y-4">
                       {items.map((a) => (
-                        <ArticleCard key={a.id} article={a} compact={t1Compact} {...cardProps(a)} />
+                        <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
                       ))}
                     </div>
                   </div>
@@ -273,13 +255,38 @@ export function TieredFeed({
               </div>
             );
           })()}
-          {t1.length > T1_PREVIEW_COUNT && (
-            <button
-              onClick={() => setShowAllT1((v) => !v)}
-              className="mt-3 text-xs text-neutral-500 hover:text-neutral-300 underline underline-offset-2 transition-colors"
-            >
-              {showAllT1 ? "Show fewer" : `Show all ${t1.length} critical items`}
-            </button>
+
+          {injectInT1 && <div className="mt-6">{statsSlot}</div>}
+
+          {restT1.length > 0 && (
+            <div className="mt-6">
+              <button
+                onClick={() => setShowRestT1((v) => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 hover:text-neutral-300 transition-colors"
+                aria-expanded={showRestT1}
+              >
+                <span className="text-neutral-600">{showRestT1 ? "▲" : "▼"}</span>
+                All Critical ({t1.length})
+              </button>
+              {showRestT1 && (() => {
+                const restGroups = groupByDate(restT1);
+                const showRestHeaders = restGroups.length > 1;
+                return (
+                  <div className="mt-3 space-y-4">
+                    {restGroups.map(({ label, items }) => (
+                      <div key={label}>
+                        {showRestHeaders && <DateLabel label={label} />}
+                        <div className={t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
+                          {items.map((a) => (
+                            <ArticleCard key={a.id} article={a} compact={t1Compact} {...cardProps(a)} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           )}
         </Section>
       )}
