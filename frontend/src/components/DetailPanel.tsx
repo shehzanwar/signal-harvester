@@ -82,13 +82,24 @@ export function DetailPanel({
               rationale={article.sentiment_rationale}
               compact
             />
-            {article.predicted_reaction_label && article.predicted_reaction_score != null && (
+            {article.public_sentiment_label != null &&
+            article.public_sentiment_score != null &&
+            article.sentiment_confidence !== "predicted" ? (
               <SentimentBadge
-                label={article.predicted_reaction_label}
-                score={article.predicted_reaction_score}
-                rationale={article.predicted_reaction_rationale}
+                label={article.public_sentiment_label}
+                score={article.public_sentiment_score}
+                rationale={article.dominant_emotion ? `Dominant emotion: ${article.dominant_emotion}` : undefined}
                 compact
               />
+            ) : (
+              article.predicted_reaction_label && article.predicted_reaction_score != null && (
+                <SentimentBadge
+                  label={article.predicted_reaction_label}
+                  score={article.predicted_reaction_score}
+                  rationale={article.predicted_reaction_rationale}
+                  compact
+                />
+              )
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
