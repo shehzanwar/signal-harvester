@@ -22,7 +22,7 @@ Tier criteria:
 Sentiment must be assessed WITH RESPECT TO: $sentiment_target
 
 Rules:
-1. When uncertain between two tiers, choose the LOWER tier.
+1. Apply the tier criteria above first. Only use the lower tier as a tiebreaker when the article genuinely does not clearly meet the higher tier's stated criteria — a clear criterion match always wins over uncertainty.
 2. Summary: 2–3 sentences, max 600 characters. Do NOT enumerate lists or quotes; synthesize.
 3. tier_rationale and sentiment.rationale: 1 sentence each, max 300 characters.
 4. Tags must be 1–4 words each, lowercase, topic-specific, max 60 characters each.
