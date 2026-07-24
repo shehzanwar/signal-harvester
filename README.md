@@ -20,7 +20,7 @@ The pipeline is domain-agnostic. All domain knowledge lives in a single YAML pro
 
 | Profile | Feeds | Use case |
 |---|---|---|
-| `daily-briefing` (live) | 33 feeds across technology, finance, politics, sports, world | General daily intelligence briefing — the profile actually running in production |
+| `daily-briefing` (live) | 38 feeds across technology, finance, politics, sports, world (incl. 5 Reddit subreddits) | General daily intelligence briefing — the profile actually running in production |
 | `personal-finance` | 12 feeds across banking, investing, policy, general | Tax policy, Fed rate decisions, retirement rules, credit card changes — filtered for personal financial impact, not market news |
 | `soccer-intel` | BBC Sport, The Guardian, The Athletic, StatsBomb, + 4 more | Transfer market, injury reports, tactical analysis |
 | `ai-research` | arXiv (cs.AI/LG/CL), Anthropic, OpenAI, DeepMind, + 6 more | Foundation model releases, benchmark results, policy |
@@ -194,11 +194,12 @@ The dashboard is a single-page React app served by FastAPI at `localhost:8001`
 (or exported as a static JSON snapshot for GitHub Pages — see [Deployment](#deployment)).
 
 **Visual hierarchy:**
-- **T1** articles: full-width at the top, red accent border, always expanded
+- **T1** articles: top 5 always render full-width, red accent border, fully expanded — the rest collapse behind an "All Critical (N)" toggle, so a heavy news day doesn't bury the top stories under dozens more of the same tier
 - **T2**: responsive 3-column card grid
-- **T3**: compact collapsible list
+- **T3**: compact collapsible list, headline + metadata only — full summary on hover (desktop) or tap-through to the detail panel (touch)
 - **Noise**: hidden, count shown in footer ("41 items filtered as noise")
-- **KPI strip** (sticky header): Today's new articles · T1 count · avg sentiment bar · noise count · last run time + health dot
+- **KPI strip** (sticky header): Today's new articles · T1 count · avg sentiment bar · noise count · last run time + health dot, with visual dividers between each stat
+- **Date grouping:** Today / Yesterday / This Week / Earlier — only shown when a section actually spans more than one bucket
 - **5-minute briefing tab:** a condensed view — the day's T1/T2 headlines only, for a fast catch-up read
 
 **Perception model — three sentiment layers, not one:**
@@ -244,6 +245,23 @@ into a filter bubble. The score breakdown for any article is visible in its
 detail panel ("Why ranked here?"). Ranking uses Maximal Marginal Relevance
 (λ=0.7) to keep the feed diverse even as the model learns your preferences.
 
+**Navigation:** category chips (feed-derived, deterministic — no LLM
+involved) filter the whole dashboard; a category with a genuine internal
+split gets a second-level subcategory row (e.g. `technology` →
+`ai`/`security`, `finance` → `markets`/`business`/`analysis`) that only
+appears when 2+ subcategories actually have articles, so it never shows up
+as a single useless option. A separate tag-chip bar surfaces the top
+trending tags as quick filters. Fully responsive down to phone width —
+single-column layout, bottom nav, 44px touch targets throughout.
+
+**Batch operations:** multi-select mode lets you mark-read, save, or mute
+several articles at once from a floating action bar; every batch action
+(and every single-article save/read/mute) shows an undo toast rather than
+committing silently. A "new since last visit" badge — backed by a real
+`localStorage` timestamp, not just "since page load" — and a Reading
+Stats panel (affinity weights, read/save history) round out the session
+tools.
+
 ---
 
 ## Pipeline reliability
@@ -253,6 +271,10 @@ detail panel ("Why ranked here?"). Ranking uses Maximal Marginal Relevance
 - **LLM output validation:** Pydantic schema check → one repair reprompt → `failed_llm` quarantine (never corrupts storage)
 - **Backfill:** re-enrich any date range or status class after a model upgrade: `python -m harvester backfill --status failed_llm`
 - **Provenance:** every enrichment row records the model name and prompt version it was produced by
+- **Prompt drift detection:** a sha256 hash of the actual prompt *template file* (independent of per-profile tier text) is logged every run and stored per-run — `harvester prompt-stats` flags when the template changed without a `PROMPT_VERSION` bump, which the version string alone can't catch
+- **Tiered retention:** T1 kept forever; T2/T3/NOISE prune on independent, shorter windows (defaults: 90d/21d/3d) since T3/NOISE are high-volume and rarely revisited; raw `extracted_text`/LLM `raw_response` are cleared 7 days after enrichment (summary/tier/sentiment/tags are untouched) — configurable per-profile under `retention:`
+- **Feed staleness warning:** logs a warning for any feed that's gone 48h without returning an article (a stricter, alerting-focused threshold than the dashboard health tab's 3-day display default) — a feed silently dying used to be invisible short of opening that tab
+- **Context budget warning:** both the `llamacpp` and `ollama` backends log a warning when a call's token usage crosses 90% of the configured `num_ctx`, so context overflow shows up as a log line instead of a silently truncated prompt
 - **Golden-set gated:** prompt and profile changes run against a 50-article golden set in CI before they can regress production (see [Golden set & CI](#golden-set--ci))
 
 ---
@@ -329,7 +351,7 @@ The Markdown digest is the "dashboard-down" fallback — it's a complete, readab
 ## Anti-goals
 
 - Not a web crawler — RSS feeds and their linked comment threads only, never arbitrary crawling
-- Not a general social-media aggregator — comment sources exist solely to inform per-article sentiment, not as a standalone feed
+- Not a general social-media aggregator — HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube exist solely to inform per-article sentiment, not as standalone feeds (Reddit is the one exception: ingested as RSS content like any news source, not as a comment signal — see [Reddit (RSS, not social API)](#reddit-rss-not-social-api))
 - Not a multi-user SaaS
 - Not real-time. Daily is the product.
 
@@ -337,11 +359,11 @@ The Markdown digest is the "dashboard-down" fallback — it's a complete, readab
 
 ## Roadmap
 
-**Done:** HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; Reddit ingestion via subreddit RSS (content source, not a comment/social API); embedding-based near-duplicate clustering; weekly rollup digest; For You ranking v2 (MMR diversity, dwell-time learning, story fatigue, adaptive exploration); comment excerpts and per-comment source links in the detail panel; Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI.
+**Done:** HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; comment excerpts with real per-comment source links in the detail panel; Reddit ingestion via subreddit RSS (content source, not a comment/social API, after confirming Reddit's OAuth API is locked down for new/personal projects); embedding-based near-duplicate clustering; weekly rollup digest; Obsidian export; For You ranking v2 (MMR diversity, dwell-time learning, story fatigue, adaptive exploration); two-level taxonomy (category + subcategory); batch operations with undo; mobile-responsive layout; tiered retention pruning; prompt-drift and feed-staleness monitoring; Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI.
 
-**Next up:** T3/NOISE reclassification (tighten NOISE calibration examples to shrink the background-tier volume); dashboard polish (date grouping, T1 hero section, true-compact T3 rows, clearer KPI strip labeling).
+**Next up:** source reliability indicators (per-source tier distribution — is this feed mostly signal or mostly noise?); entity extraction (people/orgs/locations) for cross-referencing and archive filtering.
 
-**Later:** Local RAG chat over the archive ("what happened with X this month?"); entity extraction + timelines; ntfy/Discord webhook alerting; LLM-as-judge eval for summary faithfulness.
+**Later:** Local RAG chat over the archive ("what happened with X this month?"); T1 push notifications (ntfy/Telegram — deliberately not built yet, needs an explicit choice of external service); light theme toggle; LLM-as-judge eval for summary faithfulness.
 
 ---
 
@@ -349,7 +371,7 @@ The Markdown digest is the "dashboard-down" fallback — it's a complete, readab
 
 ```bash
 make test              # unit tests only — no live LLM server required, CI-safe
-pytest tests/ -m "not slow"   # what CI runs (47 tests as of prompt v6)
+pytest tests/ -m "not slow"   # what CI runs (73 tests as of prompt v9)
 pytest tests/ -m live         # integration tests against a running llama-server/Ollama
 python scripts/validate_golden.py tests/golden/   # golden-set schema check
 ```
