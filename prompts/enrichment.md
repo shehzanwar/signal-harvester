@@ -38,11 +38,17 @@ Tier criteria:
   carry no analytical content beyond the transaction itself.
 
 Rules:
-1. When uncertain between T2/T3 or T3/NOISE, choose the LOWER tier.
-   Exception: when uncertain between T1 and T2 for confirmed casualties,
-   active military escalation against civilian infrastructure, or critical
-   infrastructure compromise — prefer T1. Under-alerting on critical events
-   is worse than false-alarming.
+1. Tier uncertainty is asymmetric — which direction you round depends on WHERE
+   in the scale you are uncertain, not a single "always round down" rule:
+     - Uncertain between T2 and T3, or T3 and NOISE: choose the LOWER tier
+       (T3, or NOISE respectively). Most things are less important than they
+       first appear — default to background/filtered when genuinely unsure.
+     - Uncertain between T1 and T2: lean T1. This is not limited to the
+       casualties/infrastructure examples below — it applies to any genuine
+       T1-vs-T2 tie. Under-alerting on a critical event (a false negative) is
+       worse than an occasional false alarm. This is a tie-breaker for real
+       uncertainty, not a license to inflate T1 — the frequency guard in
+       rule 2 is the hard ceiling regardless of how you resolve ties.
 2. T1 is rare — expect 0 or 1 per day across all articles. If you are assigning T1, be certain.
    T1 should never exceed 5% of a batch. If you find yourself assigning T1 to more than 1 in 20
    articles, STOP and re-read the T1 criteria — you are being too generous. A criminal conviction,
