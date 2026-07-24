@@ -9,7 +9,11 @@ No-setup providers (run every pipeline):
 
 Credential-gated providers (skipped when credentials absent):
   - Bluesky (BSKY_HANDLE + BSKY_APP_PASSWORD env vars)
-  - Reddit (REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET env vars)
+  - Reddit (REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET env vars) — required, not
+    optional the way it looks: reddit.com blocks unauthenticated .json
+    requests (search AND comment listings) with a 403 anti-bot response
+    regardless of User-Agent, so both fetch_reddit_comments() and
+    fetch_reddit_topic_comments() are effectively no-ops without a token.
   - Twitter/X (twscrape accounts DB at social.twitter.db_path; T1/T2 only)
   - YouTube (YOUTUBE_API_KEY env var; T1/T2 only, ~102 quota units/article)
 
@@ -44,6 +48,7 @@ _BSKY_BASE = "https://bsky.social/xrpc"
 _BSKY_PUBLIC = "https://public.api.bsky.app/xrpc"
 _REDDIT_TOKEN = "https://www.reddit.com/api/v1/access_token"
 _REDDIT_INFO = "https://oauth.reddit.com/api/info.json"
+_REDDIT_OAUTH_BASE = "https://oauth.reddit.com"
 _YT_SEARCH = "https://www.googleapis.com/youtube/v3/search"
 _YT_COMMENTS = "https://www.googleapis.com/youtube/v3/commentThreads"
 
@@ -347,20 +352,41 @@ def fetch_hn_comments(story_id: str, top_n: int = 10) -> list[dict[str, Any]]:
         return []
 
 
-def fetch_reddit_comments(permalink: str, top_n: int = 10) -> list[dict[str, Any]]:
+def fetch_reddit_comments(permalink: str, token: str | None = None, top_n: int = 10) -> list[dict[str, Any]]:
     """Fetch top Reddit comments from a submission permalink.
 
     permalink may be the full https://reddit.com/... URL or a bare /r/... path.
-    Returns [{text, score, author}].
+    Returns [{text, score, author, url}].
+
+    Reddit blocks unauthenticated www.reddit.com/*.json requests with a 403
+    anti-bot response regardless of User-Agent — confirmed against multiple
+    endpoints, not a fixable header issue. When `token` is provided (from
+    reddit_token(), requires REDDIT_CLIENT_ID/SECRET), this hits the
+    authenticated oauth.reddit.com API instead, which is not subject to that
+    block. Without a token, falls back to the public endpoint on the chance
+    the block is inconsistent — but expect this to return [] in practice.
     """
     _reddit_comments_throttle.wait()
-    path = permalink.replace("https://reddit.com", "").replace("https://www.reddit.com", "")
+    path = (
+        permalink.replace("https://reddit.com", "")
+        .replace("https://www.reddit.com", "")
+        .replace("https://oauth.reddit.com", "")
+    )
     path = path.rstrip("/")
     if not path.startswith("/"):
         path = "/" + path
-    url = f"https://www.reddit.com{path}.json?limit={top_n}&sort=top"
+
+    if token:
+        url = f"{_REDDIT_OAUTH_BASE}{path}"
+        headers = {"User-Agent": _UA, "Authorization": f"Bearer {token}"}
+        params = {"limit": top_n, "sort": "top"}
+    else:
+        url = f"https://www.reddit.com{path}.json"
+        headers = {"User-Agent": _UA}
+        params = {"limit": top_n, "sort": "top"}
+
     try:
-        resp = httpx.get(url, headers={"User-Agent": _UA}, timeout=_TIMEOUT)
+        resp = httpx.get(url, params=params, headers=headers, timeout=_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         children = data[1]["data"]["children"]
@@ -379,6 +405,99 @@ def fetch_reddit_comments(permalink: str, top_n: int = 10) -> list[dict[str, Any
     except Exception as exc:
         log.debug("reddit_comments_failed permalink=%s err=%s", permalink[:60], exc)
         return []
+
+
+# ── Reddit topic-subreddit search (public JSON API, no OAuth) ─────────────────
+# Most Reddit discussion of a news story never links to the specific article
+# that reported it — it happens in a topic subreddit under someone else's
+# submission or a text post. fetch_reddit() above only finds submissions that
+# link the exact URL, which misses that discussion entirely. This searches a
+# fixed set of topic subreddits by keyword instead.
+#
+# Requires OAuth (REDDIT_CLIENT_ID/SECRET) — reddit.com blocks unauthenticated
+# .json requests (search included) with a 403 anti-bot response regardless of
+# User-Agent. There is no working unauthenticated path; without credentials
+# this returns [] rather than attempting a request that will always fail.
+_REDDIT_TOPIC_SUBREDDITS = ["worldnews", "technology", "politics", "science", "business", "soccer"]
+_REDDIT_TOPIC_MIN_SCORE = 20  # filter out low-engagement matches — noise, not discussion
+_reddit_topic_throttle = _Throttle(1.1)  # same cadence as the other reddit.com calls
+
+_STOPWORDS = {
+    "the", "a", "an", "in", "on", "at", "to", "for", "of", "and", "or",
+    "is", "are", "was", "were", "as", "by", "with", "from", "after", "says",
+}
+
+
+def extract_search_keywords(title: str, tags: list[str]) -> str:
+    """Extract 2-3 key terms for topic search from tags (preferred, LLM-distilled)
+    falling back to title words for whatever tags don't cover."""
+    keywords = [t for t in tags[:3] if t.lower() not in _STOPWORDS]
+    if len(keywords) < 2:
+        title_words = [w for w in title.split() if w.lower() not in _STOPWORDS and len(w) > 3]
+        keywords.extend(title_words[: 3 - len(keywords)])
+    return " ".join(keywords[:3])
+
+
+def fetch_reddit_topic_comments(
+    title: str,
+    tags: list[str],
+    token: str | None,
+    subreddits: list[str] | None = None,
+    top_n: int = 10,
+) -> list[dict[str, Any]]:
+    """Search topic subreddits for posts discussing this article's subject and
+    pull their top comments — catches discussion that never links the article.
+
+    `token` comes from reddit_token() — required, since the unauthenticated
+    search endpoint is blocked (see module note above). Returns [] immediately
+    if token is None rather than making a request that will always 403.
+
+    Returns [{text, score, author, url}], deduplicated by text, sorted by
+    score descending. Best-effort: a failed subreddit search is skipped, not
+    fatal to the others.
+    """
+    if not token:
+        return []
+
+    keywords = extract_search_keywords(title, tags)
+    if not keywords:
+        return []
+
+    subs = subreddits or _REDDIT_TOPIC_SUBREDDITS
+    seen_texts: set[str] = set()
+    all_comments: list[dict[str, Any]] = []
+    headers = {"User-Agent": _UA, "Authorization": f"Bearer {token}"}
+
+    for sub in subs:
+        _reddit_topic_throttle.wait()
+        try:
+            resp = httpx.get(
+                f"{_REDDIT_OAUTH_BASE}/r/{sub}/search",
+                params={"q": keywords, "sort": "relevance", "t": "week", "restrict_sr": 1, "limit": 3},
+                headers=headers,
+                timeout=_TIMEOUT,
+            )
+            resp.raise_for_status()
+            posts = resp.json().get("data", {}).get("children", [])
+        except Exception as exc:
+            log.debug("reddit_topic_search_failed sub=%s err=%s", sub, exc)
+            continue
+
+        for p in posts:
+            pdata = p.get("data", {})
+            if (pdata.get("score") or 0) < _REDDIT_TOPIC_MIN_SCORE:
+                continue
+            permalink = pdata.get("permalink")
+            if not permalink:
+                continue
+            for c in fetch_reddit_comments(f"https://reddit.com{permalink}", token=token, top_n=5):
+                if c["text"] in seen_texts:
+                    continue
+                seen_texts.add(c["text"])
+                all_comments.append(c)
+
+    all_comments.sort(key=lambda c: c.get("score") or 0, reverse=True)
+    return all_comments[:top_n]
 
 
 def fetch_bluesky_replies(article_url: str, top_n: int = 10) -> list[dict[str, Any]]:

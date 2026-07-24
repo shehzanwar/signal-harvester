@@ -249,6 +249,16 @@ interchangeable:
 
 `scripts/publish.cmd` runs both: pipeline → `build:static` → `python -m harvester export` → git push (updates GitHub Pages) — it does **not** touch the Docker `dist/` build, so the always-on API container keeps serving the live build independently. Building the wrong target into `frontend/dist/` (e.g. accidentally running `build -- --mode static`) breaks the live API dashboard, since it will try to fetch a static JSON snapshot that doesn't exist on that server.
 
+**Frontend vs. backend changes need different steps.** `docker-compose.yml` bind-mounts `./frontend/dist` into the `api` container, so `npm run build` updates the live dashboard immediately — no container restart needed. It does **not** mount `harvester/` — that Python source is baked into the image at build time. Any change to `harvester/**` (API routes, DB schema, pipeline logic) requires an explicit rebuild before it's live:
+
+```bash
+docker compose build api && docker compose up -d api
+```
+
+Skipping this is a silent failure, not an error — the container just keeps serving the old code with no indication anything is stale. If a new API endpoint 404s or a bugfix doesn't seem to apply against the Docker dashboard, rebuild first before assuming the code is wrong. Publishing to GitHub Pages (`publish.cmd` / `publish_site.cmd`) is unaffected by this — the static export runs `python -m harvester export` directly against your local checkout, not through Docker.
+
+Also worth knowing: [scripts/publish_site.cmd](scripts/publish_site.cmd) exists for republishing the GitHub Pages snapshot from current DB/frontend state *without* re-running the full pipeline — use it after a code-only change; use `publish.cmd` when you also need fresh data.
+
 ---
 
 ## Scheduling

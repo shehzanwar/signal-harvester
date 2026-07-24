@@ -294,3 +294,17 @@ social:
       - "DW News"
       - "CNBC"
       - "Bloomberg Television"
+  # Reddit topic-subreddit search + submission comments — REQUIRES
+  # REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET env vars. reddit.com blocks
+  # unauthenticated .json requests (search AND comment listings) with a 403
+  # anti-bot response regardless of User-Agent — there is no working
+  # unauthenticated path, so this block is a silent no-op without credentials.
+  # Setup (one-time, free, ~2 minutes):
+  #   1. https://www.reddit.com/prefs/apps -> "create another app..."
+  #   2. Choose type "script", any name/description, redirect uri http://localhost:8080
+  #   3. REDDIT_CLIENT_ID = the string under the app name; REDDIT_CLIENT_SECRET = "secret" field
+  #   4. Add both to .env
+  reddit_topic:
+    subreddits: [worldnews, technology, politics, science, business, soccer]
+    max_articles: 15
+    min_post_score: 20

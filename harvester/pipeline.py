@@ -15,7 +15,7 @@ from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
-from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_reddit_comments, fetch_twitter_comments, fetch_youtube_comments
+from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_reddit_comments, fetch_reddit_topic_comments, fetch_twitter_comments, fetch_youtube_comments, reddit_token
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
 from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
@@ -245,13 +245,17 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             permalink = sig.get("permalink", "")
             if not permalink:
                 continue
-            comments = fetch_reddit_comments(permalink)
+            # reddit_signals is only non-empty when fetcher._reddit_token was set
+            # (fetch_reddit() in social.py is itself gated on it), so this is safe.
+            comments = fetch_reddit_comments(permalink, token=fetcher._reddit_token)
             if comments:
                 comment_count += db.save_comments(article_id, "reddit", comments)
 
-        # Bluesky: public API (no auth required) for any article with social engagement
+        # Bluesky: public API (no auth required, no rate-limit concern) for any
+        # article with social engagement. Cap raised 30->60: unlike Twitter/YouTube
+        # this has no ban/quota risk, so there's no reason to hold it back.
         art_url_map = {art["id"]: art["url"] for art in enriched_today}
-        bsky_candidates = sorted({s["article_id"] for s in all_signals})[:30]
+        bsky_candidates = sorted({s["article_id"] for s in all_signals})[:60]
         for article_id in bsky_candidates:
             if db.has_comments(article_id, "bluesky"):
                 continue
@@ -345,6 +349,52 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     yt_backfilled = db.backfill_social_signals_from_comments("youtube")
     if yt_backfilled:
         log.info("youtube_social_backfilled articles=%d", yt_backfilled)
+
+    # -- Stage 5.5c: Reddit topic-subreddit search (best-effort) ----------------
+    # Most Reddit discussion of a story never links the specific article —
+    # fetch_reddit() above only catches submissions that do. This searches
+    # topic subreddits by keyword instead. Requires REDDIT_CLIENT_ID/SECRET —
+    # reddit.com blocks unauthenticated search requests outright (403,
+    # regardless of User-Agent), so there's no unauthenticated fallback.
+    # Skips any article that already has Reddit comments from the URL-match
+    # path above — no need to search twice.
+    rt_cfg = cfg.social.reddit_topic
+    rt_token = reddit_token() if rt_cfg.max_articles > 0 else None
+    if enriched_today and rt_token:
+        rt_art_map = {art["id"]: art for art in enriched_today}
+        rt_candidates = [
+            art["id"] for art in enriched_today
+            if art.get("tier") in ("T1", "T2")
+        ][:rt_cfg.max_articles]
+        rt_count = 0
+        for article_id in rt_candidates:
+            if db.has_comments(article_id, "reddit"):
+                continue
+            art = rt_art_map.get(article_id)
+            if not art:
+                continue
+            comments = fetch_reddit_topic_comments(
+                art.get("title", ""),
+                art.get("tags", []),
+                token=rt_token,
+                subreddits=rt_cfg.subreddits,
+            )
+            if comments:
+                rt_count += db.save_comments(article_id, "reddit", comments)
+                db.save_social_signals([{
+                    "article_id": article_id,
+                    "source": "reddit",
+                    "score": sum(c.get("score", 0) for c in comments),
+                    "comments": len(comments),
+                    "permalink": comments[0].get("url"),
+                }])
+        if rt_count:
+            log.info("reddit_topic_comments_done inserted=%d", rt_count)
+
+    # Self-heal: same reasoning as the twitter backfill above.
+    rt_backfilled = db.backfill_social_signals_from_comments("reddit")
+    if rt_backfilled:
+        log.info("reddit_social_backfilled articles=%d", rt_backfilled)
 
     # -- Stage 5.6: Perception gap (LLM comment sentiment + Python blend) ------
     # For v5+ articles without a perception_gap score: if comments exist, call

@@ -113,9 +113,23 @@ class TwitterConfig(BaseModel):
     max_articles: int = 20
 
 
+class RedditTopicConfig(BaseModel):
+    # Public JSON API, no OAuth needed — separate from the URL-match `reddit`
+    # signal above, which requires REDDIT_CLIENT_ID/SECRET. Searches these
+    # subreddits by keyword for discussion that never links the article
+    # directly (most Reddit discussion of a story doesn't).
+    subreddits: list[str] = ["worldnews", "technology", "politics", "science", "business", "soccer"]
+    # Cap per pipeline run — each article costs up to len(subreddits) searches
+    # plus one comment fetch per matching post, all throttled to ~1/sec.
+    max_articles: int = 15
+    # Skip posts below this score — filters low-engagement/off-topic matches.
+    min_post_score: int = 20
+
+
 class SocialConfig(BaseModel):
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
     twitter: TwitterConfig = Field(default_factory=TwitterConfig)
+    reddit_topic: RedditTopicConfig = Field(default_factory=RedditTopicConfig)
 
 
 class ProfileConfig(BaseModel):
