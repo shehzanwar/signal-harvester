@@ -210,8 +210,10 @@ def main() -> None:
 
     # ── prompt-stats ──────────────────────────────────────────────────────────
     if args.command == "prompt-stats":
+        import json as _json
+
         from harvester.config import load_profile
-        from harvester.enrich.prompts import PROMPT_VERSION
+        from harvester.enrich.prompts import PROMPT_VERSION, prompt_template_hash
         from harvester.store.db import Database
 
         cfg = load_profile(args.profile)
@@ -227,6 +229,30 @@ def main() -> None:
             pct = count / total_enriched * 100 if total_enriched else 0
             tag = "  [current]" if version == PROMPT_VERSION else ""
             print(f"  {version:<8}{tag:<12} {count:>6,}  ({pct:.1f}%)")
+
+        # Template-content hash: catches an enrichment.md edit that landed without
+        # a PROMPT_VERSION bump — the version string only tells you what a human
+        # remembered to bump, not what actually changed article-to-article.
+        current_hash = prompt_template_hash(cfg)
+        last_runs = db.get_runs(limit=5)
+        last_hash = None
+        for run in last_runs:
+            try:
+                h = _json.loads(run.get("notes") or "{}").get("prompt_hash")
+            except (ValueError, TypeError):
+                h = None
+            if h:
+                last_hash = h
+                break
+        print(f"\nTemplate hash: {current_hash} (from prompts/enrichment.md content, independent of PROMPT_VERSION)")
+        if last_hash and last_hash != current_hash:
+            print(
+                f"  ⚠ Last run used hash {last_hash} — the template changed since then.\n"
+                f"    If PROMPT_VERSION wasn't bumped, articles enriched before and after this edit\n"
+                f"    are silently on different prompts despite sharing a version string."
+            )
+        elif last_hash:
+            print("  Matches the last run — no undetected template drift.")
 
         if stale:
             print(f"\n  {stale:,} stale article(s) — run: harvester backfill --stale")

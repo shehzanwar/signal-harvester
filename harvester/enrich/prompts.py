@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from string import Template
 from typing import Any
@@ -30,9 +31,23 @@ Rules:
 """
 
 
-def build_system_prompt(cfg: ProfileConfig) -> str:
+def _read_template(cfg: ProfileConfig) -> str:
     path = Path(cfg.prompts.enrichment)
-    template_str = path.read_text(encoding="utf-8-sig") if path.exists() else _DEFAULT_SYSTEM_PROMPT
+    return path.read_text(encoding="utf-8-sig") if path.exists() else _DEFAULT_SYSTEM_PROMPT
+
+
+def prompt_template_hash(cfg: ProfileConfig) -> str:
+    """Short hash of the raw template FILE content (pre-substitution), so a
+    template edit that lands without a PROMPT_VERSION bump is still visible
+    by comparing this across runs — PROMPT_VERSION alone only tells you what
+    a human remembered to bump, not what actually changed. Independent of
+    per-profile tier/topic text, which varies run to run regardless of
+    template drift."""
+    return hashlib.sha256(_read_template(cfg).encode("utf-8")).hexdigest()[:12]
+
+
+def build_system_prompt(cfg: ProfileConfig) -> str:
+    template_str = _read_template(cfg)
     return Template(template_str).safe_substitute(
         watch_topics=", ".join(cfg.watch_topics),
         sentiment_target=cfg.sentiment_target,

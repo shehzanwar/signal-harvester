@@ -148,6 +148,23 @@ class EnrichmentClient:
             raw = self._call_llamacpp(user_msg)
         return raw
 
+    def _check_context_budget(self, backend: str, total_tokens: Any) -> None:
+        """Warn when a call's token usage is closing in on num_ctx — an early
+        signal that articles/prompt are about to get silently truncated by
+        the model rather than by build_user_message()'s max_article_tokens.
+        Threshold is 90% of the configured num_ctx, not a hardcoded number,
+        so it stays correct if num_ctx is changed in the profile."""
+        if not isinstance(total_tokens, int):
+            return
+        num_ctx = self._cfg.llm.num_ctx
+        budget = int(num_ctx * 0.9)
+        if total_tokens > budget:
+            log.warning(
+                "context_budget_warning backend=%s total_tokens=%d (%.0f%% of num_ctx=%d) — "
+                "consider truncating articles or bumping num_ctx",
+                backend, total_tokens, total_tokens / num_ctx * 100, num_ctx,
+            )
+
     def _call_llamacpp(self, user_msg: str, *, override_system: str | None = None) -> str:
         payload: dict[str, Any] = {
             "model": self._cfg.llm.model,
@@ -184,12 +201,7 @@ class EnrichmentClient:
                     "llamacpp_tokens prompt=%s completion=%s total=%s",
                     prompt_tok, completion_tok, total_tok,
                 )
-                if isinstance(total_tok, int) and total_tok > 7500:
-                    log.warning(
-                        "context_budget_warning total_tokens=%d (limit=8192) — "
-                        "consider truncating articles or bumping n_ctx",
-                        total_tok,
-                    )
+                self._check_context_budget("llamacpp", total_tok)
                 content = body["choices"][0]["message"]["content"]
                 if content and content.strip():
                     return content
@@ -236,6 +248,7 @@ class EnrichmentClient:
         last_exc: Exception | None = None
         for attempt in range(3):
             full_response = ""
+            final_chunk: dict[str, Any] = {}
             try:
                 with httpx.stream("POST", self._generate_url, json=payload, timeout=120.0) as resp:
                     resp.raise_for_status()
@@ -249,6 +262,7 @@ class EnrichmentClient:
                             continue
                         full_response += chunk.get("response", "")
                         if chunk.get("done"):
+                            final_chunk = chunk
                             break
             except httpx.HTTPStatusError as exc:
                 last_exc = exc
@@ -285,6 +299,20 @@ class EnrichmentClient:
                 raise RuntimeError(f"Ollama /api/generate failed after 3 attempts: {exc}") from exc
 
             if full_response.strip():
+                # prompt_eval_count/eval_count are only present on the final
+                # (done=True) chunk of an Ollama /api/generate stream.
+                prompt_tok = final_chunk.get("prompt_eval_count", "?")
+                completion_tok = final_chunk.get("eval_count", "?")
+                total_tok = (
+                    prompt_tok + completion_tok
+                    if isinstance(prompt_tok, int) and isinstance(completion_tok, int)
+                    else "?"
+                )
+                log.debug(
+                    "ollama_tokens prompt=%s completion=%s total=%s",
+                    prompt_tok, completion_tok, total_tok,
+                )
+                self._check_context_budget("ollama", total_tok)
                 break
             # Empty response from a clean stream — unlikely but retry
             last_exc = ValueError("Ollama streaming returned empty response")

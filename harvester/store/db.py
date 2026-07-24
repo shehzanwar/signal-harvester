@@ -801,11 +801,13 @@ class Database:
         started_at: str,
         finished_at: str,
         counts: dict[str, int],
+        prompt_hash: str | None = None,
     ) -> None:
         notes = json.dumps({
             "failed_extract": counts.get("failed_extract", 0),
             "failed_llm": counts.get("failed_llm", 0),
             "noise_prefiltered": counts.get("noise_prefiltered", 0),
+            "prompt_hash": prompt_hash,
         })
         with self._conn() as con:
             con.execute(
@@ -1157,13 +1159,20 @@ class Database:
                 records,
             )
 
-    def get_feed_health(self, feed_names: list[str]) -> list[dict[str, Any]]:
-        """Return one summary dict per feed name, including feeds never checked."""
+    def get_feed_health(self, feed_names: list[str], silent_days: float = 3.0) -> list[dict[str, Any]]:
+        """Return one summary dict per feed name, including feeds never checked.
+
+        silent_days controls how long a feed can return zero new articles
+        before its status flips to "silent" — the dashboard API uses the
+        3-day default; the post-fetch staleness warning in pipeline.py uses
+        2 days (48h) instead, since a daily-run feed silent for 48h is
+        actionable sooner than the display threshold implies.
+        """
         if not feed_names:
             return []
 
         # Fetch the last 10 records per feed (sufficient for consecutive-error detection
-        # and 3-day silence check on a daily pipeline).
+        # and the silence check on a daily pipeline).
         placeholders = ",".join("?" * len(feed_names))
         with self._conn() as con:
             rows = con.execute(
@@ -1183,7 +1192,7 @@ class Database:
                 feed_records[name].append(dict(r))
 
         silent_threshold = (
-            datetime.now(timezone.utc) - timedelta(days=3)
+            datetime.now(timezone.utc) - timedelta(days=silent_days)
         ).isoformat()
 
         results = []

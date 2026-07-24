@@ -12,7 +12,7 @@ from typing import Any
 from harvester.cluster import attach_cluster_metadata, cluster_articles
 from harvester.config import ProfileConfig
 from harvester.enrich.client import EnrichmentClient
-from harvester.enrich.prompts import PROMPT_VERSION
+from harvester.enrich.prompts import PROMPT_VERSION, prompt_template_hash
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
 from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_twitter_comments, fetch_youtube_comments
@@ -72,7 +72,11 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     """
     run_id = uuid.uuid4().hex[:8]
     started_at = datetime.now(timezone.utc).isoformat()
-    log.info("run_start run_id=%s profile=%s", run_id, cfg.profile)
+    prompt_hash = prompt_template_hash(cfg)
+    log.info(
+        "run_start run_id=%s profile=%s prompt_version=%s prompt_hash=%s",
+        run_id, cfg.profile, PROMPT_VERSION, prompt_hash,
+    )
 
     db = Database.from_config(cfg)
     db.init_schema()
@@ -91,9 +95,25 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     counts["new"] = len(new_articles)
     log.info("fetch_done fetched=%d new=%d", counts["fetched"], counts["new"])
 
+    # Feed health had storage + an API endpoint but nothing ever consumed it to
+    # actually flag a dying feed — a feed silently returning zero articles for
+    # weeks was invisible short of someone opening the dashboard's health tab.
+    # 48h (not the API's 3-day display default) so this fires while it's still
+    # a same-week fix, not a "when did this even break" investigation.
+    stale = [
+        f for f in db.get_feed_health([fc.name for fc in cfg.feeds], silent_days=2.0)
+        if f["status"] in ("silent", "error")
+    ]
+    for f in stale:
+        log.warning(
+            "feed_stale feed=%s status=%s last_checked=%s consecutive_errors=%d last_error=%s",
+            f["feed_name"], f["status"], f["last_checked"],
+            f["consecutive_errors"], (f["last_error"] or "")[:200],
+        )
+
     if not new_articles:
         log.info("no_new_articles -- skipping extraction and enrichment")
-        _finalize(db, run_id, cfg, started_at, counts)
+        _finalize(db, run_id, cfg, started_at, counts, prompt_hash=prompt_hash)
         return counts
 
     # -- Stage 2: Extract (parallel I/O) -------------------------------------
@@ -439,7 +459,7 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     if pruned_any:
         db.vacuum()
 
-    _finalize(db, run_id, cfg, started_at, counts)
+    _finalize(db, run_id, cfg, started_at, counts, prompt_hash=prompt_hash)
     return counts
 
 
@@ -449,9 +469,10 @@ def _finalize(
     cfg: ProfileConfig,
     started_at: str,
     counts: dict[str, int],
+    prompt_hash: str | None = None,
 ) -> None:
     finished_at = datetime.now(timezone.utc).isoformat()
-    db.record_run(run_id, cfg.profile, started_at, finished_at, counts)
+    db.record_run(run_id, cfg.profile, started_at, finished_at, counts, prompt_hash=prompt_hash)
     failure_rate = counts["failed"] / max(counts["new"], 1) * 100
     log.info(
         "run_complete run_id=%s fetched=%d new=%d enriched=%d failed=%d (%.0f%%)",
