@@ -69,10 +69,12 @@ def export_site(cfg: ProfileConfig, out_dir: str = "site") -> None:
     # shows "N sources" badges — the live API does this at api.py:55.
     attach_cluster_metadata(clean)
 
-    # Tag each article with its feed's category for the dashboard nav.
+    # Tag each article with its feed's category/subcategory for the dashboard nav.
     cat_map = cfg.feed_category_map()
+    subcat_map = cfg.feed_subcategory_map()
     for a in clean:
         a["category"] = cat_map.get(a.get("feed_name", ""), "general")
+        a["subcategory"] = subcat_map.get(a.get("feed_name", ""), "")
 
     stats = db.get_stats()
     trends = db.get_trends(days=30)

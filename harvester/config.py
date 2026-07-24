@@ -17,6 +17,11 @@ class FeedConfig(BaseModel):
     # so other profiles can define their own buckets; the default profile uses
     # technology / finance / politics / sports / world.
     category: str = "general"
+    # Optional second-level bucket within category, e.g. category=technology,
+    # subcategory=security. Empty string (not None) when unset — every feed in
+    # a category doesn't need one; the dashboard only shows the subcategory row
+    # when a category actually has 2+ distinct non-empty values.
+    subcategory: str = ""
     max_articles: int | None = None  # per-feed override; falls back to ProfileConfig.max_articles_per_feed
 
 
@@ -143,6 +148,10 @@ class ProfileConfig(BaseModel):
     def feed_category_map(self) -> dict[str, str]:
         """{feed_name: category} for tagging articles at query/export time."""
         return {f.name: f.category for f in self.feeds}
+
+    def feed_subcategory_map(self) -> dict[str, str]:
+        """{feed_name: subcategory} — "" for feeds that don't declare one."""
+        return {f.name: f.subcategory for f in self.feeds}
 
     @field_validator("watch_topics")
     @classmethod

@@ -36,6 +36,9 @@ export interface Article {
   prompt_version?: string;
   // feed-derived category (technology / finance / politics / sports / world)
   category?: string;
+  // optional second-level bucket within category (e.g. category=technology,
+  // subcategory=security) — "" or undefined when the feed doesn't declare one
+  subcategory?: string;
   // cluster fields
   cluster_id?: string;
   cluster_size?: number;

@@ -51,8 +51,10 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
         )
         attach_cluster_metadata(articles)
         cat_map = cfg.feed_category_map() if cfg else {}
+        subcat_map = cfg.feed_subcategory_map() if cfg else {}
         for a in articles:
             a["category"] = cat_map.get(a.get("feed_name", ""), "general")
+            a["subcategory"] = subcat_map.get(a.get("feed_name", ""), "")
         return {"total": total, "items": articles}
 
     @app.get("/api/articles/{article_id}/comments")

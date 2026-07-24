@@ -8,6 +8,7 @@ max_articles_per_feed: 20
 
 feeds:
   # ── Technology ────────────────────────────────────────────────────────────
+  # subcategory: ai / security / (unset = general tech)
   - name: Ars Technica
     url: https://feeds.arstechnica.com/arstechnica/index
     trust: high
@@ -25,6 +26,7 @@ feeds:
     trust: medium
     max_articles: 10
     category: technology
+    subcategory: ai
   - name: MIT Technology Review
     url: https://www.technologyreview.com/feed/
     trust: high
@@ -42,65 +44,81 @@ feeds:
     trust: high
     max_articles: 15
     category: technology
+    subcategory: security
   - name: Krebs on Security
     url: https://krebsonsecurity.com/feed/
     trust: high
     max_articles: 5
     category: technology
+    subcategory: security
 
   # ── Finance ───────────────────────────────────────────────────────────────
+  # subcategory: markets / business / analysis
   - name: CNBC Business
     url: https://www.cnbc.com/id/10001147/device/rss/rss.html
     trust: high
     category: finance
+    subcategory: business
   - name: MarketWatch Top Stories
     url: https://feeds.marketwatch.com/marketwatch/topstories/
     trust: high
     category: finance
+    subcategory: markets
   - name: Yahoo Finance
     url: https://finance.yahoo.com/rss/topfinstories
     trust: medium
     max_articles: 10
     category: finance
+    subcategory: markets
   - name: NYT Business
     url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
     trust: high
     category: finance
+    subcategory: business
   - name: Bloomberg Markets
     url: https://feeds.bloomberg.com/markets/news.rss
     trust: high
     category: finance
+    subcategory: markets
   - name: The Economist Finance
     url: https://www.economist.com/finance-and-economics/rss.xml
     trust: high
     max_articles: 5
     category: finance
+    subcategory: analysis
   - name: Reuters Business
     url: https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best
     trust: high
     max_articles: 20
     category: finance
+    subcategory: business
 
   # ── Politics ──────────────────────────────────────────────────────────────
+  # subcategory: us / international
   - name: Axios
     url: https://api.axios.com/feed/
     trust: high
     category: politics
+    subcategory: us
   - name: Politico
     url: https://rss.politico.com/politics-news.xml
     trust: high
     category: politics
+    subcategory: us
   - name: The Hill
     url: https://thehill.com/feed/
     trust: medium
     max_articles: 20
     category: politics
+    subcategory: us
   - name: BBC Politics
     url: https://feeds.bbci.co.uk/news/politics/rss.xml
     trust: high
     category: politics
+    subcategory: international
 
   # ── Sports ────────────────────────────────────────────────────────────────
+  # subcategory: soccer (Reddit r/soccer below) / (unset = general multi-sport)
   - name: ESPN
     url: https://www.espn.com/espn/rss/news
     trust: medium
@@ -121,6 +139,7 @@ feeds:
     category: sports
 
   # ── World News ────────────────────────────────────────────────────────────
+  # subcategory: health / science / (unset = general world news)
   - name: Reuters World
     url: https://www.reutersagency.com/feed/?best-topics=world&post_type=best
     trust: high
@@ -161,6 +180,7 @@ feeds:
     trust: high
     max_articles: 10
     category: world
+    subcategory: health
 
   # ── Reddit (RSS, no API access — see the social: block below) ──────────────
   # Community-curated, not editorially vetted like the sources above — trust:
@@ -186,16 +206,19 @@ feeds:
     trust: medium
     max_articles: 5
     category: politics
+    subcategory: us
   - name: Reddit r/science
     url: https://www.reddit.com/r/science/top/.rss?t=day&limit=10
     trust: medium
     max_articles: 5
     category: world
+    subcategory: science
   - name: Reddit r/soccer
     url: https://www.reddit.com/r/soccer/top/.rss?t=day&limit=10
     trust: medium
     max_articles: 5
     category: sports
+    subcategory: soccer
 
 watch_topics:
   - breaking news
