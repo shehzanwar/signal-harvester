@@ -68,6 +68,13 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
+  const [subcategory, setSubcategory] = useState<string | null>(null);
+  // Selecting a new top-level category invalidates whatever subcategory was
+  // active — a subcategory value from one category is meaningless in another.
+  const selectCategory = useCallback((key: string | null) => {
+    setCategory(key);
+    setSubcategory(null);
+  }, []);
   const [todayOnly, setTodayOnly] = useState(false);
   const [compact, setCompact] = useState(false);
   const [hideRead, setHideRead] = useState(false);
@@ -250,18 +257,62 @@ export default function App() {
     [allArticles, category],
   );
 
-  // Tag filter applied after category filter (client-side; OR semantics across selected tags).
+  // Subcategory counts/options within the CURRENT category only — a
+  // subcategory bar for "world" showing "science"/"health" makes no sense
+  // once the user has switched to "technology". Only feeds that declared a
+  // non-empty subcategory contribute; feeds without one fall through
+  // ungrouped (no "general" bucket forced onto sources that didn't ask for it).
+  const subcategoryCounts = useMemo(() => {
+    if (!category) return { all: 0 };
+    const reps = collapseClusters(categoryArticles).filter((a) => a.tier !== "NOISE");
+    const counts: Record<string, number> = { all: reps.length };
+    for (const a of reps) {
+      if (a.subcategory) counts[a.subcategory] = (counts[a.subcategory] ?? 0) + 1;
+    }
+    return counts;
+  }, [categoryArticles, category]);
+
+  const subcategoryOptions = useMemo(
+    () =>
+      Object.keys(subcategoryCounts)
+        .filter((key) => key !== "all")
+        .sort((a, b) => subcategoryCounts[b] - subcategoryCounts[a])
+        .map((key) => ({ key, label: key[0].toUpperCase() + key.slice(1) })),
+    [subcategoryCounts],
+  );
+
+  const subcategoryArticles = useMemo(
+    () => (subcategory ? categoryArticles.filter((a) => a.subcategory === subcategory) : categoryArticles),
+    [categoryArticles, subcategory],
+  );
+
+  // Tag filter applied after category/subcategory filter (client-side; OR semantics across selected tags).
   const tagFilteredArticles = useMemo(
     () =>
       selectedTags.size > 0
-        ? categoryArticles.filter((a) => a.tags.some((t) => selectedTags.has(t)))
-        : categoryArticles,
-    [categoryArticles, selectedTags],
+        ? subcategoryArticles.filter((a) => a.tags.some((t) => selectedTags.has(t)))
+        : subcategoryArticles,
+    [subcategoryArticles, selectedTags],
   );
 
   // Flat list of visible articles for keyboard navigation.
   // When the server has already filtered by FTS5, skip the client-side text pass.
   const flatArticles = flattenArticles(tagFilteredArticles, isServerSearch ? "" : search, showSavedOnly, savedIds);
+
+  const batchMute = useCallback(() => {
+    const prevMuted = [...prefs.mutedTags];
+    const selected = flatArticles.filter((a) => selectedIds.has(a.id));
+    const tags = [...new Set(selected.flatMap((a) => (a.tags ?? []).map((t) => t.toLowerCase())))];
+    if (tags.length === 0) return;
+    updatePrefs((p) => ({ ...p, mutedTags: [...new Set([...p.mutedTags, ...tags])] }));
+    const count = selectedIds.size;
+    setBatchMode(false);
+    setSelectedIds(new Set());
+    showToast(
+      `Muted ${tags.length} tag${tags.length !== 1 ? "s" : ""} from ${count} article${count !== 1 ? "s" : ""}`,
+      () => updatePrefs((p) => ({ ...p, mutedTags: prevMuted })),
+    );
+  }, [selectedIds, flatArticles, prefs.mutedTags, updatePrefs, showToast]);
 
   // cluster_id -> all members, for listing corroborating coverage in the detail panel
   const clusterMembers = useMemo(() => clusterMembersMap(allArticles), [allArticles]);
@@ -477,7 +528,18 @@ export default function App() {
             categories={orderedCats}
             counts={categoryCounts}
             selected={category}
-            onSelect={setCategory}
+            onSelect={selectCategory}
+          />
+        )}
+
+        {/* Subcategory navigation — only when the selected category actually
+            has 2+ distinct subcategories; a bar with one option is noise. */}
+        {category && subcategoryOptions.length > 1 && (
+          <CategoryBar
+            categories={subcategoryOptions}
+            counts={subcategoryCounts}
+            selected={subcategory}
+            onSelect={setSubcategory}
           />
         )}
 
@@ -811,6 +873,7 @@ export default function App() {
           count={selectedIds.size}
           onMarkRead={batchMarkRead}
           onSave={batchSave}
+          onMute={batchMute}
           onCancel={exitBatch}
         />
       )}
