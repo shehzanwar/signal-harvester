@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -17,6 +19,27 @@ _HEADERS = {
     "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
 }
 _TIMEOUT = 30.0
+
+# Reddit rate-limits RSS (.rss endpoints, not just the JSON API) to ~1 req/min
+# regardless of User-Agent. Feeds are otherwise fetched back-to-back with no
+# delay, which is fine across distinct domains but would 429 every Reddit
+# subreddit feed after the first if several are configured. This throttle
+# only fires for reddit.com URLs — other feeds are unaffected.
+class _RedditThrottle:
+    def __init__(self, interval: float = 62.0) -> None:
+        self._interval = interval
+        self._lock = threading.Lock()
+        self._last = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            elapsed = time.monotonic() - self._last
+            if elapsed < self._interval:
+                time.sleep(self._interval - elapsed)
+            self._last = time.monotonic()
+
+
+_reddit_throttle = _RedditThrottle()
 
 
 class RSSSource:
@@ -56,6 +79,9 @@ class RSSSource:
         return articles, health
 
     def _fetch_feed(self, feed_cfg: FeedConfig, max_articles: int) -> list[dict[str, Any]]:
+        is_reddit = "reddit.com" in feed_cfg.url
+        if is_reddit:
+            _reddit_throttle.wait()
         try:
             resp = httpx.get(
                 feed_cfg.url,
@@ -63,6 +89,13 @@ class RSSSource:
                 timeout=_TIMEOUT,
                 follow_redirects=True,
             )
+            if is_reddit and resp.status_code == 429:
+                # Throttle interval (62s) should already prevent this, but retry
+                # once with a fixed backoff as a safety net against clock drift
+                # or an overlapping external request against the same account.
+                log.debug("reddit_rss_429 feed=%s retrying_after=70s", feed_cfg.name)
+                time.sleep(70)
+                resp = httpx.get(feed_cfg.url, headers=_HEADERS, timeout=_TIMEOUT, follow_redirects=True)
             resp.raise_for_status()
             content = resp.content
         except httpx.HTTPError as exc:

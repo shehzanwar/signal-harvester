@@ -33,7 +33,7 @@ Adding a new domain: copy a YAML file, edit feeds + tier criteria. Zero code cha
 
 ```
 RSS feeds → Fetcher → Dedup (SQLite) → Extractor (trafilatura)
-         → Social enrichment (HN, Reddit, Bluesky, Mastodon, Lemmy, Twitter/X, YouTube — best-effort)
+         → Social enrichment (HN, Bluesky, Mastodon, Lemmy, Twitter/X, YouTube — best-effort)
          → Enricher (local llama.cpp LLM: editorial tone + predicted reaction) → Pydantic validation
          → Comment-informed public sentiment + perception gap
          → JSON archive + Markdown digest + SQLite
@@ -204,15 +204,35 @@ The dashboard is a single-page React app served by FastAPI at `localhost:8001`
 **Perception model — three sentiment layers, not one:**
 - **Editorial tone:** how the *journalist* frames the story (label + score + rationale)
 - **Predicted reaction:** the LLM's estimate of how the general public would react to the news itself, independent of the article's framing
-- **Public sentiment (comment-informed):** when social signals are available, actual comment sentiment from HN/Reddit/YouTube/etc. replaces the prediction, tagged with a confidence level (`high`/`medium`/`low`/`predicted`) and a dominant emotion
+- **Public sentiment (comment-informed):** when social signals are available, actual comment sentiment from HN/YouTube/etc. replaces the prediction, tagged with a confidence level (`high`/`medium`/`low`/`predicted`) and a dominant emotion
 - **Perception gap:** the delta between editorial tone and (predicted or actual) public reaction — surfaces stories where the press and the public read the same facts very differently
 
-**Social signal attribution:** cards and the detail panel ("Perception" tab)
-show which platforms contributed comment data for a given article — HN,
-Reddit, Bluesky, Mastodon, Lemmy, Twitter/X, and YouTube — with per-source
-score/comment counts and permalinks where available. All seven are
-best-effort and gated behind config/credentials (see [docs/setup.md](docs/setup.md));
-the pipeline runs fine with zero of them configured.
+**Public Reaction:** the detail panel shows the top 3 comments per source
+with author, score, and a direct link to that comment — not just an
+aggregate sentiment number.
+
+**Social signal attribution:** cards and the detail panel show which
+platforms contributed comment data for a given article — HN, Bluesky,
+Mastodon, Lemmy, Twitter/X, and YouTube — with per-source score/comment
+counts and permalinks where available. All six are best-effort and gated
+behind config/credentials (see [docs/setup.md](docs/setup.md)); the
+pipeline runs fine with zero of them configured. Reddit is not in this
+list — see [Reddit (RSS, not social API)](#reddit-rss-not-social-api) below.
+
+#### Reddit (RSS, not social API)
+
+Reddit is ingested as regular RSS feeds (subreddit `.rss` endpoints — see the
+`Reddit r/...` entries in [configs/profiles/daily-briefing.yaml](configs/profiles/daily-briefing.yaml)),
+not as a social-signal/comment source like the six above. reddit.com blocks
+unauthenticated `.json` API access outright (403, regardless of User-Agent),
+and OAuth app registration for new/personal projects has been locked down
+since mid-2026 — there is no credentialed path either. This trades comment
+text and upvote counts (Reddit's Atom feeds have never carried either) for
+Reddit posts as first-class content: the LLM tiers them on title/content
+alone, and a post covering a story already caught by another feed usually
+clusters with it by title similarity rather than duplicating. The feed
+endpoint itself rate-limits to ~1 request/minute regardless of auth — see
+the reddit-specific throttle in [harvester/sources/rss.py](harvester/sources/rss.py).
 
 **For You feed:** a learned, cross-tier ranking that personalises the order
 based on your reading behaviour. Signals are collected entirely client-side
@@ -317,7 +337,7 @@ The Markdown digest is the "dashboard-down" fallback — it's a complete, readab
 
 ## Roadmap
 
-**Done:** HN/Reddit/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; embedding-based near-duplicate clustering; weekly rollup digest; For You ranking v2 (MMR diversity, dwell-time learning, story fatigue, adaptive exploration); Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI.
+**Done:** HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; Reddit ingestion via subreddit RSS (content source, not a comment/social API); embedding-based near-duplicate clustering; weekly rollup digest; For You ranking v2 (MMR diversity, dwell-time learning, story fatigue, adaptive exploration); comment excerpts and per-comment source links in the detail panel; Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI.
 
 **Next up:** T3/NOISE reclassification (tighten NOISE calibration examples to shrink the background-tier volume); dashboard polish (date grouping, T1 hero section, true-compact T3 rows, clearer KPI strip labeling).
 

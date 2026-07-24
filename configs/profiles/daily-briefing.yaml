@@ -162,6 +162,41 @@ feeds:
     max_articles: 10
     category: world
 
+  # ── Reddit (RSS, no API access — see the social: block below) ──────────────
+  # Community-curated, not editorially vetted like the sources above — trust:
+  # medium. Caps kept low (5, vs 10-20 elsewhere): Reddit's Atom feeds carry
+  # no score/upvote data, so the LLM can't distinguish "genuinely important"
+  # from "merely popular" within Reddit content the way corroboration across
+  # wire services does. Link posts to articles already covered by another
+  # feed above won't be deduplicated (different URL — the Reddit permalink,
+  # not the linked article), but will usually cluster with the existing
+  # article by title similarity and get visually collapsed on the dashboard.
+  - name: Reddit r/worldnews
+    url: https://www.reddit.com/r/worldnews/top/.rss?t=day&limit=10
+    trust: medium
+    max_articles: 5
+    category: world
+  - name: Reddit r/technology
+    url: https://www.reddit.com/r/technology/top/.rss?t=day&limit=10
+    trust: medium
+    max_articles: 5
+    category: technology
+  - name: Reddit r/politics
+    url: https://www.reddit.com/r/politics/top/.rss?t=day&limit=10
+    trust: medium
+    max_articles: 5
+    category: politics
+  - name: Reddit r/science
+    url: https://www.reddit.com/r/science/top/.rss?t=day&limit=10
+    trust: medium
+    max_articles: 5
+    category: world
+  - name: Reddit r/soccer
+    url: https://www.reddit.com/r/soccer/top/.rss?t=day&limit=10
+    trust: medium
+    max_articles: 5
+    category: sports
+
 watch_topics:
   - breaking news
   - technology industry
@@ -294,17 +329,11 @@ social:
       - "DW News"
       - "CNBC"
       - "Bloomberg Television"
-  # Reddit topic-subreddit search + submission comments — REQUIRES
-  # REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET env vars. reddit.com blocks
-  # unauthenticated .json requests (search AND comment listings) with a 403
-  # anti-bot response regardless of User-Agent — there is no working
-  # unauthenticated path, so this block is a silent no-op without credentials.
-  # Setup (one-time, free, ~2 minutes):
-  #   1. https://www.reddit.com/prefs/apps -> "create another app..."
-  #   2. Choose type "script", any name/description, redirect uri http://localhost:8080
-  #   3. REDDIT_CLIENT_ID = the string under the app name; REDDIT_CLIENT_SECRET = "secret" field
-  #   4. Add both to .env
-  reddit_topic:
-    subreddits: [worldnews, technology, politics, science, business, soccer]
-    max_articles: 15
-    min_post_score: 20
+  # Reddit is NOT here — reddit.com blocks unauthenticated API access
+  # outright (403 regardless of User-Agent) and OAuth app registration for
+  # new/personal projects has been locked down since mid-2026. There is no
+  # credentialed path either. Reddit content is ingested as regular RSS
+  # feeds instead — see the "Reddit r/..." entries in the feeds list above.
+  # This means no comment text or upvote counts (Reddit's Atom feeds have
+  # never included either — verified, not a recent removal); the LLM tiers
+  # these posts on title/content alone, same as any other feed.

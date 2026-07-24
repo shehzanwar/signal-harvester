@@ -1,6 +1,9 @@
 """Tests that comment fetchers populate a per-comment `url` pointing at the
 actual post/comment, not just the article — the fix for broken social links
-where the frontend previously had nowhere real to send the user."""
+where the frontend previously had nowhere real to send the user.
+
+(Reddit's fetcher was removed entirely — see social.py's module docstring
+for why — so it's not covered here.)"""
 from __future__ import annotations
 
 import harvester.social as social
@@ -40,32 +43,6 @@ def test_hn_comments_get_per_item_url(monkeypatch):
         "https://news.ycombinator.com/item?id=111",
         "https://news.ycombinator.com/item?id=222",
     }
-
-
-def test_reddit_comments_use_own_permalink_not_submission(monkeypatch):
-    listing = [
-        {},  # index 0: submission listing (unused by fetch_reddit_comments)
-        {
-            "data": {
-                "children": [
-                    {
-                        "data": {
-                            "body": "c" * 50,
-                            "score": 42,
-                            "author": "carol",
-                            "permalink": "/r/test/comments/abc/title/def456/",
-                        }
-                    },
-                ]
-            }
-        },
-    ]
-    monkeypatch.setattr(social.httpx, "get", lambda *a, **k: _FakeResp(listing))
-    social._reddit_comments_throttle._last = 0  # avoid real sleep in test
-
-    comments = social.fetch_reddit_comments("/r/test/comments/abc/title/", top_n=10)
-
-    assert comments[0]["url"] == "https://reddit.com/r/test/comments/abc/title/def456/"
 
 
 def test_youtube_comments_get_per_comment_deep_link(monkeypatch):

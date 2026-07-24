@@ -80,6 +80,13 @@ Rules:
     information? Routine analyst ratings notes, minor roster moves below any stated threshold, and
     preview/roundup listicles belong in NOISE, not T3 — see the NOISE criteria above. T3 is for
     genuine context and analysis on topics that matter, not a catch-all for anything mundane.
+12. Articles from a source starting with "Reddit r/" are community-curated posts, not edited news —
+    they reached the top of their subreddit in the last 24 hours, which is a weak editorial signal,
+    not a score (you are not given an upvote count; do not invent one or reference it). Tier these
+    on the CONTENT of the title/text alone, exactly as you would any other source — a Reddit post
+    about a major confirmed event is T1/T2 on the merits, and a Reddit post about a trivial topic is
+    T3 or NOISE regardless of it having reached the subreddit's front page. Being from Reddit is
+    neither a bonus nor a penalty to the tier.
 
 Classification examples (use these to calibrate):
 
