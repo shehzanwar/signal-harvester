@@ -275,6 +275,9 @@ tools.
 - **Tiered retention:** T1 kept forever; T2/T3/NOISE prune on independent, shorter windows (defaults: 90d/21d/3d) since T3/NOISE are high-volume and rarely revisited; raw `extracted_text`/LLM `raw_response` are cleared 7 days after enrichment (summary/tier/sentiment/tags are untouched) — configurable per-profile under `retention:`
 - **Feed staleness warning:** logs a warning for any feed that's gone 48h without returning an article (a stricter, alerting-focused threshold than the dashboard health tab's 3-day display default) — a feed silently dying used to be invisible short of opening that tab
 - **Context budget warning:** both the `llamacpp` and `ollama` backends log a warning when a call's token usage crosses 90% of the configured `num_ctx`, so context overflow shows up as a log line instead of a silently truncated prompt
+- **Backend fast-fail:** before starting Stage 3, `EnrichmentClient.health_check()` probes the LLM backend once; if it's unreachable, the run skips enrichment immediately instead of discovering it one article at a time (3 retries × every article — turns an outage into a 30-60 minute run that enriches nothing). Articles are left untouched, not marked `failed_llm`, so the retry budget isn't spent on attempts that never happened
+- **llama-server watchdog:** a genuine Windows Scheduled Task (`SignalHarvester\LlamaServerWatchdog`, [scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1)) checks every 5 minutes whether llama-server is actually responding and restarts it if not — independent of any login session, terminal, or other software staying open. Exists because the original autostart (an HKCU "run at login" entry) only fires once at login; if llama-server crashed afterward, nothing ever restarted it. That's exactly what happened: it crashed and stayed down silently across two separate scheduled runs (2026-07-24 23:38 through 2026-07-25 16:15+, ~800 failed enrichments) before anyone noticed
+- **Push notifications:** optional, gated on the `NTFY_TOPIC` env var — ntfy.sh, free, no account. Fires on backend-unreachable aborts, high-failure-rate runs (≥5 failures and >20%), and watchdog restarts (repeated restarts indicate a deeper problem even though each one self-heals). See [harvester/notify.py](harvester/notify.py)
 - **Golden-set gated:** prompt and profile changes run against a 50-article golden set in CI before they can regress production (see [Golden set & CI](#golden-set--ci))
 
 ---
@@ -305,25 +308,37 @@ Also worth knowing: [scripts/publish_site.cmd](scripts/publish_site.cmd) exists 
 
 ## Scheduling
 
-Run once from the project root to register a daily Task Scheduler job.
+Two genuine Windows Scheduled Tasks — not dependent on any terminal, login
+session beyond the trigger itself, or other software (this repo's tooling
+included) staying open:
 
-**Pipeline only** (refreshes data and dashboard, no git push):
+**`SignalHarvester\DailyBriefing`** — the full publish cycle (pipeline →
+static frontend build → export → git commit/push), daily at 6 AM:
 
 ```cmd
 schtasks /Create /TN "SignalHarvester\DailyBriefing" ^
-  /TR "\"%CD%\scripts\run_harvester.cmd\"" ^
+  /TR "cmd.exe /c \"%CD%\scripts\publish.cmd\"" ^
   /SC DAILY /ST 06:00 /RU %USERNAME% /F
 ```
 
-**Full publish cycle** (pipeline → frontend build → export → git push):
+(Wrap the target in `cmd.exe /c "..."` as shown — a bare `/TR` with a space
+in the project path gets silently mis-split by `schtasks` otherwise.)
 
-```cmd
-schtasks /Create /TN "SignalHarvester\DailyPublish" ^
-  /TR "\"%CD%\scripts\publish.cmd\"" ^
-  /SC DAILY /ST 06:00 /RU %USERNAME% /F
+**`SignalHarvester\LlamaServerWatchdog`** — checks every 5 minutes whether
+the LLM backend is actually responding and restarts it if not (see
+[Pipeline reliability](#pipeline-reliability) for why this exists). Created
+via XML import, not the `/TR` flag directly — same path-quoting issue, worse
+with the extra nesting a raw `/TR` string would need:
+
+```powershell
+schtasks /Create /TN "SignalHarvester\LlamaServerWatchdog" /XML "path\to\task.xml" /F
 ```
 
-`/F` makes re-running idempotent — safe to run again to change the start time.
+See [scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1) for the
+health-check logic and [scripts/run_llamaserver_watchdog.cmd](scripts/run_llamaserver_watchdog.cmd)
+for the wrapper that avoids the quoting issue.
+
+`/F` makes re-running idempotent — safe to run again to change the schedule.
 
 Verify: `schtasks /Query /TN "SignalHarvester\DailyBriefing" /V /FO LIST`
 

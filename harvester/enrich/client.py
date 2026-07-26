@@ -99,6 +99,24 @@ class EnrichmentClient:
         # llama-server OpenAI-compatible chat endpoint (base_url keeps its /v1).
         self._chat_url = cfg.llm.base_url.rstrip("/") + "/chat/completions"
 
+    def health_check(self, timeout: float = 5.0) -> bool:
+        """Quick, cheap probe of the backend before committing to a full
+        enrichment run. Without this, an unreachable backend (llama-server
+        crashed, not yet restarted) is only discovered per-article — 3 retries
+        x every article in the batch, turning a dead backend into a 30-60
+        minute run that enriches nothing instead of an immediate, actionable
+        failure. Real incident: llama-server crashed and stayed down across
+        two separate scheduled runs (2026-07-24 23:38 through 2026-07-25
+        16:15+) before anyone noticed, burning ~800 failed enrichment
+        attempts total."""
+        url = self._chat_url.rsplit("/chat/completions", 1)[0] + "/models" \
+            if self._cfg.llm.backend == "llamacpp" else self._generate_url.rsplit("/api/generate", 1)[0] + "/api/tags"
+        try:
+            resp = httpx.get(url, timeout=timeout)
+            return resp.status_code < 500
+        except httpx.HTTPError:
+            return False
+
     def enrich(self, article: dict[str, Any], cfg: ProfileConfig) -> dict[str, Any]:
         if cfg.llm.backend == "llamacpp":
             raw = self._enrich_llamacpp(article, cfg)

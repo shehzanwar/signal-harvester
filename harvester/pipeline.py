@@ -15,6 +15,7 @@ from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION, prompt_template_hash
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
+from harvester.notify import notify
 from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_twitter_comments, fetch_youtube_comments
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
@@ -138,6 +139,28 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     # Includes newly extracted articles AND previously failed ones below the retry cap.
     client = EnrichmentClient(cfg)
     to_enrich = db.get_articles_for_enrichment()
+
+    # Fail fast if the backend is unreachable rather than discovering it one
+    # article at a time — see health_check()'s docstring for the incident
+    # that motivated this. Articles are left untouched (not marked
+    # failed_llm) so the retry budget isn't spent on attempts that never
+    # actually happened; the next run picks them up normally once the
+    # backend is back.
+    if to_enrich and not client.health_check():
+        log.error(
+            "enrich_aborted backend=%s base_url=%s unreachable -- skipping enrichment "
+            "for %d article(s) this run; they remain pending for the next run",
+            cfg.llm.backend, cfg.llm.base_url, len(to_enrich),
+        )
+        notify(
+            f"[{cfg.profile}] Enrichment backend unreachable",
+            f"{cfg.llm.backend} at {cfg.llm.base_url} did not respond -- "
+            f"{len(to_enrich)} article(s) skipped this run, pending for the next one.",
+            priority="urgent",
+            tags="warning,electric_plug",
+        )
+        to_enrich = []
+
     log.info("enrich_start count=%d", len(to_enrich))
 
     def _enrich_one(art: dict[str, Any]) -> str:
@@ -479,6 +502,17 @@ def _finalize(
         run_id, counts["fetched"], counts["new"],
         counts["enriched"], counts["failed"], failure_rate,
     )
+    # >=5 failures keeps this from firing on tiny batches where one failure
+    # is mathematically "100%"; >20% catches a genuinely bad run without
+    # paging on every incidental failed_extract/failed_llm.
+    if counts["failed"] >= 5 and failure_rate > 20:
+        notify(
+            f"[{cfg.profile}] Run {run_id}: {counts['failed']} failed ({failure_rate:.0f}%)",
+            f"fetched={counts['fetched']} new={counts['new']} enriched={counts['enriched']} "
+            f"failed={counts['failed']} (extract={counts['failed_extract']} llm={counts['failed_llm']})",
+            priority="high",
+            tags="warning",
+        )
     print(
         f"\n[{cfg.profile}] Run {run_id} -- "
         f"fetched={counts['fetched']} new={counts['new']} "

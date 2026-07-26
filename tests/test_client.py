@@ -217,3 +217,65 @@ def test_llamacpp_context_budget_threshold_derives_from_num_ctx(monkeypatch, cap
         EnrichmentClient(cfg).enrich(_ARTICLE, cfg)
 
     assert any("context_budget_warning" in r.message and "backend=llamacpp" in r.message for r in caplog.records)
+
+
+def test_health_check_true_when_llamacpp_reachable(monkeypatch):
+    calls = {}
+
+    def fake_get(url, timeout=None):
+        calls["url"] = url
+
+        class R:
+            status_code = 200
+
+        return R()
+
+    monkeypatch.setattr("harvester.enrich.client.httpx.get", fake_get)
+    cfg = ProfileConfig.model_validate(_CFG)
+
+    assert EnrichmentClient(cfg).health_check() is True
+    assert calls["url"] == "http://localhost:11435/v1/models"
+
+
+def test_health_check_false_when_connection_refused(monkeypatch):
+    """The exact incident this exists for: llama-server crashed and
+    connection-refused was only ever discovered per-article, 3 retries deep,
+    hundreds of times in a row."""
+    def fake_get(url, timeout=None):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr("harvester.enrich.client.httpx.get", fake_get)
+    cfg = ProfileConfig.model_validate(_CFG)
+
+    assert EnrichmentClient(cfg).health_check() is False
+
+
+def test_health_check_false_on_server_error(monkeypatch):
+    def fake_get(url, timeout=None):
+        class R:
+            status_code = 503
+
+        return R()
+
+    monkeypatch.setattr("harvester.enrich.client.httpx.get", fake_get)
+    cfg = ProfileConfig.model_validate(_CFG)
+
+    assert EnrichmentClient(cfg).health_check() is False
+
+
+def test_health_check_uses_ollama_tags_endpoint(monkeypatch):
+    calls = {}
+
+    def fake_get(url, timeout=None):
+        calls["url"] = url
+
+        class R:
+            status_code = 200
+
+        return R()
+
+    monkeypatch.setattr("harvester.enrich.client.httpx.get", fake_get)
+    cfg = ProfileConfig.model_validate({**_CFG, "llm": {"base_url": "http://localhost:11434/v1", "model": "q"}})
+
+    assert EnrichmentClient(cfg).health_check() is True
+    assert calls["url"] == "http://localhost:11434/api/tags"
