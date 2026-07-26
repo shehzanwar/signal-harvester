@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Checks every 5 minutes whether llama-server (the local LLM enrichment backend for Signal Harvester) is responding on port 11435, and restarts it if not. Prevents a crashed llama-server from silently breaking every scheduled pipeline run until the next interactive login. Runs powershell.exe directly (no cmd.exe wrapper) with -WindowStyle Hidden so it never flashes a console window.</Description>
+    <Author>couga</Author>
+  </RegistrationInfo>
+  <Triggers>
+    <TimeTrigger>
+      <Repetition>
+        <Interval>PT5M</Interval>
+        <StopAtDurationEnd>false</StopAtDurationEnd>
+      </Repetition>
+      <StartBoundary>2026-07-25T00:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+    </TimeTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>BLACKBRIG\couga</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT2M</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File "S:\Projects\Agentic Info Harvest\scripts\ensure_llamaserver.ps1"</Arguments>
+      <WorkingDirectory>S:\Projects\Agentic Info Harvest</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

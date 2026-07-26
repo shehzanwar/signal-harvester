@@ -327,16 +327,39 @@ in the project path gets silently mis-split by `schtasks` otherwise.)
 **`SignalHarvester\LlamaServerWatchdog`** — checks every 5 minutes whether
 the LLM backend is actually responding and restarts it if not (see
 [Pipeline reliability](#pipeline-reliability) for why this exists). Created
-via XML import, not the `/TR` flag directly — same path-quoting issue, worse
-with the extra nesting a raw `/TR` string would need:
+via XML import, not the `/TR` flag directly — same path-quoting issue as
+above, worse with the extra nesting a raw `/TR` string would need. The
+XML's action calls `powershell.exe -WindowStyle Hidden` **directly**, not
+through a `cmd.exe /c "script.cmd"` wrapper — Task Scheduler doesn't hide a
+launched `cmd.exe`'s own console window just because the PowerShell *it*
+spawns is hidden, so wrapping it that way would flash a black console
+window on screen every 5 minutes, indefinitely (including, unhelpfully,
+over a fullscreen game). Re-import with:
 
 ```powershell
-schtasks /Create /TN "SignalHarvester\LlamaServerWatchdog" /XML "path\to\task.xml" /F
+schtasks /Create /TN "SignalHarvester\LlamaServerWatchdog" /XML "scripts\llamaserver_watchdog_task.xml" /F
 ```
 
+(The XML must be UTF-16 encoded — re-save with
+`[System.IO.File]::WriteAllText($path, (Get-Content $path -Raw), [System.Text.Encoding]::Unicode)`
+if `schtasks` rejects it.)
+
+**Resource impact while the watchdog is idle** (backend healthy, which is
+the overwhelming majority of the time): one HTTP GET every 5 minutes,
+negligible CPU/network, no visible window. The task's priority is set to
+Below Normal so it never competes with a foreground app for CPU. The only
+time it does real work is the rare case llama-server is actually down: it
+then loads an ~5.4GB GGUF onto the GPU, which **will** compete for VRAM if
+something else (a game) is using the GPU heavily at that exact moment —
+there's no game-detection logic to defer the restart. In practice this only
+matters in the narrow window where llama-server crashes while you're
+actively gaming; the alternative (leaving it down for hours until you
+happen to check) was the actual problem this fixes.
+
 See [scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1) for the
-health-check logic and [scripts/run_llamaserver_watchdog.cmd](scripts/run_llamaserver_watchdog.cmd)
-for the wrapper that avoids the quoting issue.
+health-check/restart logic. [scripts/run_llamaserver_watchdog.cmd](scripts/run_llamaserver_watchdog.cmd)
+is a manual-test convenience only (double-click to run it once visibly) —
+the registered task does not go through it.
 
 `/F` makes re-running idempotent — safe to run again to change the schedule.
 
