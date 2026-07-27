@@ -1108,7 +1108,7 @@ export default function App() {
         <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-40" aria-hidden />}>
           <StatsPanel
             open={statsOpen}
-            articles={allArticles}
+            articles={historicalArticles}
             readIds={readIds}
             savedIds={savedIds}
             prefs={prefs}

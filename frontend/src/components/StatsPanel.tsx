@@ -49,6 +49,25 @@ export function StatsPanel({ open, articles, readIds, savedIds, prefs, onClose }
 
   const reps = collapseClusters(articles).filter((a) => a.tier !== "NOISE");
 
+  // This Week reflection (Task 4.7) — a distinct temporal cut from the
+  // all-time stats below: only articles *published* in the last 7 days,
+  // not everything ever read.
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  const thisWeek = reps.filter((a) => a.published_at && new Date(a.published_at).getTime() >= weekAgo);
+  const readThisWeek = thisWeek.filter((a) => readIds.has(a.id));
+  const t1ThisWeek = thisWeek.filter((a) => a.tier === "T1").length;
+  const savedUnread = [...savedIds].filter((id) => !readIds.has(id)).length;
+
+  const topicCounts: Record<string, number> = {};
+  for (const a of readThisWeek) {
+    const cat = a.category || "general";
+    topicCounts[cat] = (topicCounts[cat] ?? 0) + 1;
+  }
+  const topTopics = Object.entries(topicCounts).sort(([, a], [, b]) => b - a).slice(0, 5);
+
+  const sentiments = readThisWeek.map((a) => a.sentiment_score).filter((s): s is number => s != null);
+  const avgSentiment = sentiments.length > 0 ? sentiments.reduce((s, v) => s + v, 0) / sentiments.length : null;
+
   // Tier breakdown
   const tiers = ["T1", "T2", "T3"] as const;
   const tierLabel: Record<string, string> = { T1: "🔴 Critical", T2: "🟡 Notable", T3: "🔵 Background" };
@@ -97,6 +116,69 @@ export function StatsPanel({ open, articles, readIds, savedIds, prefs, onClose }
         </div>
 
         <div className="p-4 space-y-6 flex-1">
+          {/* This Week reflection */}
+          {thisWeek.length > 0 && (
+            <section className="pb-5 border-b border-neutral-800">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
+                📅 Your Week in Review
+              </h3>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <p className="text-xl font-bold text-neutral-200">{thisWeek.length}</p>
+                  <p className="text-[10px] text-neutral-600">available</p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-neutral-200">{readThisWeek.length}</p>
+                  <p className="text-[10px] text-neutral-600">read</p>
+                </div>
+                <div>
+                  <p className={`text-xl font-bold ${t1ThisWeek > 0 ? "text-red-400" : "text-neutral-200"}`}>{t1ThisWeek}</p>
+                  <p className="text-[10px] text-neutral-600">critical</p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-neutral-200">{savedUnread}</p>
+                  <p className="text-[10px] text-neutral-600">saved, unread</p>
+                </div>
+              </div>
+
+              {topTopics.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1.5">Top topics read</div>
+                  <div className="space-y-1">
+                    {topTopics.map(([topic, count]) => (
+                      <div key={topic} className="flex items-center gap-2">
+                        <div
+                          className="h-1.5 rounded-full bg-red-500/60"
+                          style={{ width: `${Math.min(80, count * 12)}px` }}
+                        />
+                        <span className="text-xs text-neutral-400">{topic} ({count})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {avgSentiment != null && (
+                <div className="text-xs text-neutral-400">
+                  Sentiment exposure:{" "}
+                  <span
+                    className={
+                      avgSentiment < -0.1 ? "text-red-400" : avgSentiment > 0.1 ? "text-emerald-400" : "text-neutral-300"
+                    }
+                  >
+                    {avgSentiment >= 0 ? "+" : ""}
+                    {avgSentiment.toFixed(2)}
+                  </span>
+                  {avgSentiment < -0.15 && (
+                    <p className="mt-1 text-[11px] text-neutral-600">
+                      Your feed has been notably negative this week — consider exploring a lighter category for balance.
+                    </p>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Overall progress */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">

@@ -963,10 +963,48 @@ completely absent from the DOM in "For You" mode. No console errors.
 
 **Effort spent**: ~2 hours (including the Task 4.2 retroactive fix).
 
-### Task 4.6 - 4.7: unchanged from original draft
-(Audio briefing, weekly reflection.) Both reference frontend-only fields
-(`enrich_summary`, `published_at`) confirmed present in
-`frontend/src/types.ts`. No path or signature issues found.
+### Task 4.6: Audio briefing — skipped
+
+Per explicit direction, not implemented this pass.
+
+### Task 4.7: Weekly reflection panel **[DONE — folded into StatsPanel, not a new modal]**
+
+**Status (2026-07-27)**: implemented as a new "📅 Your Week in Review"
+section inside the existing `StatsPanel` (`frontend/src/components/StatsPanel.tsx`)
+rather than a separate modal — the draft itself suggested this ("Accessible
+from Stats panel or auto-shown on Sundays"), and `StatsPanel` already had
+the right shell (a slide-in panel opened from the header) plus adjacent
+sections (`Overall Progress`, `By Tier`) that this is a temporal variant of.
+Shows: articles available / read / T1 count this week (published in the
+last 7 days, from `collapseClusters`-deduplicated representative articles —
+same convention the panel's other sections already use), saved-but-unread
+count, top topics read this week, and sentiment exposure with a gentle
+nudge when it's notably negative (`< -0.15`) — not preachy, one line.
+
+**Retroactive fix, same class as Task 4.5's**: `StatsPanel` previously
+received `articles={allArticles}` from `App.tsx`, which — like
+`BlindspotPanel`/`OnThisDay` before the Task 4.5 fix — is *today-only* in
+static mode's default view. That silently affected the panel's existing
+all-time sections too, not just this new one: "Overall Progress" would
+have quietly meant "today's progress" for anyone on the default static-mode
+view. Switched to the `historicalArticles` source Task 4.5 already
+introduced, fixing both the new Week-in-Review section and the pre-existing
+ones in the same change.
+
+**Verified against independently computed numbers, not just "a panel
+appeared"**: marked 3 real articles read (via `DetailPanel`, across
+`politics`/`world` categories), opened the panel, and cross-checked every
+figure against a fresh `fetch` + hand-rolled computation. Read count (3),
+sentiment average (-0.7833 → displayed "-0.78"), saved-unread (0), and
+per-category topic counts (`world (2)`, `politics (1)`) all matched
+exactly. The "available"/"critical" counts (877/87 in the UI vs. 1226/122
+in my raw fetch) differed — but at nearly identical ratios (0.715 vs.
+0.713) — traced this to the UI correctly counting deduplicated
+representative stories via `collapseClusters` while my verification script
+counted raw pre-dedup articles; treated as confirming the panel is
+correct rather than assuming the mismatch was a bug and stopping there.
+
+**Effort spent**: ~2 hours.
 
 ---
 
