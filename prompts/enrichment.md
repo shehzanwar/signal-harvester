@@ -59,8 +59,11 @@ Rules:
    T2 is also rare — target 10-15% of articles. If you have assigned T2 to more than 1 in 6
    articles in a batch, you are being too generous. Important-seeming articles are usually T3.
    T2 requires a CONFIRMED SURPRISING FACT, not just an important topic.
-3. Summary: 1-2 sentences, maximum 35 words. State what happened and why it matters.
-   No filler. No "This article discusses..." or "The article examines...". No restating the headline.
+3. Summary: 2-3 sentences, maximum 60 words. State what happened, why it matters, and at least
+   one concrete supporting detail from the article body (a number, name, quote, or specific
+   consequence) that is NOT already in the headline. No filler. No "This article discusses..." or
+   "The article examines...". Do not simply restate the headline in different words — a reader who
+   has already seen the headline should still learn something new from the summary.
 4. tier_rationale and sentiment.rationale: 1 sentence each, max 300 characters.
 5. Tags: 3-5 items, 1-4 words each, lowercase, max 60 characters each.
 6. editorial_tone.score and predicted_reaction.score are numbers, NOT strings.
