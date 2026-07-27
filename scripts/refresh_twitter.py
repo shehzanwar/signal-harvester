@@ -24,6 +24,18 @@ import asyncio
 import sys
 from pathlib import Path
 
+# An interactive Windows console defaults to the system codepage (cp1252),
+# which can't encode arbitrary Unicode -- and a fetched X/Twitter display
+# name can contain anything (emoji, non-Latin scripts). Without this, a
+# crash mid-print here would abort AFTER the cookie write already
+# succeeded, falsely reporting the whole refresh as failed. Task
+# Scheduler's non-console execution context doesn't hit this, which is why
+# the weekly scheduled run showed "Last Result: 0" even on days this would
+# have crashed interactively.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 _DEFAULT_DB = "data/twscrape_accounts.db"
 _SUPPORTED_BROWSERS = ["chrome", "firefox", "edge", "chromium", "brave", "brave-nightly"]
 
@@ -120,14 +132,19 @@ async def _refresh_async(cookies: dict[str, str], db_path: str) -> bool:
     try:
         async for tweet in api.search("news", limit=1):
             author = tweet.user.displayname if tweet.user else "unknown"
-            print(f"✓ Auth verified — found tweet by @{author}")
+            # Plain ASCII only -- Task Scheduler's non-console execution context
+            # tolerates Unicode fine, but an interactive Windows console (cp1252)
+            # crashes on checkmark glyphs with UnicodeEncodeError, which used to
+            # abort this function AFTER the cookie write had already succeeded,
+            # falsely reporting the whole refresh as failed.
+            print(f"OK: auth verified -- found tweet by @{author}")
             return True
     except Exception as exc:
-        print(f"✗ Verification failed: {exc}")
+        print(f"FAILED: verification error: {exc}")
         print("  Cookies may be expired. Log into x.com and retry.")
         return False
 
-    print("✗ No results returned — cookies may be invalid.")
+    print("FAILED: no results returned -- cookies may be invalid.")
     return False
 
 
@@ -161,12 +178,12 @@ def main() -> None:
     parser.add_argument(
         "--auth-token", default=None,
         metavar="TOKEN",
-        help="auth_token value (from DevTools → Application → Cookies → x.com).",
+        help="auth_token value (from DevTools -> Application -> Cookies -> x.com).",
     )
     parser.add_argument(
         "--ct0", default=None,
         metavar="VALUE",
-        help="ct0 value (from DevTools → Application → Cookies → x.com).",
+        help="ct0 value (from DevTools -> Application -> Cookies -> x.com).",
     )
     parser.add_argument(
         "--db", default=_DEFAULT_DB,
@@ -185,7 +202,7 @@ def main() -> None:
     else:
         parser.print_help()
         print("\nFor Brave Nightly / Chrome 127+ (auth_token is HttpOnly — DevTools only):")
-        print("  F12 → Application → Cookies → https://x.com → copy auth_token and ct0 values, then:")
+        print("  F12 -> Application -> Cookies -> https://x.com -> copy auth_token and ct0 values, then:")
         print('  python scripts/refresh_twitter.py --auth-token TOKEN --ct0 CT0VALUE')
         sys.exit(1)
 

@@ -399,6 +399,29 @@ class Database:
             ).fetchone()
         return row is not None
 
+    def get_comment_source_staleness_days(self) -> dict[str, float | None]:
+        """Days since the most recent article_comments row per source
+        (twitter, youtube, hn, bluesky). None if a source has never produced
+        a single row. fetch_twitter_comments/fetch_youtube_comments in
+        social.py swallow all errors internally and log at DEBUG (best-effort
+        by design), so a broken credential (expired twscrape cookies, a
+        revoked/quota-exhausted YouTube key) produces zero visible errors —
+        this is the only way to notice from outside. Called once per pipeline
+        run in _finalize() to drive the staleness notification."""
+        now = datetime.now(timezone.utc)
+        result: dict[str, float | None] = {}
+        with self._conn() as con:
+            for source in ("twitter", "youtube", "hn", "bluesky"):
+                row = con.execute(
+                    "SELECT MAX(fetched_at) FROM article_comments WHERE source=?", (source,)
+                ).fetchone()
+                if row and row[0]:
+                    last = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
+                    result[source] = (now - last).total_seconds() / 86400
+                else:
+                    result[source] = None
+        return result
+
     def backfill_social_signals_from_comments(self, source: str) -> int:
         """Create missing social_signals rows for articles that already have
         stored comments from `source` but no aggregated signal row.

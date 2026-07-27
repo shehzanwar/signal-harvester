@@ -16,7 +16,7 @@ from harvester.enrich.prompts import PROMPT_VERSION, prompt_template_hash
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
 from harvester.notify import notify
-from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_twitter_comments, fetch_youtube_comments
+from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_twitter_comments, fetch_youtube_comments, twscrape_account_status
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
 from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
@@ -520,6 +520,43 @@ def _finalize(
         f"(extract={counts['failed_extract']} llm={counts['failed_llm']} "
         f"prefiltered={counts['noise_prefiltered']})"
     )
+    _check_social_health(db, cfg)
+
+
+def _check_social_health(db: Database, cfg: ProfileConfig) -> None:
+    """Twitter/YouTube comment fetching swallow all errors internally at
+    DEBUG level (best-effort by design — see social.py) so an expired
+    twscrape cookie or a revoked/quota-exhausted YouTube key produces zero
+    visible failures. This is the only place that notices. Only checks
+    sources this profile actually has configured, so profiles that never
+    set up Twitter/YouTube don't get false alarms."""
+    STALE_DAYS = 4
+    staleness = db.get_comment_source_staleness_days()
+
+    tw_db = cfg.social.twitter.db_path
+    if os.path.exists(tw_db):
+        tw_status = twscrape_account_status(tw_db)
+        if tw_status != "ok":
+            notify(
+                f"[{cfg.profile}] Twitter comments broken (status={tw_status})",
+                "twscrape has no usable logged-in account — cookies likely expired "
+                "(happens every 2-4 weeks). Re-extract auth_token+ct0 from browser "
+                "and re-run `twscrape add_accounts` + `login_accounts` to restore.",
+                priority="default",
+                tags="warning,twitter",
+            )
+
+    if os.environ.get("YOUTUBE_API_KEY"):
+        yt_age = staleness["youtube"]
+        if yt_age is None or yt_age > STALE_DAYS:
+            age_str = f"{yt_age:.1f}d ago" if yt_age is not None else "never"
+            notify(
+                f"[{cfg.profile}] No new YouTube comments ({age_str})",
+                f"Last successful fetch: {age_str} (threshold {STALE_DAYS}d). "
+                "Check YOUTUBE_API_KEY quota/validity.",
+                priority="default",
+                tags="warning,youtube",
+            )
 
 
 def backfill(

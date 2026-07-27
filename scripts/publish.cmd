@@ -26,9 +26,13 @@ CALL "%VENV%\Scripts\activate.bat"
 
 ECHO.
 ECHO [1/4] Running pipeline...
-python -m harvester --profile "%PROFILE%" run
+REM Task Scheduler's "Start a Program" action does not capture stdout/stderr
+REM on its own -- without this redirect, a scheduled run's pipeline output
+REM (including stage-by-stage social/comments logging) is discarded entirely
+REM and unrecoverable after the fact. See logs\pipeline-run.log.
+python -m harvester --profile "%PROFILE%" run >> logs\pipeline-run.log 2>&1
 IF ERRORLEVEL 1 (
-    ECHO Pipeline failed. Aborting publish.
+    ECHO Pipeline failed. See logs\pipeline-run.log. Aborting publish.
     EXIT /B 1
 )
 

@@ -520,6 +520,45 @@ def fetch_twitter_comments(
         return []
 
 
+def twscrape_account_status(db_path: str = "data/twscrape_accounts.db") -> str:
+    """Live-request check of whether twscrape can actually authenticate.
+
+    Deliberately does NOT trust accounts_info()'s "logged_in" field: that
+    flag only reflects twscrape's username/password login flow (it checks
+    for a bearer-token Authorization header), but this project uses
+    cookie-injected accounts (see refresh_twitter.py) — which read
+    logged_in=False *permanently*, even seconds after a verified-working
+    cookie refresh. A cheap real search is the only reliable signal.
+
+    fetch_twitter_comments() swallows login/auth failures at DEBUG level
+    (best-effort by design), so a caller that wants to *notice* expired
+    cookies — which happens every 2-4 weeks — needs this separate check.
+    Returns one of:
+      "not_installed" | "no_db" | "no_accounts" | "auth_failed" | "ok"
+    """
+    try:
+        import twscrape as _twscrape  # optional dependency
+    except ImportError:
+        return "not_installed"
+    if not os.path.exists(db_path):
+        return "no_db"
+
+    async def _check() -> str:
+        api = _twscrape.API(db_path)
+        accounts = await api.pool.accounts_info()
+        if not accounts:
+            return "no_accounts"
+        async for _tweet in api.search("news", limit=1):
+            return "ok"
+        return "ok"  # zero matches is still a valid authenticated response
+
+    try:
+        return asyncio.run(_check())
+    except Exception as exc:
+        log.debug("twscrape_status_check_failed err=%s", exc)
+        return "auth_failed"
+
+
 async def _fetch_twitter_async(
     article_url: str,
     article_title: str,
