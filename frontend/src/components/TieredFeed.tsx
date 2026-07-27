@@ -1,8 +1,12 @@
-import React, { useState } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { collapseClusters } from "../lib/clusters";
-import { useIsMobile } from "../lib/hooks";
+import { maybeExplore, recordCategoryImpression } from "../lib/exploration";
+import { useImpressionTracker, useIsMobile } from "../lib/hooks";
 import type { Article } from "../types";
 import { ArticleCard } from "./ArticleCard";
+import { MobileHeadlineCard } from "./MobileHeadlineCard";
+import { SwipeableCard } from "./SwipeableCard";
 
 interface Props {
   articles: Article[];
@@ -28,6 +32,7 @@ interface Props {
   onToggleSelect?: (id: string) => void;
   onExitBriefMode?: () => void;
   statsSlot?: React.ReactNode;
+  openedIdsRef?: React.RefObject<Set<string>>;
 }
 
 const T1_HERO_COUNT = 5;
@@ -66,6 +71,133 @@ function DateLabel({ label }: { label: string }) {
   );
 }
 
+// Routes every card render through one place: mobile always gets the
+// lightweight headline variant (regardless of the desktop `compact`
+// toggle — see the `t1Compact`/`t2Compact` comment below on why those two
+// concerns are independent), desktop keeps ArticleCard as before.
+type CardProps = Omit<React.ComponentProps<typeof ArticleCard>, "article" | "compact">;
+
+function FeedCard({
+  article,
+  compact,
+  isMobile,
+  observeCard,
+  ...rest
+}: { article: Article; compact: boolean; isMobile: boolean; observeCard?: (el: HTMLElement | null) => void } & CardProps) {
+  const card = isMobile ? (
+    // Swipe is the only read/save affordance on the mobile card (it has no
+    // room for tap buttons — see Task 2.2's notes). Disabled in batch-select
+    // mode, where a tap already means "select" and an accidental swipe
+    // shouldn't silently mutate read/save state for a card mid-selection.
+    <SwipeableCard
+      disabled={rest.batchMode}
+      onSwipeLeft={() => rest.onToggleSave?.(article.id)}
+      onSwipeRight={() => rest.onToggleRead?.(article.id)}
+    >
+      <MobileHeadlineCard article={article} {...rest} />
+    </SwipeableCard>
+  ) : (
+    <ArticleCard article={article} compact={compact} {...rest} />
+  );
+
+  // Only T3 is worth observing for the impression tracker (Task 3.2) — T1/T2
+  // are editorially important regardless of engagement. Skip the wrapper
+  // entirely for other tiers rather than paying for an unused IntersectionObserver target.
+  if (article.tier !== "T3" || !observeCard) return card;
+  return (
+    <div ref={observeCard} data-article-id={article.id}>
+      {card}
+    </div>
+  );
+}
+
+// ── T3 virtualization ──────────────────────────────────────────────────────
+// T3 ("Background") routinely holds 70%+ of all articles (4,624 of 6,406 in
+// the current export) and always renders as a single-column list, so it's
+// the one section worth virtualizing — T1 is capped at a handful of items
+// and T2 renders as a responsive CSS grid (2-3 cols), which @tanstack's
+// row-based virtualizer doesn't model without also tracking Tailwind's
+// breakpoints in JS. Left as a normal render for now.
+type T3Item = { type: "header"; label: string } | { type: "article"; article: Article };
+
+function flattenT3(t3: Article[]): T3Item[] {
+  const groups = groupByDate(t3);
+  const showHeaders = groups.length > 1;
+  const flat: T3Item[] = [];
+  for (const { label, items } of groups) {
+    if (showHeaders) flat.push({ type: "header", label });
+    for (const a of items) flat.push({ type: "article", article: a });
+  }
+  return flat;
+}
+
+function VirtualizedT3List({
+  items,
+  cardProps,
+  isMobile,
+  observeCard,
+}: {
+  items: T3Item[];
+  cardProps: (a: Article) => CardProps;
+  isMobile: boolean;
+  observeCard?: (el: HTMLElement | null) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  // Recompute after every commit, not just on mount: content above this
+  // section (T1 hero, T2 grid) can change height as data/images settle,
+  // which shifts this container's offsetTop out from under a one-shot
+  // capture and desyncs the virtualizer's scroll-position math.
+  useLayoutEffect(() => {
+    if (containerRef.current && containerRef.current.offsetTop !== scrollMargin) {
+      setScrollMargin(containerRef.current.offsetTop);
+    }
+  });
+
+  const virtualizer = useWindowVirtualizer({
+    count: items.length,
+    // Compact ArticleCard rows run ~57px, MobileHeadlineCard's two-line
+    // layout runs closer to ~72px; date headers ~28px either way. Corrected
+    // per-item after mount via measureElement — this estimate only affects
+    // the very first paint.
+    estimateSize: (i) => (items[i]?.type === "header" ? 28 : isMobile ? 72 : 57),
+    overscan: 8,
+    scrollMargin,
+  });
+
+  return (
+    <div ref={containerRef} className="relative rounded-lg border border-neutral-800" style={{ height: virtualizer.getTotalSize() }}>
+      {virtualizer.getVirtualItems().map((row) => {
+        const item = items[row.index];
+        return (
+          <div
+            key={row.key}
+            data-index={row.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${row.start - scrollMargin}px)`,
+            }}
+          >
+            {item.type === "header" ? (
+              <div className="px-1">
+                <DateLabel label={item.label} />
+              </div>
+            ) : (
+              <div className="border-b border-neutral-800 last:border-b-0">
+                <FeedCard article={item.article} compact isMobile={isMobile} observeCard={observeCard} {...cardProps(item.article)} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TieredFeed({
   articles,
   search,
@@ -90,6 +222,7 @@ export function TieredFeed({
   onToggleSelect,
   onExitBriefMode,
   statsSlot,
+  openedIdsRef,
 }: Props) {
   const isMobile = useIsMobile();
   // T1 and T2 compact list mode is only available on desktop — on mobile both
@@ -129,6 +262,36 @@ export function TieredFeed({
   // Collapse corroborating clusters to one representative each BEFORE splitting
   // into tiers, so a T1 representative also suppresses its lower-tier members.
   const reps = collapseClusters(filtered);
+
+  // Impression tracking (Task 3.2) — see useImpressionTracker's own doc
+  // comment for why this is a ref-callback rather than a container scan.
+  const fallbackOpenedIdsRef = useRef<Set<string>>(new Set());
+  const observeCard = useImpressionTracker(reps, openedIdsRef ?? fallbackOpenedIdsRef);
+
+  // Category exploration (Task 3.4) — only meaningful in "For You" mode, but
+  // computed unconditionally (hooks can't be called from inside the
+  // mode === "foryou" branch below, which sits after two early returns).
+  // `maybeExplore` rolls real randomness, so its result is memoized on the
+  // ranked list's top-10 id signature rather than recomputed every render —
+  // otherwise an unrelated re-render (toggling read/save on any card) would
+  // re-roll the dice and could flicker a different explore pick in or out.
+  const nonNoiseReps = useMemo(() => reps.filter((a) => a.tier !== "NOISE"), [reps]);
+  const rankedForYou =
+    mode === "foryou" && forYouOrder ? forYouOrder(reps).filter((a) => a.tier !== "NOISE") : nonNoiseReps;
+  const exploreKey = mode === "foryou" ? rankedForYou.slice(0, 10).map((a) => a.id).join(",") : "";
+  const exploredForYou = useMemo(
+    () => (mode === "foryou" ? maybeExplore(rankedForYou, nonNoiseReps) : rankedForYou),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- exploreKey is the intended stability key, not rankedForYou/nonNoiseReps by reference
+    [exploreKey, mode],
+  );
+  const shownCategoriesKey = useMemo(
+    () => [...new Set(exploredForYou.map((a) => a.category).filter((c): c is string => !!c))].sort().join(","),
+    [exploredForYou],
+  );
+  useEffect(() => {
+    if (mode !== "foryou" || !shownCategoriesKey) return;
+    for (const c of shownCategoriesKey.split(",")) recordCategoryImpression(c);
+  }, [mode, shownCategoriesKey]);
 
   const cardProps = (a: Article) => ({
     isRead: readIds.has(a.id),
@@ -173,7 +336,7 @@ export function TieredFeed({
           <Section title="Critical" emoji="🔴" count={t1All.length} accent="text-red-400">
             <div className="space-y-4">
               {t1b.map((a) => (
-                <ArticleCard key={a.id} article={a} compact={compact} {...cardProps(a)} />
+                <FeedCard key={a.id} article={a} compact={compact} isMobile={isMobile} {...cardProps(a)} />
               ))}
             </div>
           </Section>
@@ -182,7 +345,7 @@ export function TieredFeed({
           <Section title="Notable" emoji="🟡" count={t2b.length} accent="text-amber-400">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {top3.map((a) => (
-                <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+                <FeedCard key={a.id} article={a} compact={false} isMobile={isMobile} {...cardProps(a)} />
               ))}
             </div>
           </Section>
@@ -208,14 +371,14 @@ export function TieredFeed({
 
   // ── For You: a single ranked, cross-tier list ────────────────────────────────
   if (mode === "foryou") {
-    const ranked = (forYouOrder ? forYouOrder(reps) : reps).filter((a) => a.tier !== "NOISE");
     return (
       <div className="space-y-3">
-        {ranked.map((a) => (
-          <ArticleCard
+        {exploredForYou.map((a) => (
+          <FeedCard
             key={a.id}
             article={a}
             compact={a.tier === "T1" || a.tier === "T2" ? false : compactFor(a)}
+            isMobile={isMobile}
             {...cardProps(a)}
           />
         ))}
@@ -247,7 +410,7 @@ export function TieredFeed({
                     {showHeroHeaders && <DateLabel label={label} />}
                     <div className="space-y-4">
                       {items.map((a) => (
-                        <ArticleCard key={a.id} article={a} compact={false} {...cardProps(a)} />
+                        <FeedCard key={a.id} article={a} compact={false} isMobile={isMobile} {...cardProps(a)} />
                       ))}
                     </div>
                   </div>
@@ -276,9 +439,9 @@ export function TieredFeed({
                     {restGroups.map(({ label, items }) => (
                       <div key={label}>
                         {showRestHeaders && <DateLabel label={label} />}
-                        <div className={t1Compact ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
+                        <div className={t1Compact || isMobile ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800" : "space-y-4"}>
                           {items.map((a) => (
-                            <ArticleCard key={a.id} article={a} compact={t1Compact} {...cardProps(a)} />
+                            <FeedCard key={a.id} article={a} compact={t1Compact} isMobile={isMobile} {...cardProps(a)} />
                           ))}
                         </div>
                       </div>
@@ -307,13 +470,13 @@ export function TieredFeed({
                     {showHeaders && <DateLabel label={label} />}
                     <div
                       className={
-                        t2Compact
+                        t2Compact || isMobile
                           ? "divide-y divide-neutral-800 rounded-lg border border-neutral-800"
                           : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
                       }
                     >
                       {items.map((a) => (
-                        <ArticleCard key={a.id} article={a} compact={t2Compact} {...cardProps(a)} />
+                        <FeedCard key={a.id} article={a} compact={t2Compact} isMobile={isMobile} {...cardProps(a)} />
                       ))}
                     </div>
                   </div>
@@ -336,24 +499,9 @@ export function TieredFeed({
           open={showT3}
           onToggle={() => setShowT3((v) => !v)}
         >
-          {showT3 && (() => {
-            const groups = groupByDate(t3);
-            const showHeaders = groups.length > 1;
-            return (
-              <div className="space-y-4">
-                {groups.map(({ label, items }) => (
-                  <div key={label}>
-                    {showHeaders && <DateLabel label={label} />}
-                    <div className="divide-y divide-neutral-800 rounded-lg border border-neutral-800">
-                      {items.map((a) => (
-                        <ArticleCard key={a.id} article={a} compact {...cardProps(a)} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+          {showT3 && (
+            <VirtualizedT3List items={flattenT3(t3)} cardProps={cardProps} isMobile={isMobile} observeCard={observeCard} />
+          )}
         </Section>
       )}
 
@@ -370,7 +518,7 @@ export function TieredFeed({
             {showNoise && (
               <div className="mt-3 divide-y divide-neutral-800 rounded border border-neutral-800 text-left">
                 {noise.map((a) => (
-                  <ArticleCard key={a.id} article={a} compact {...cardProps(a)} />
+                  <FeedCard key={a.id} article={a} compact isMobile={isMobile} {...cardProps(a)} />
                 ))}
               </div>
             )}

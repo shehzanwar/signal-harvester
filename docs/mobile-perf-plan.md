@@ -1,0 +1,1003 @@
+# Signal-Harvester: Implementation Plan (verified)
+## Performance, Mobile UX, Algorithm & Feature Roadmap
+
+**Estimated timeline**: 4-6 weeks (solo, ~2-3 hrs/day)
+**Guiding principle**: every change serves the core use case — a single
+user's personal daily briefing, transparent, fast, mobile-first.
+
+**Status**: paths and code snippets below have been checked against the
+actual repo (as of 2026-07-27). Corrections from the original draft are
+marked **[FIXED]**; everything else was already accurate.
+
+---
+
+## Phase 1: Performance Foundation (Week 1)
+
+**Goal**: eliminate the 10MB static JSON payload and unvirtualized DOM
+rendering. Confirmed real: `site/data/articles.json` is 10.68MB, written by
+`harvester/export.py:106`, and `frontend/src/components/TieredFeed.tsx`
+renders one `<ArticleCard>` per article with no virtualization.
+
+### Task 1.1: Split static export into tiered payloads **[FIXED paths + scope] [PARTIALLY DONE]**
+
+**Status (2026-07-27)**: the `today` tier is implemented and verified —
+`harvester/export.py` writes `articles-today.json` (filtered from the
+already-clustered list via the same `fetched_at >= today` definition
+`get_articles_page` uses), `frontend/src/api/client.ts` routes
+`today_only: true` to it in static mode, `todayOnly` now defaults to
+`IS_STATIC_MODE`, and a background `prefetchQuery` warms the full
+`articles.json` so toggling "Today only" off is instant. Confirmed via a
+built static bundle: initial load fetched only the today file, the toggle
+switched to the full 6,406-article set with zero new network requests.
+**Deferred**: the `week` tier, the `all-lite` schema, and per-article
+on-demand `articles/{id}.json` fetching below — these touch client-side
+search/filtering and `DetailPanel`'s field usage and need their own pass so
+as not to silently break search over fields the lite schema would strip.
+
+**File**: `harvester/export.py` (was: `pipeline/export.py` — that directory
+doesn't exist; the real export module is `harvester/`)
+
+The live FastAPI backend already paginates via `limit`/`offset` in
+`get_articles_page` (`harvester/store/db.py:666`), so the 10MB problem is
+**static-export-only**. Don't add a `since=` filter to `/api/articles` (it
+has none today — only `tier`, `limit`, `offset`, `search`, `today_only`).
+Instead:
+
+```python
+# harvester/export.py — replace the single write("articles.json", ...) with:
+
+def export_site(cfg: ProfileConfig, out_dir: str = "site") -> None:
+    ...
+    articles = db.get_enriched_articles()
+    clean = [strip(a) for a in articles]
+    attach_cluster_metadata(clean)
+    tag_categories(clean, cfg)
+
+    today_cutoff = _iso_hours_ago(24)
+    week_cutoff = _iso_hours_ago(168)
+    today = [a for a in clean if a["published_at"] >= today_cutoff]
+    week = [a for a in clean if a["published_at"] >= week_cutoff]
+    all_lite = [_lite(a) for a in clean]  # strip enrich_summary, social[], full_text
+
+    write("articles-today.json", {"total": len(today), "items": today})
+    write("articles-week.json", {"total": len(week), "items": week})
+    write("articles-all-lite.json", {"total": len(all_lite), "items": all_lite})
+    for a in clean:
+        write(f"articles/{a['id']}.json", a)  # full record, on-demand only
+```
+
+**File**: `frontend/src/api/client.ts` (was: `frontend/src/lib/client.ts` —
+the real client lives at `api/client.ts`; `IS_STATIC`/`getStatic` pattern at
+line 12 already matches this design)
+
+```typescript
+articles: {
+  today: () => IS_STATIC
+    ? getStatic("articles-today.json")
+    : get("/articles?today_only=true"),   // today_only already exists on the backend
+  week: () => IS_STATIC
+    ? getStatic("articles-week.json")
+    : get("/articles?limit=2000"),        // no week tier needed live — already paginated
+  all: () => IS_STATIC
+    ? getStatic("articles-all-lite.json")
+    : get("/articles?limit=2000"),
+  full: (id) => IS_STATIC
+    ? getStatic(`articles/${id}.json`)
+    : get(`/articles/${id}`),
+}
+```
+
+No backend endpoint changes required — this was the main scope cut from the
+original draft, which assumed a `since=Nh` param that doesn't exist and
+would have silently no-op'd in live mode.
+
+**Acceptance criteria**: unchanged from original draft (initial load <2s on
+4G, `articles-today.json` <300KB gzipped, DetailPanel fetches full article
+on open, "load earlier" button, no visual regression).
+
+**Effort**: 4-6 hours.
+
+---
+
+### Task 1.2: Virtualize the article feed **[FIXED — narrowed scope] [PARTIALLY DONE]**
+
+**Status (2026-07-27)**: implemented for the T3 ("Background") section only,
+via `@tanstack/react-virtual`'s `useWindowVirtualizer`
+(`frontend/src/components/TieredFeed.tsx`, new `VirtualizedT3List`
+component). This is a deliberate narrowing from the original two-step plan
+below, made after actually reading the full 433-line file: real tier counts
+in the current export are **T1: 240, T2: 1,483, T3: 4,624, NOISE: 59** — T3
+alone is ~72% of all articles and is always a single-column list
+(`divide-y`), while T1 is capped to a 5-item hero + small "rest" list and T2
+renders as a **responsive CSS grid** (`grid gap-4 sm:grid-cols-2
+lg:grid-cols-3`). Virtualizing a grid with `@tanstack/react-virtual`'s
+row-based model requires tracking Tailwind's `sm`/`lg` breakpoints in JS to
+know columns-per-row — a genuinely separate technique, not a variant of the
+list case. So: virtualize where the DOM bloat actually is (T3), leave T1/T2
+as normal renders (small enough, and grid virtualization is its own task if
+T2 ever grows enough to need it).
+
+Implementation notes for whoever picks up the deferred grid case, or
+extends this further:
+- `flattenT3()` turns T3's date-grouped `Article[]` into a flat
+  `{type: "header"|"article"}[]`, matching the original draft's `FlatItem`
+  idea but scoped to just this one section instead of the whole feed.
+- `VirtualizedT3List` uses `measureElement` for per-row height correction
+  (initial estimate: 57px article / 28px header) and recomputes
+  `scrollMargin` in a **dependency-less `useLayoutEffect`** (not a one-shot
+  mount callback) — the container's `offsetTop` shifts as T1/T2 above it
+  finish rendering, and a single capture at mount goes stale. Caught this
+  via a `window.__t3v` debug hook during verification before removing it.
+- **Verification caveat**: confirmed via inspection that `scrollMargin` and
+  `getTotalSize()` compute correctly (container top = 112,621px, total
+  height = 11,789px for T3's 206 rendered items in the dev dataset — matches
+  item count × measured row height), and that unvirtualized DOM node count
+  for the section dropped to ~9 rendered rows / 168 total nodes regardless
+  of item count. Could **not** confirm live scroll-driven index updates in
+  this session — the automated browser pane wasn't visually displayed, and
+  without compositing, `window.scrollTo()` / `scrollBy()` don't dispatch
+  `scroll` events at all (verified: a manually attached listener received
+  zero events despite `window.scrollY` genuinely changing), which starves
+  `useWindowVirtualizer`'s own scroll tracking the same way. This is a test
+  harness limitation, not a code path exercised only in dev — recommend a
+  manual scroll-and-watch-DOM-node-count spot check next time the app is
+  open in a real, visible browser tab before calling this fully verified.
+
+**Deferred / not done**: the original plan's "flatten everything into one
+list" approach (T1 + T2 + T3 unified); T2 grid virtualization.
+
+**Effort spent**: ~3 hours (narrower scope than either estimate below).
+
+---
+
+<details>
+<summary>Original two-step plan (superseded by the narrower T3-only approach above)</summary>
+
+**File**: `frontend/src/components/TieredFeed.tsx` (433 lines, confirmed 8
+separate `<ArticleCard>` call sites across independent branches: rest-T1
+collapse, noise toggle, T3 toggle, cluster-collapsed groups, desktop vs.
+mobile compact variants).
+
+Do this in two steps, not one — the original draft's single `flatItems`
+`useMemo` assumed a simple `.map()`, which undercounts the real branching:
+
+**Step A (new, ~2-3h)**: extract the existing branch logic into one pure
+function before touching the virtualizer:
+
+```typescript
+// frontend/src/components/TieredFeed.tsx
+function buildFeedSections(
+  articles: Article[],
+  opts: { compact: boolean; isMobile: boolean; showNoise: boolean; showT3: boolean; showRestT1: boolean },
+): FlatItem[] {
+  // Port each of the 8 existing branches' filtering/grouping logic here,
+  // in order, so this function's output is provably equivalent to what
+  // the current unvirtualized render produces before any virtualization
+  // is added.
+}
+```
+
+**Step B**: feed that into `@tanstack/react-virtual` per the original
+draft's sketch (unchanged — that part was correct once the flattening
+actually accounts for all 8 branches).
+
+**Effort**: 8-11 hours (revised up from the original 6-8h estimate — Step A
+is the part the original draft didn't scope).
+
+</details>
+
+---
+
+### Task 1.3: Memoize expensive computations **[DONE, narrower than drafted]**
+
+**Status (2026-07-27)**: implemented, but three of the original draft's four
+sub-items turned out to already be handled in the current code — verified
+by reading `frontend/src/App.tsx` before touching it, rather than assuming
+the draft's "called 4-5 times per render" framing still applied:
+
+- `categoryCounts`, `subcategoryCounts`, and `readProgress` were **already**
+  wrapped in `useMemo` with correct deps, each calling `collapseClusters` on
+  its own already-memoized input. No change needed.
+- The one real gap: `flatArticles` (line ~318) called `flattenArticles(...)`
+  — which calls `collapseClusters` internally — directly in the render
+  body, unmemoized, on every render. Fixed: wrapped in `useMemo` keyed on
+  `[tagFilteredArticles, isServerSearch, search, showSavedOnly, savedIds]`.
+- `date-fns`'s `formatDistanceToNow` replaced with a zero-dependency
+  `formatRelative()` (`frontend/src/lib/format.ts`, `Intl.RelativeTimeFormat`-based)
+  at all three call sites (`ArticleCard.tsx`, `DetailPanel.tsx`,
+  `KPIStrip.tsx`), and `date-fns` removed from `package.json`. One wording
+  note: date-fns's `formatDistanceToNow` prefixes hour/day-scale results
+  with "about" (e.g. "about 3 hours ago"); `Intl.RelativeTimeFormat` doesn't
+  ("3 hours ago"). Accepted as part of the same swap. KPIStrip's
+  never-run-yet case (`null` timestamp) keeps its original "never" wording
+  via a 2-line local wrapper, since the shared formatter's generic "unknown"
+  read worse there.
+- **Deferred, not done**: the draft's "precompute relative times into a
+  single `Map`" — this stops mattering once `ArticleCard` is properly
+  memoized (Task 1.4): `React.memo` bails out of re-rendering a card
+  entirely when its props haven't changed, so the card's own
+  `formatRelative` call never even runs on an unrelated toggle. Lifting it
+  into a prop threaded through all 8 `TieredFeed` call sites would add
+  surface area for no measurable benefit once memoization is in place.
+
+### Task 1.4: React.memo + code splitting **[DONE]**
+
+**Status (2026-07-27)**: `ArticleCard` wrapped in `memo(...)` using the
+**default** shallow-prop comparator, not the draft's custom one — checked
+that `article` keeps stable identity across renders (sourced from the
+react-query cache, only a new reference on refetch) and every other prop is
+a primitive (booleans, string ids, stable `useCallback` handlers), so a
+default shallow compare already bails correctly; a custom comparator would
+have been redundant, and the draft's version referenced a `relativeTime`
+prop that doesn't exist (see Task 1.3 above — that prop was never added).
+
+`DetailPanel`/`PrefsPanel`/`StatsPanel` converted to `React.lazy` in
+`App.tsx`, each gated behind its own open condition
+(`{detailArticle && <Suspense>...}`, `{prefsOpen && ...}`,
+`{statsOpen && ...}`) rather than left unconditionally mounted — all three
+already return `null` internally when closed, but `React.lazy` triggers its
+dynamic import as soon as the component is *rendered*, closed or not, so
+gating on the same condition that used to just return `null` is what
+actually defers the network request to first-open instead of first-paint.
+
+**Verified**: `npm run build` shows all three as separate chunks
+(`DetailPanel-*.js` 11.54KB, `PrefsPanel-*.js` 7.44KB, `StatsPanel-*.js`
+6.33KB), no longer in the main bundle. In a live dev-mode browser session:
+opened Stats, Preferences, and a Detail panel in turn — each rendered its
+real content with no console errors, and `DetailPanel` displayed "5 hours
+ago · enriched 4 hours ago", confirming the date-fns replacement produces
+correct output, not just a clean type-check.
+
+---
+
+## Phase 2: Mobile UX Overhaul (Week 2)
+
+### Task 2.1: ~~Fix the Compact Mode Paradox~~ **[REMOVED]**
+
+`TieredFeed.tsx:95-96` has an explicit comment: *"T1 and T2 compact list
+mode is only available on desktop — on mobile both always render as full
+cards so all badges and the inline summary remain visible."* This is
+deliberate design, not a bug. Do not touch `t1Compact`/`t2Compact`. Delete
+this task; go straight to 2.2.
+
+### Task 2.2: Mobile headline card variant **[DONE]**
+
+**Status (2026-07-27)**: `MobileHeadlineCard` built
+(`frontend/src/components/MobileHeadlineCard.tsx`) and wired into all 8
+`ArticleCard` call sites in `TieredFeed.tsx` via a new `FeedCard` routing
+component (`isMobile ? <MobileHeadlineCard/> : <ArticleCard compact={...}/>`)
+rather than repeating the ternary at each site — desktop's `compact` logic
+from Task 1.3/1.4 is untouched. `VirtualizedT3List` (Task 1.2) now takes
+`isMobile` as a prop and routes through `FeedCard` too, with its
+`estimateSize` bumped from 57px to 72px for mobile rows.
+
+Two deviations from the original sketch, found by actually measuring in a
+browser rather than shipping the sketch as-is:
+- The original sketch used a full `SentimentBadge` chip (border + padding +
+  two spans) plus two 32px icon buttons in the meta row. Measured at 375px
+  width: this reliably wrapped to a second line, producing **125px** cards
+  — 45px over the ≤80px target. Replaced with a plain colored
+  icon+score (`↓0.8`, no border/background) and dropped the inline
+  save/read buttons entirely (the original sketch declared
+  `onToggleSave`/`onToggleRead` props but never actually called them in its
+  own JSX either — it was relying on swipe gestures from Task 2.3 for that
+  interaction, not tap targets on the card). Re-measured: **~81px**, meeting
+  the target.
+- The `t1Compact`/`t2Compact` desktop-only flags (`compact && !isMobile`)
+  drive the *wrapper* `<div>` styling (list vs. grid) independent of which
+  card component renders inside it. Changed those two wrapper conditions to
+  `t1Compact || isMobile` / `t2Compact || isMobile` so mobile always gets
+  the tight `divide-y` single-column treatment instead of a `grid-cols-2/3`
+  class that would sit inert below the `sm:` breakpoint anyway.
+
+**Verified**: in a live browser session at a 375×812 viewport, sampled 8
+card heights directly via `getBoundingClientRect()` — 81-82px, no console
+errors, tapping a card opens `DetailPanel` correctly. Resized to 1280px:
+cards switch back to the full desktop `ArticleCard` (211px, unaffected)
+confirming the `isMobile` gate works both directions, not just one.
+
+**Not done / deferred to Task 2.3**: tap-to-toggle read/save on the mobile
+card itself — the save star is currently display-only. Swipe actions are
+next per the plan, and are the intended primary mobile interaction for this
+per the original sketch's own design (see above).
+
+**Effort spent**: ~3 hours.
+
+### Task 2.3: Swipe actions on cards **[DONE, one bug found + fixed]**
+
+**Status (2026-07-27)**: `SwipeableCard` built
+(`frontend/src/components/SwipeableCard.tsx`) and wired around
+`MobileHeadlineCard` inside `TieredFeed.tsx`'s `FeedCard` router — swipe
+left saves, swipe right marks read, disabled during batch-select mode
+(a tap already means "select" there; an accidental swipe shouldn't mutate
+read/save state for a card mid-selection).
+
+**Deviation from the original sketch**: built on **Pointer Events**, not
+Touch Events — unifies mouse/touch/pen and, incidentally, is what made this
+testable at all in this session (see below).
+
+**A real bug, not just a test artifact**: `setPointerCapture` throws
+`NotFoundError: No active pointer with the given id is found` for pointer
+IDs the browser has no active session for. This surfaced *because* of
+synthetic-event testing (a genuine touch/mouse drag always has a valid,
+browser-issued pointer ID, so this wouldn't reproduce on a real device) —
+but the failure mode it exposed is real: an uncaught throw inside
+`onPointerMove` aborted the rest of the handler, silently skipping
+`setOffset` *and* the `suppressClick` flag for the remainder of that
+gesture. Wrapped the capture call in a `try/catch` — it's a best-effort
+call anyway (keeps tracking the pointer if it drifts outside the card
+mid-drag; the pointer-ID equality check earlier in the handler already
+covers correctness without it), so a throw must not derail the gesture.
+
+**Verified end-to-end** via synthetic `PointerEvent` dispatch at a 375px
+viewport (real touch/mouse drags can't be simulated in this session's
+non-composited preview pane — same limitation noted in Task 1.2 — so this
+substitutes direct event dispatch, split across separate calls so React's
+state updates flush between each one, matching real per-frame drag timing):
+- Swipe right (dx +150, past the 80px threshold) → `localStorage`'s
+  `signal-read` gained the article's id.
+- Swipe left (dx -150) → `signal-saved` gained the id, and a subsequent
+  `.click()` on the same card did **not** open `DetailPanel` (suppressed).
+- A pure vertical drag (dy +100, dx 0) → no transform, no read/save change,
+  and a plain tap on the *same* card afterward still opened `DetailPanel`
+  normally — confirms axis-locking doesn't leave the card in a broken state
+  for subsequent normal taps.
+
+**Deferred, not done**: haptic feedback (`navigator.vibrate(10)`) is wired
+into the code but unverified — this environment has no real device to
+confirm the vibration call itself, only that it's reached (browsers without
+`navigator.vibrate` silently no-op via the `"vibrate" in navigator` guard).
+
+**Effort spent**: ~2.5 hours (most of it tracing the `setPointerCapture`
+failure once synthetic testing surfaced it).
+
+### Task 2.4: DetailPanel mobile gestures **[DONE, scoped down]**
+
+**Status (2026-07-27)**: swipe-to-dismiss, a drag handle, and backdrop-opacity
+coupling implemented in `frontend/src/components/DetailPanel.tsx`, using the
+same Pointer Events + `try/catch`-guarded `setPointerCapture` pattern
+proven out in Task 2.3's `SwipeableCard`. Gated entirely behind `useIsMobile()`
+— on desktop, `onPanelPointerDown` returns immediately, so `dragArmed` never
+becomes true and every downstream handler is a no-op; verified this holds
+(see below), not just asserted from reading the code.
+
+**One deviation from the original sketch**: skipped the second, separate
+sticky close button the sketch added for mobile. The existing header
+(`sticky top-0`) already has a working `×` button that stays pinned while
+scrolling — adding a second one would have been pure duplication, not a new
+capability.
+
+**Also reinterpreted one acceptance criterion**: the original draft says
+"Backdrop opacity increases with drag distance." Implemented as *decreasing*
+instead (`1 - min(dragY/300, 1) * 0.7`) — a backdrop that gets *more* opaque
+as you drag the sheet away would read as the background darkening while the
+foreground leaves, which isn't how any drag-to-dismiss sheet actually
+behaves (iOS/Android both fade the scrim out as the sheet exits). Treating
+this as a wording slip in the source plan, not a spec to follow literally.
+
+**Verified** via synthetic `PointerEvent` dispatch at 375px, each step read
+in its own follow-up call (same batching gotcha as Task 2.3 — a same-script
+read of a just-triggered state change reads stale):
+- Drag down 200px (past the 150px threshold) → mid-drag, confirmed
+  `transform: translateY(200px)` and backdrop `opacity: 0.5333` (matches the
+  formula exactly: `1 - (200/300)*0.7`); on release, panel closed.
+- Drag down 60px (under threshold) → released, panel stayed open and
+  transform reset to empty (sprung back).
+- Started a drag while `scrollTop: 100` (scrolled into content) → no
+  transform at any point — confirms the drag only arms at the very top of
+  the panel, so normal scrolling isn't hijacked.
+- Same drag gesture at a 1280px desktop viewport → no transform, panel
+  unaffected — confirms the `isMobile` gate actually holds both branches,
+  not just the mobile one.
+
+**Effort spent**: ~1.5 hours.
+
+### Task 2.5: Pull-to-refresh **[DONE, one cross-component bug found + fixed]**
+
+**Status (2026-07-27)**: implemented in `frontend/src/App.tsx` on the
+outermost `min-h-screen` wrapper (the page scrolls via `window`, not a
+nested container — same fact Task 1.2's virtualizer and Task 2.4's dismiss
+gesture both rely on), using the same Pointer Events pattern as Tasks 2.3
+and 2.4. Arms on a downward drag starting at `window.scrollY === 0`,
+0.5x resistance, 80px threshold, and on release invalidates both the
+`["articles"]` and `["trends"]` query keys via `queryClient`. In static
+mode this re-fetches the same export snapshot until the next pipeline run
+— harmless, but genuinely a no-op most of the time; not gated out, since a
+working pull gesture that happens to fetch identical bytes is still less
+surprising than one that silently does nothing.
+
+**A real bug, found before it shipped, not after**: this wrapper is an
+*ancestor* of every `SwipeableCard` (Task 2.3) and every `DetailPanel`
+(Task 2.4) — both mounted underneath it in the same tree — and pointer
+events bubble. Without an explicit stop, swiping a card horizontally or
+dragging the detail panel down to dismiss would *also* bubble up and arm
+the page's pull-to-refresh indicator underneath, at the same time. Fixed by
+adding `e.stopPropagation()` at the exact point each child gesture commits
+to its own axis (`SwipeableCard` once `locked.current === "h"`,
+`DetailPanel` once it's confirmed a downward drag past `scrollTop === 0`) —
+early enough that undecided/vertical-leaning card swipes still correctly
+fall through to the page level (a vertical drag on a card *should* be able
+to trigger pull-to-refresh or normal scroll; only a confirmed horizontal
+card-swipe or a confirmed panel-dismiss should claim the event exclusively).
+
+**Verified** at 375px: patched `window.fetch` to timestamp every call, reset
+a marker immediately before the gesture, dragged 250px (resisted to 120px,
+past the 80px threshold), released — confirmed exactly one fresh
+`/api/articles` and one fresh `/api/trends` request landed after the
+marker, no earlier noise. Then, separately: swiped a card horizontally
+(confirmed `translateX(-120px)`) and dragged a `DetailPanel` down
+(confirmed `translateY(200px)`) — in both cases confirmed the pull-to-refresh
+indicator never appeared, proving the `stopPropagation` fix actually holds
+rather than just asserting it from reading the code.
+
+**Effort spent**: ~2 hours (more than the plan's 2h estimate once the
+cross-component conflict was accounted for and verified, not just patched).
+
+### Task 2.6: Bottom nav improvements **[DONE]**
+
+**Status (2026-07-27)**: all four sub-items implemented in
+`frontend/src/components/BottomNav.tsx` and `frontend/src/App.tsx`.
+
+- **4-tab layout**: dropped the "Settings" tab; `BottomNav`'s grid is now
+  `grid-cols-4` (Today, Search, Saved, Filters). Settings — opening
+  `PrefsPanel` — moved into the existing "Filters" `BottomSheet` as a
+  `⚙ More settings →` row below the toggles, not duplicated as a second set
+  of controls.
+- **Today badge**: added `todayUnreadCount`, computed in `App.tsx` from
+  `allArticles` (unread, non-`NOISE`, published today) — independent of
+  whether the `todayOnly` toggle is currently on, same convention the
+  existing Saved badge already used (`savedIds.size` regardless of
+  `showSavedOnly`). Reuses `collapseClusters` so the count matches
+  representative articles, not raw cluster members.
+- **Reading progress ring**: a small SVG ring around the Today tab's 📅
+  icon, driven by the `readProgress` value `App.tsx` already computes
+  (`{read, total}`) — purely a display addition, introduces no new state.
+- **Haptic feedback**: `navigator.vibrate(10)` on every `NavBtn` tap, guarded
+  by `"vibrate" in navigator` so it's a silent no-op on devices/browsers
+  without it (desktop Chrome, iOS Safari as of this writing).
+
+**Verified** at 375px:
+- Confirmed 4 buttons (`grid-cols-4`), one visible `<circle>`-based progress
+  ring, and the Saved tab's badge still rendering correctly (picked up "1"
+  from an article saved during Task 2.3's verification, still in
+  `localStorage` — incidental proof the badge reads live state, not a
+  hardcoded prop).
+- Patched `navigator.vibrate` and confirmed it's called with `10` on tap.
+- Clicked "Filters" → "More settings" → confirmed `PrefsPanel`'s content
+  ("Muted tags") appeared **and** the Filters sheet's own content ("Today
+  only") was gone — the handoff between the two sheets works, not just that
+  both individually render.
+- `todayUnreadCount` read `0` in this session and — before treating that as
+  a bug — traced it to the dev browser's timezone (`GMT-0700`, `02:08` local
+  vs. `09:07` UTC server time): every article published "today" in UTC still
+  falls in "yesterday" by local calendar day, which is the same definition
+  `TieredFeed`'s own date-grouping already uses. Confirmed this is
+  consistent behavior, not a divergent one-off calculation, rather than
+  assuming zero meant broken.
+
+**Effort spent**: ~2 hours.
+
+---
+
+## Phase 3: For You Algorithm Enhancements (Week 3)
+
+### Task 3.1: Cold-start topic selection **[DONE, fixed a wrong data model]**
+
+**Status (2026-07-27)**: `OnboardingSheet` built
+(`frontend/src/components/OnboardingSheet.tsx`), shown once on first visit
+(`localStorage.getItem("signal-onboarded") == null`), reusing the existing
+`BottomSheet` shell (already `sm:hidden` — mobile-only, matching where this
+problem actually bites; desktop's `CategoryBar` already shows every category
+up front).
+
+**Fixed a real data-model mismatch, not just a path**: the original draft's
+`TOPIC_OPTIONS` invented eight topics — technology, finance, politics,
+world, sports, science, ai, geopolitics — but this app's actual category
+model (`frontend/src/lib/categories.ts`'s `CATEGORY_DEFS`) only has five:
+technology, finance, politics, sports, world. "science", "ai", and
+"geopolitics" aren't categories anywhere in the data (`ai` exists only as a
+*tag* on some articles). Used the real five. Also fixed the draft's
+`prefs.categoryInterest[topic] = 2` — `categoryInterest` is
+`Record<string, "high"|"normal"|"low">` (`frontend/src/lib/prefs.ts`), a
+string enum, not a number; `2` would have silently mismatched
+`INTEREST_WEIGHT`'s lookup in `scoring.ts` (`Record<Interest, number>`,
+keyed by the string) and contributed nothing to ranking.
+
+**Also used the existing `importWeights()` export** (`lib/affinity.ts`)
+rather than writing to `localStorage["signal-affinity"]` directly as the
+draft's sketch did — same effect, but goes through the module that owns
+that storage key's shape instead of duplicating its `{weights, updatedAt,
+muteWeights, muteUpdatedAt}` schema inline.
+
+**Verified** at 375px, three scenarios, each read in its own follow-up call
+(clicking two buttons back-to-back in one script produced a net no-op both
+times — a dev-mode React double-invoke artifact from batching, not a real
+bug; serializing one click per call resolved it, same class of issue as
+the pointer-event batching in Tasks 2.3-2.5):
+- Selected Tech + Finance, completed → `signal-prefs`'s `categoryInterest`
+  became `{technology: "high", finance: "high"}`, `signal-affinity`'s
+  `weights` became `{"cat:technology": 3, "cat:finance": 3}`, sheet closed,
+  `signal-onboarded` set — and stayed closed after a full reload.
+- Reset the onboarding flag, reloaded, clicked "Skip" → sheet closed,
+  `signal-onboarded` set, but `categoryInterest` stayed unset and
+  `weights` stayed `{}` — confirms skipping doesn't silently seed anything.
+
+**Effort spent**: ~2 hours.
+
+### Task 3.2: Impression-based skip signal **[DONE, reshaped for virtualization]**
+
+**Status (2026-07-27)**: `useImpressionTracker` added to
+`frontend/src/lib/hooks.ts` (per this doc's own earlier placement note —
+not a new `hooks/` directory), wired into `TieredFeed.tsx`'s `FeedCard` for
+T3 articles only, threaded from a new `openedIdsRef` populated by `App.tsx`'s
+`openDetail`.
+
+**Reshaped from the original draft's API, not just relocated**: the draft's
+`useImpressionTracker(containerRef, articles, openedIds)` does one
+`container.querySelectorAll("[data-article-id]")` scan at mount and
+observes whatever it finds. That silently breaks against this app's T3
+section, which is **virtualized** (Task 1.2, added after the original draft
+was written) — `@tanstack/react-virtual` rows commonly reuse the same DOM
+node for different articles as the list scrolls rather than
+unmounting/remounting, so a one-time scan at mount would only ever observe
+whatever happened to be rendered at that instant and miss every row that
+virtualizes in afterward. Reshaped the hook to return a stable
+ref-callback instead of taking a container ref; `FeedCard` attaches it to a
+thin wrapper div only when `article.tier === "T3"` (T1/T2 aren't observed
+at all — no point paying for it). The intersection callback re-reads
+`data-article-id` from the live target at fire time, so a recycled node's
+current article is always correct regardless of whether the DOM node is
+fresh or reused.
+
+**Also scoped "opened" down to the detail-panel path only**: the draft's
+`openedIds` conceptually covers any way of opening an article. This app has
+two: opening `DetailPanel` (centralized through `App.tsx`'s `openDetail`)
+and clicking the card's outbound link directly (`recordEngagement(article,
+"open")` called *inside* `ArticleCard`/`MobileHeadlineCard`, with no
+App-level hook to observe it). Threading the latter through would mean a
+new prop at all 8 `FeedCard` call sites for a secondary interaction path;
+scoped `openedIdsRef` to the detail-panel path only and documented the gap
+inline rather than silently pretending it's complete.
+
+**Verified** — real `IntersectionObserver` callbacks don't fire in this
+session's non-composited preview pane (same limitation as Tasks 1.2 and
+2.3-2.5's scroll/pointer events), so this substitutes direct invocation of
+the captured callback with synthetic entries, each scenario checked against
+`signal-affinity`'s actual weight deltas rather than assumed from the code:
+- Visible 3s then hidden, never opened → new weights appeared for exactly
+  this article's features (`tag:pga tour`, `cat:sports`, `tier:T3`, etc.),
+  each at **-0.02** — matches `SIGNAL.skip (-0.5) * LEARNING_RATE (0.04)`
+  exactly.
+- Same sequence, but the article was opened via `DetailPanel` first →
+  weights object identical before and after (verified via string
+  comparison, not just "no error") — confirms the opened-check holds.
+- Visible and hidden back-to-back with no wait → unchanged — confirms the
+  2-second-minimum check holds under a case unambiguously below threshold.
+- A middle case (~1s explicit wait) *did* fire — traced this to real
+  wall-clock time between separate tool round-trips exceeding 2000ms even
+  though the deliberate `wait` was only 1s, confirmed by checking the
+  diff (pre-existing weights had also decayed slightly, consistent with
+  more real time elapsing than intended) — correct behavior given actual
+  elapsed time, not a bug, and not the same thing as asserting it fired
+  "because 1 was close to 2."
+
+**Effort spent**: ~3 hours (the virtualization-driven API reshape was the
+bulk of it).
+
+### Task 3.3: MMR diversity reweight **[DONE]**
+
+**Status (2026-07-27)**: applied as drafted —
+`frontend/src/lib/scoring.ts`'s `articleSimilarity` changed from
+`0.35*tagOverlap + 0.25*sameSource + 0.15*sameCat + 0.25*sameCluster` to
+`0.20*tagOverlap + 0.15*sameSource + 0.15*sameCat + 0.50*sameCluster`. No
+scope changes — this was already confirmed a valid, low-risk,
+self-contained change in the earlier verification pass (the pre-change
+weights matched the original draft's "BEFORE" state exactly, and
+`articleSimilarity` has exactly one caller, `forYouOrder`'s MMR loop).
+
+**Verified**: type-checks clean; loaded "For You" mode in a live session
+and confirmed it still renders the full article set with no console errors
+under the new weighting. Did not attempt to empirically measure the
+diversity-percentage acceptance criterion from the original draft ("unique
+clusters in top 20 increases by >=15%") — for a single-line weight
+rebalance already verified low-risk by code inspection, a full before/after
+diversity measurement wasn't warranted.
+
+**Effort spent**: ~20 minutes.
+
+### Task 3.4: Thompson sampling for category exploration **[DONE — fixed the flagged caveat]**
+
+**Status (2026-07-27)**: this task previously carried a caveat from the
+first review pass — the original draft's `sampleBeta` was `mean + noise`,
+not an actual Beta-distribution draw, which would have undermined the
+exploration goal Task 3.4 exists for. Per explicit direction, implemented a
+real one instead of shipping the approximation.
+
+**`frontend/src/lib/exploration.ts`** (new): `sampleBetaDistribution(alpha,
+beta)` via the standard X/(X+Y) construction, X~Gamma(alpha), Y~Gamma(beta),
+using Marsaglia-Tsang for the Gamma draws (with the usual boost transform
+for shape < 1). `recordCategoryImpression`/`recordCategoryEngagement`
+maintain the Beta posterior per category (same slow 0.995 decay the draft
+specified), and `maybeExplore` swaps a Thompson-sampled pick from an
+unrepresented category into position 8 (index 7) with 10% probability —
+matching the draft's design, just with correct math underneath.
+
+**Wiring required real design work the original draft didn't need to do**,
+since `maybeExplore` calls `Math.random()`: naively calling it in
+`TieredFeed`'s render body would re-roll the dice — and the explore pick
+along with it — on every unrelated re-render (toggling read/save on any
+card), flickering. Memoized on the ranked list's top-10 id signature
+instead of recomputed every render, so it only re-rolls when the ranking
+itself actually changes. Similarly, `recordCategoryImpression` is a
+`localStorage` write and can't run in the render body (exactly the Task
+3.5 anti-pattern below) — moved to a `useEffect` keyed on the shown
+category set. Both are computed unconditionally at the top of the
+component (hooks can't be called from inside the `mode === "foryou"`
+branch, which sits after two early returns) but are only meaningful when
+`mode === "foryou"`.
+
+**Verified** — statistically, not just "it runs":
+- Fresh category (`alpha=beta=1`, true Beta(1,1) is uniform on `[0,1]`):
+  5000 samples gave mean 0.499, 25.2% below 0.25, 50.2% below 0.5 — matches
+  the uniform distribution's theoretical values closely.
+- Skewed posteriors (10 engagements vs. 10 impressions-without-engagement):
+  sampled means were 0.916 and 0.082 against analytical means (`alpha/(alpha+beta)`)
+  of 0.918 and 0.081 — confirms the sampler tracks the actual posterior, not
+  just "some distribution."
+- `maybeExplore` over 500 trials: 10.8% injection rate (target 10%), and
+  every injection landed at index 7 (position 8), never higher.
+- Live in the app: switching to "For You" recorded an impression (`beta`
+  incremented) for all 5 real categories in one render; opening an article
+  immediately bumped that category's `alpha` — confirmed via
+  `localStorage["signal-exploration"]` before/after, not just absence of
+  console errors.
+
+**Effort spent**: ~2.5 hours (a proper Beta sampler plus the render-timing
+fixes needed to use it safely, versus the draft's few-line approximation).
+
+### Task 3.5: Fix side effect in useMemo **[DONE]**
+
+**Status (2026-07-27)**: fixed as originally drafted — `getWeights()` (which
+calls `persist()` internally, a `localStorage` write) moved out of
+`forYouOrderFn`'s `useMemo` and into a `useEffect` that runs on mount and on
+`rankSeed` bumps, with a new `affinityWeights` state snapshot read by the
+memo instead. Intentionally **not** tied to `prefs` — weights (`affinity.ts`)
+and prefs (`categoryInterest` etc., `prefs.ts`) are independent stores, so a
+prefs-only change shouldn't trigger a fresh decay-and-persist of the other.
+
+**Found and fixed a second instance of the same bug while in the
+neighborhood**: `whyRanked`'s `useMemo` (`App.tsx`, the "why ranked here"
+breakdown shown in `DetailPanel` for For You mode) also called
+`getWeights()` directly inside its factory — same anti-pattern, not
+originally called out in the plan but caught by inspection since it's three
+lines away. Now reads the same `affinityWeights` snapshot rather than
+independently re-reading and re-persisting.
+
+**Verified via actual write counts, not just "it compiles"**: patched
+`localStorage.setItem` to count writes to the `signal-affinity` key
+specifically, then:
+- Activating "For You" (a `rankSeed` bump) → exactly 1 write (the intended
+  refresh).
+- Muting a tag from `DetailPanel` (mutates `prefs.mutedTags`, no `rankSeed`
+  change) → exactly 1 write — matching `recordEngagement("mute")`'s own
+  persist call. If the bug were still present, this same action would show
+  **2** writes: the mute's own persist, plus a redundant `getWeights()`
+  re-read-and-persist leaking out of the `prefs`-dependent memo. (Note:
+  testing this with `PrefsPanel` open is a red herring — it has its own
+  independent `getWeights()`/`topWeights()` calls, tracked to
+  `frontend/src/components/PrefsPanel.tsx:73` and `StatsPanel.tsx`, unrelated
+  to this fix and out of scope here. Had to close it to isolate the test.)
+- Reactivating "For You" again (another `rankSeed` bump) → exactly 1 more
+  write, confirming the refresh path still works after the fix, not just
+  that the leak is gone.
+
+**Effort spent**: ~1.5 hours (the fix itself was small; verifying it needed
+a real write-counting harness since the bug's symptom — an extra
+`localStorage` write during a render pass — isn't something a
+type-check or a glance at the rendered UI would ever surface).
+
+---
+
+## Phase 4: New Features (Weeks 4-5)
+
+### Task 4.1: Morning briefing push notification **[DONE — routed to Discord, not ntfy]**
+
+**Status (2026-07-27)**: per explicit direction, both notifications this
+task adds (morning briefing digest, breaking-T1 alert) go to **Discord**
+via a new `notify_discord()`, not the existing ntfy-based `notify()`. The
+four pre-existing `notify()` call sites in `harvester/pipeline.py`
+(enrichment-backend-unreachable, failure-rate, Twitter/YouTube staleness)
+are **untouched** — those are operational health alerts on their own
+working channel, out of scope for this task.
+
+**`harvester/notify.py`**: added `notify_discord(title, message, *, url=None,
+level="info")`, gated on a new `DISCORD_WEBHOOK_URL` env var (documented in
+`.env` alongside the existing `NTFY_TOPIC`, same "treat as a secret"
+convention — a Discord webhook URL is itself the credential). Posts a
+single embed (`{"embeds": [{"title", "description", "color", "url"}]}`) via
+`httpx.post`; silently no-ops when unset; never raises, matching `notify()`'s
+existing contract. `level` picks the embed's accent color
+(info/warning/critical) rather than reusing ntfy's `priority`/`tags`
+vocabulary, which doesn't map onto Discord's model.
+
+**Morning briefing — upgraded to an LLM-written summary** (per follow-up
+direction, after the counts-only version above already shipped): rather
+than a bare `fetched`/`new`/`enriched` line, `_finalize()` now sends a
+narrative summary written by the same LLM backend that does enrichment.
+New pieces:
+- `_select_briefing_stories()` (`harvester/pipeline.py`) picks a capped,
+  mixed-tier set from `enriched_today` — all T1 (capped 10), top 5 T2 and
+  top 3 T3 by `social_score` — so the summary reflects real breadth
+  ("a good mix of info"), not just the critical tier, per explicit request.
+- `EnrichmentClient.summarize_briefing()` (`harvester/enrich/client.py`)
+  reuses the existing `_call_llamacpp`/`_call_llm` plumbing with an
+  overridden system prompt (`_BRIEFING_SYSTEM`) — free-text output, not the
+  JSON-schema-constrained enrichment path, since a briefing is prose, not a
+  structured record.
+- Generated once per run in `run_pipeline()` (best-effort, wrapped in
+  `try/except` so a generation failure can't fail the run) and passed into
+  `_finalize()` as `briefing_summary: str | None`. `_finalize` prefers it
+  when present and falls back to the original plain counts message
+  (`fetched`/`new`/`enriched`/`failed`, still using only what it already had
+  — no invented `PipelineStats` object) when generation didn't produce
+  anything — backend unreachable, no qualifying stories, or an error.
+
+**Breaking T1 alert**: the original draft assumed this could fire inline
+during `_enrich_one` alongside tier assignment, but `social_score` isn't
+known at that point — this pipeline's actual stage order is `fetch → extract
+→ enrich → cluster → **social**`, so social signals arrive in a separate,
+later stage. Moved the check to right after Stage 5 (social signals),
+aggregating `all_signals` by `article_id` and cross-referencing against
+`enriched_today`. Scoped to `new_articles` (this run only) rather than all
+of `enriched_today` (today overall, across every run) — otherwise the same
+T1 story would re-fire on every subsequent run for the rest of the day.
+
+**Verified**:
+- `ast.parse` + `ruff check` on all changed files — the only findings
+  (`I001` unsorted imports, `UP017` datetime.UTC) are pre-existing,
+  confirmed via `git stash` diff-before/after, not introduced here.
+- `_select_briefing_stories`: fed a synthetic 15 T1 / 10 T2 / 20 T3 / 1
+  NOISE input, confirmed exactly 10 T1 + 5 T2 + 3 T3 came back, NOISE
+  excluded, and T2/T3 correctly sorted by `social_score` descending.
+- `summarize_briefing`: mocked `_call_llamacpp` (no live LLM backend in
+  this environment) and confirmed the constructed prompt correctly tags
+  each story's tier (`[CRITICAL]`/`[BACKGROUND]`), includes the summary
+  only when non-empty, passes `_BRIEFING_SYSTEM` as the override system
+  prompt, and that the method strips the model's response.
+- `notify_discord` unit-style checks (mocking `httpx.post`): confirmed a
+  true no-op (zero calls) when `DISCORD_WEBHOOK_URL` is unset; confirmed
+  the exact payload shape, including the `critical` level's color
+  `0xE74C3C`, when set; confirmed an `httpx.ConnectError` is swallowed
+  without raising.
+- Breaking-T1 filter logic verified in isolation against a hand-built
+  scenario covering all three exclusion cases at once: a below-threshold
+  score, a wrong tier, and — the one that actually required the
+  `new_articles`-scoping fix above — a high-scoring T1 article that was
+  merely *enriched* today (an earlier run) rather than new *this* run.
+  Only the genuinely-qualifying article fired.
+- **A real webhook URL was provided and used — and this caught a real bug**:
+  the first live test returned HTTP 204 (Discord's genuine success response)
+  but the user reported it landed in the *wrong* Discord channel — a
+  separate, unrelated "job notifier" webhook they already run. Root cause:
+  `DISCORD_WEBHOOK_URL` was already a **persistent Windows user environment
+  variable** for that other webhook (confirmed via `[Environment]::
+  GetEnvironmentVariable(..., 'User')`), and `python-dotenv`'s
+  `load_dotenv()` does not override already-set OS env vars by default — so
+  the pre-existing system var silently won over `.env`'s value every time,
+  and a 204 response proved nothing about *which* channel actually got the
+  message. Renamed the env var this feature reads to
+  `DISCORD_BRIEFING_WEBHOOK_URL` (confirmed no collision exists for that
+  name) rather than fighting override precedence, which could have affected
+  the user's unrelated existing automation. Re-tested after the rename:
+  204 again, and the user confirmed this time it landed in the correct
+  channel. The lesson generalizes: a 204/200 from a webhook or API call
+  only proves *a* request succeeded, never that it reached the *intended*
+  destination — that requires the human on the other end to actually look.
+- Did not run the full `run_pipeline()` end-to-end (needs a live DB, RSS
+  feeds, and LLM backend) — the LLM-summary path itself is verified only at
+  the prompt-construction level, not against a real model's actual output
+  quality. Worth a real run to sanity-check the summary reads well before
+  relying on it.
+
+**Effort spent**: ~2 hours.
+
+### Task 4.2: Blindspot detection panel **[DONE]**
+
+**Status (2026-07-27)**: `BlindspotPanel` built
+(`frontend/src/components/BlindspotPanel.tsx`) as drafted — `cluster_size
+=== 1`, tier T1/T2, published within 7 days, sorted by `social_score`
+descending, capped at 10, hidden entirely when empty.
+
+**One placement deviation**: the draft said "between the KPI strip and the
+T1 section," but `KPIStrip` is actually injected *inside* `TieredFeed`'s T1
+section (via its `statsSlot` prop), not rendered as a separate element in
+`App.tsx`. Matching the literal placement would have meant threading
+`BlindspotPanel` through `TieredFeed`'s props into that same slot. Instead
+rendered it directly in `App.tsx`, immediately before `<TieredFeed>` — it
+ends up above the KPI strip too, not just above T1, which is simpler and
+reads fine visually as a distinct pre-feed section rather than a
+tucked-in-particular slot.
+
+**Scoped to the main Tiered view**: gated on `sortMode === "tiered" &&
+!briefMode`, hidden in "For You" and the 5-minute brief — both are already
+curated/ranked subsets where "only 1 source is covering this" doesn't add
+the same signal a broad tiered view does.
+
+**Verified**: fetched the live dataset directly and confirmed 565
+qualifying stories exist in the current export, so this wasn't tested
+against an empty edge case by accident. Live in the browser: panel renders
+above the "Critical" section header, exactly 10 items, sort order matches
+descending `social_score` (3303 → 1152 → 687 → ... → 256) — confirmed
+against the same computation done independently via `fetch`, not just
+"a list appeared." Clicking the first item opened `DetailPanel` with the
+matching article (`T2 Notable`, matching title/feed). Switched to "For
+You" and confirmed the panel's `<section>` is entirely absent from the DOM,
+not just visually hidden. No console errors in either mode.
+
+**Retroactive fix, made while implementing Task 4.5**: originally sourced
+from `tagFilteredArticles`, which in static mode's default view
+(`todayOnly: true` from Task 1.1) only contains *today's* articles — a
+7-day blindspot window was silently starved down to "today" for anyone
+browsing the default static-mode view. Building Task 4.5 surfaced the same
+problem more starkly (a 30-day lookup against today-only data is
+essentially always empty), which is what prompted going back to fix this
+one too. Both now read from a new `historicalArticles` source in
+`App.tsx` — see Task 4.5 below for how it's populated.
+
+**Effort spent**: ~1.5 hours (original) + ~20 minutes (retroactive fix).
+
+### Task 4.3: Story timeline in DetailPanel **[DONE — replaced, not added alongside]**
+
+**Status (2026-07-27)**: implemented in `frontend/src/components/DetailPanel.tsx`
+by **replacing** the existing "Covered by N sources" section rather than
+adding a separate one next to it — both showed the same sibling-article
+list, and the timeline is strictly a superset (same data, plus
+chronological order, a "first reported" marker, and social score per
+entry), so keeping both would have been near-duplicate UI for no reason.
+
+Built from `[article, ...siblings]` (siblings already computed via the
+existing `clusterSiblings(article, clusterMembers)`, unchanged), sorted by
+`published_at` ascending. The earliest gets the "First reported" label and
+a green marker dot; the current article is distinguished with a
+`(this article)` tag and its social score instead of being an outbound
+link (it doesn't make sense to link to the page you're already viewing).
+
+**Preserved the existing fallback exactly as-is**: when `clusterMembers`
+wasn't passed in, or none of a cluster's siblings are in the currently
+loaded dataset, `siblings.length` is `0` even though `cluster_size > 1` —
+there's no per-article data (titles/urls/dates) to build a real timeline
+from in that case, so it still falls back to the plain `cluster_sources`
+name-badge list, unchanged from before this task.
+
+**Verified live** against real clustered data (not a synthetic fixture):
+opened an article with `cluster_size: 5`, confirmed the timeline showed
+all 5 entries in ascending chronological order (2 days ago → yesterday →
+yesterday → 15 hours ago → 9 hours ago), the earliest tagged "First
+reported," and the current article correctly appeared in its actual
+chronological position (last, most recent) tagged `(this article)` with
+its social score — not just appended or prepended without regard to its
+real timestamp. Confirmed exactly 4 outbound links (the 4 siblings, not 5 —
+the current article correctly isn't a link to itself). Separately opened a
+genuinely single-source article (`cluster_size: 1`, looked up directly via
+the live API rather than guessed from the DOM) and confirmed the entire
+section — timeline *and* fallback — is absent, not just visually hidden.
+No console errors in either case.
+
+### Task 4.4: Reading streak + weekly goal **[DONE]**
+
+**Status (2026-07-27)**: `frontend/src/lib/streak.ts` built as drafted —
+`updateStreak()` (call once per session on mount: increments on a
+consecutive-day visit, resets to 1 on a gap, rolls `weeklyRead` over on a
+new Monday) and `incrementWeeklyRead()` (call when marking an article
+read). `WEEKLY_GOAL` is a fixed constant (50 — not in the original draft,
+which left the goal unspecified; sized to roughly 7/day against the tiered
+feed's T1/T2 subset, not the full firehose). Displayed in `KPIStrip` as a
+plain `🔥 Nd streak · X/50 this week` line — deliberately subtle, no
+badges/achievements, per the draft's own instruction.
+
+**Wiring note**: `incrementWeeklyRead()` fires only when *marking* an
+article read (`toggleReadTracked`'s existing `isMarkingRead` check), not on
+un-marking — clicking "undo" on the read-toast doesn't decrement it back.
+Not addressed, and not worth addressing: building real decrement-on-undo
+logic for a "subtle, not gamification-heavy" counter would be over-engineering
+the one thing the draft explicitly said to keep simple.
+
+**Verified**:
+- Pure logic, via dynamic `import()` of the real module in a live session
+  (not a reimplemented mock): a fresh visit gives `current: 1`; simulating
+  yesterday's visit then calling again increments to `current: 2` and bumps
+  `longest`; simulating a 3-day gap correctly resets `current` to 1 while
+  preserving `longest`. Separately confirmed three `incrementWeeklyRead()`
+  calls produce `weeklyRead: 3`, and forcing an old `weekStart` causes the
+  next `updateStreak()` to roll it back to 0.
+- Live in the browser: KPI strip showed `🔥 1d streak · 0/50 this week` on
+  a fresh session; marked an article read via `DetailPanel` (the card
+  itself was a `MobileHeadlineCard` at this viewport width, which has no
+  inline read button by design — Task 2.2/2.3) and confirmed the strip
+  updated to `1/50 this week` **live, without a reload**, matching
+  `localStorage["signal-streak"]`'s actual persisted state. No console
+  errors.
+
+**Effort spent**: ~1.5 hours.
+
+### Task 4.5: "On This Day" **[DONE — surfaced and fixed a data-availability gap]**
+
+**Status (2026-07-27)**: `OnThisDay` built
+(`frontend/src/components/OnThisDay.tsx`) as drafted — T1 articles from
+exactly 7 and 30 days ago, top one by `social_score` per target date,
+hidden per-target when that date has no T1 articles, hidden entirely when
+neither does. Cheap to rely on specifically because T1 is the one tier
+exempt from retention pruning (`RetentionConfig` in `harvester/config.py`:
+T2/untiered 90 days, T3 21 days, T1 kept forever) — a 30-day-old T1 article
+reliably still exists in the DB, once the pipeline has been running that
+long.
+
+**Surfaced a data-availability bug that also affected Task 4.2**: this
+feature's 30-day lookback made a latent problem obvious that a 7-day one
+(Blindspot) mostly hid — in static mode's default view, `articlesData` is
+*today-only* (Task 1.1), so anything sourced from it can only ever see
+"today," making a 30-day "on this day" lookup essentially always empty and
+starving Blindspot's 7-day window down to nothing. Fixed by adding a
+reactive `historicalArticles` source in `App.tsx`: a `useQuery` on the same
+`["articles", false, ""]` key Task 1.1's background prefetch already warms,
+with `enabled: false` so it never fetches on its own — it only *subscribes*
+to whatever's already in that cache slot, falling back to `articlesData`
+if the prefetch hasn't landed yet. Both `OnThisDay` and `BlindspotPanel`
+now read from this instead of `tagFilteredArticles`, which also means
+neither panel respects the current category/tag filter anymore — a
+deliberate call, not an oversight: a "memory" or "blindspot" feature
+returning an empty section every time a filter happens to be active would
+be a worse experience than one that ignores the filter and always has
+something to show.
+
+**Verified against the real dataset's actual limits, not a convenient
+fixture**: fetched live data directly and found the 30-days-ago date had
+**zero** T1 articles (this pipeline hasn't been running that long yet) —
+confirmed the component correctly rendered only the "1 week ago" memory and
+silently omitted the empty one, rather than showing a broken/empty entry.
+Confirmed the shown article was independently verified as the actual
+top-`social_score` T1 story for that date (not just "some article from that
+day"). Clicking it opened the correct article in `DetailPanel`. Confirmed
+render order (On This Day → Blindspots → Critical) and that both panels are
+completely absent from the DOM in "For You" mode. No console errors.
+
+**Effort spent**: ~2 hours (including the Task 4.2 retroactive fix).
+
+### Task 4.6 - 4.7: unchanged from original draft
+(Audio briefing, weekly reflection.) Both reference frontend-only fields
+(`enrich_summary`, `published_at`) confirmed present in
+`frontend/src/types.ts`. No path or signature issues found.
+
+---
+
+## Phase 5: Accessibility & Polish (Week 5-6)
+
+Unchanged from original draft (contrast fix, focus trap, ARIA live region,
+dark/light toggle). No code in this phase referenced a wrong path or a
+nonexistent function.
+
+---
+
+## What changed in this revision
+
+1. All `pipeline/*` paths → `harvester/*` (no `pipeline/` directory exists).
+2. `frontend/src/lib/client.ts` → `frontend/src/api/client.ts`.
+3. Task 1.1: dropped the fictional `since=` backend param; live mode reuses
+   existing `today_only`/`limit`/`offset`, no backend change needed.
+4. Task 1.2: added a required "Step A" (extract `buildFeedSections`) before
+   virtualizing, to account for `TieredFeed.tsx`'s 8 existing render
+   branches; effort revised 6-8h → 8-11h.
+5. Task 2.1 removed — the "compact mode paradox" was intentional, documented
+   design, not a bug; folded into 2.2.
+6. Task 4.1: corrected `notify()` name/signature (`priority` is a string,
+   `tags` is a string, no `click_url`), and removed the invented
+   `PipelineStats` object in favor of the counts `_finalize()` already has.
+7. Task 3.2 hook placement note: use `frontend/src/lib/hooks.ts`, matching
+   the existing `useIsMobile`/`useIsTouch` convention, instead of a new
+   `hooks/` directory.
+8. Task 3.4 caveat noted (not fixed): `sampleBeta`'s approximation isn't a
+   real Beta draw — left as a follow-up flag, not blocking.
+
+Everything else in the original draft (Phases 1.3-1.4, 2.3-2.6, 3.1-3.3,
+4.2-4.7, 5.1-5.4) was checked against the current codebase and needs no
+changes.

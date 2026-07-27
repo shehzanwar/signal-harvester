@@ -1,11 +1,15 @@
-import { formatDistanceToNow } from "date-fns";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { recordEngagement } from "../lib/affinity";
 import { clusterSiblings } from "../lib/clusters";
+import { formatRelative } from "../lib/format";
+import { useIsMobile } from "../lib/hooks";
 import type { Article, Comment } from "../types";
 import { SentimentBadge } from "./SentimentBadge";
 import { TierBadge } from "./TierBadge";
+
+const DISMISS_THRESHOLD = 150;
+const MAX_DRAG = 300;
 
 const SOURCE_LABEL: Record<string, string> = {
   hn: "Hacker News", reddit: "Reddit", bluesky: "Bluesky",
@@ -34,15 +38,6 @@ interface Props {
   onToggleSave: (id: string) => void;
   onToggleRead: (id: string) => void;
   onMute?: (a: Article) => void;
-}
-
-function relativeTime(iso?: string): string {
-  if (!iso) return "unknown";
-  try {
-    return formatDistanceToNow(new Date(iso), { addSuffix: true });
-  } catch {
-    return iso.slice(0, 10);
-  }
 }
 
 export function DetailPanel({
@@ -82,6 +77,54 @@ export function DetailPanel({
     };
   }, [article?.id]);
 
+  // Swipe-down-to-dismiss (mobile only — see onPointerDown's isMobile guard).
+  // Only arms when the panel is scrolled to the very top: a downward drag
+  // there is otherwise a dead gesture (can't scroll further up anyway), so
+  // repurposing it for dismiss doesn't fight the panel's own scrolling.
+  const isMobile = useIsMobile();
+  const panelRef = useRef<HTMLElement>(null);
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartY = useRef(0);
+  const dragArmed = useRef(false);
+  const activePointerId = useRef<number | null>(null);
+
+  const onPanelPointerDown = (e: React.PointerEvent) => {
+    if (!isMobile) return;
+    if (!panelRef.current || panelRef.current.scrollTop > 0) return;
+    dragStartY.current = e.clientY;
+    dragArmed.current = true;
+    activePointerId.current = e.pointerId;
+  };
+
+  const onPanelPointerMove = (e: React.PointerEvent) => {
+    if (!dragArmed.current || activePointerId.current !== e.pointerId) return;
+    const dy = e.clientY - dragStartY.current;
+    if (dy <= 0) return; // upward/no movement — leave native scroll alone
+    // The panel is a modal overlay mounted alongside the page's own
+    // pull-to-refresh handler (App.tsx) — without this, dragging the panel
+    // down to dismiss would also bubble up and open the pull-to-refresh
+    // indicator behind it.
+    e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // best-effort only, see SwipeableCard's identical guard
+    }
+    setDragging(true);
+    setDragY(Math.min(dy, MAX_DRAG));
+  };
+
+  const endPanelDrag = () => {
+    if (dragY > DISMISS_THRESHOLD) {
+      onClose();
+    }
+    setDragY(0);
+    setDragging(false);
+    dragArmed.current = false;
+    activePointerId.current = null;
+  };
+
   if (!article) return null;
 
   const siblings = clusterMembers ? clusterSiblings(article, clusterMembers) : [];
@@ -96,21 +139,37 @@ export function DetailPanel({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — fades out as the panel is dragged away, so the dismiss
+          gesture reads as "the panel is leaving," not just a static scrim */}
       <div
         className="fixed inset-0 bg-black/50 z-40"
+        style={dragY > 0 ? { opacity: 1 - Math.min(dragY / MAX_DRAG, 1) * 0.7 } : undefined}
         onClick={onClose}
         aria-hidden
       />
 
       {/* Panel */}
       <aside
+        ref={panelRef}
+        onPointerDown={onPanelPointerDown}
+        onPointerMove={onPanelPointerMove}
+        onPointerUp={endPanelDrag}
+        onPointerCancel={endPanelDrag}
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? "none" : "transform 0.3s ease-out",
+        }}
         className="fixed right-0 top-0 h-full w-full max-w-lg bg-neutral-900 border-l border-neutral-700
-                   z-50 overflow-y-auto shadow-2xl flex flex-col"
+                   z-50 overflow-y-auto overscroll-contain shadow-2xl flex flex-col"
         role="dialog"
         aria-modal
         aria-label="Article detail"
       >
+        {/* Drag handle — mobile only; signals the panel is swipe-dismissible */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1 shrink-0" aria-hidden>
+          <div className="h-1 w-10 rounded-full bg-neutral-600" />
+        </div>
+
         {/* Header */}
         <div className="flex items-start justify-between gap-3 p-4 border-b border-neutral-800 sticky top-0 bg-neutral-900">
           <div className="flex items-center gap-2 flex-wrap">
@@ -184,10 +243,10 @@ export function DetailPanel({
           <p className="text-xs text-neutral-500">
             {article.feed_name}
             {article.published_at && (
-              <> · {relativeTime(article.published_at)}</>
+              <> · {formatRelative(article.published_at)}</>
             )}
             {article.enriched_at && (
-              <> · enriched {relativeTime(article.enriched_at)}</>
+              <> · enriched {formatRelative(article.enriched_at)}</>
             )}
           </p>
 
@@ -355,33 +414,56 @@ export function DetailPanel({
             </section>
           )}
 
-          {/* Cluster corroboration */}
+          {/* Cluster corroboration — a chronological timeline when the
+              actual sibling article data is loaded (has titles/urls/dates
+              to sequence); falls back to a bare list of source names
+              (article.cluster_sources) when clusterMembers wasn't passed in
+              or none of the siblings are in the currently loaded dataset —
+              in that case there's nothing to build a real timeline from. */}
           {hasCluster && (
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
-                Covered by {article.cluster_size} sources
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
+                📡 Story Timeline ({article.cluster_size} sources)
               </h3>
               {siblings.length > 0 ? (
-                <ul className="flex flex-col gap-2">
-                  {siblings.map((m) => (
-                    <li key={m.id}>
-                      <a
-                        href={m.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex flex-col gap-0.5"
-                      >
-                        <span className="text-sm text-neutral-300 group-hover:text-blue-300 transition-colors leading-snug">
-                          {m.title}
-                        </span>
-                        <span className="text-xs text-neutral-600">
-                          {m.feed_name}
-                          {m.tier !== article.tier ? ` · ${m.tier}` : ""}
-                        </span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+                <div className="relative pl-4 border-l border-neutral-700 space-y-4">
+                  {[article, ...siblings]
+                    .slice()
+                    .sort((a, b) => (a.published_at ?? "").localeCompare(b.published_at ?? ""))
+                    .map((m, i) => (
+                      <div key={m.id} className="relative">
+                        <span
+                          className={`absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-neutral-900 ${
+                            i === 0 ? "bg-emerald-500" : "bg-neutral-600"
+                          }`}
+                          aria-hidden
+                        />
+                        <div className="text-xs text-neutral-500">
+                          {formatRelative(m.published_at)}
+                          {i === 0 && <span className="ml-2 text-emerald-400">First reported</span>}
+                        </div>
+                        {m.id === article.id ? (
+                          <span className="text-sm text-neutral-100 line-clamp-1">
+                            {m.feed_name}: {m.title} <span className="text-neutral-600">(this article)</span>
+                          </span>
+                        ) : (
+                          <a
+                            href={m.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex flex-col gap-0.5"
+                          >
+                            <span className="text-sm text-neutral-300 group-hover:text-blue-300 transition-colors line-clamp-1">
+                              {m.feed_name}: {m.title}
+                            </span>
+                          </a>
+                        )}
+                        {(m.social_score ?? 0) > 0 && (
+                          <span className="text-xs text-neutral-600 ml-0">{m.social_score}pts</span>
+                        )}
+                      </div>
+                    ))}
+                </div>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {(article.cluster_sources ?? []).map((src) => (

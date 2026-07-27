@@ -82,7 +82,12 @@ function articleSimilarity(a: Article, b: Article): number {
   const sameSource = a.feed_name && a.feed_name === b.feed_name ? 1.0 : 0.0;
   const sameCat = a.category && a.category === b.category ? 1.0 : 0.0;
   const sameCluster = a.cluster_id && a.cluster_id === b.cluster_id ? 1.0 : 0.0;
-  return 0.35 * tagOverlap + 0.25 * sameSource + 0.15 * sameCat + 0.25 * sameCluster;
+  // Cluster membership (backend IDF-weighted cosine clustering) is a
+  // stronger same-story signal than frontend tag Jaccard — two articles
+  // covering the same story from different outlets can use very different
+  // tags ("oil-prices" vs. "military-strategy") while the cluster correctly
+  // groups them, so weight it accordingly over the shakier tag overlap.
+  return 0.20 * tagOverlap + 0.15 * sameSource + 0.15 * sameCat + 0.50 * sameCluster;
 }
 
 /**

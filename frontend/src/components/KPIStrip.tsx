@@ -1,26 +1,36 @@
-import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { useIsMobile, useScrollDirectionVisible } from "../lib/hooks";
+import { formatRelative } from "../lib/format";
+import { WEEKLY_GOAL, type StreakData } from "../lib/streak";
 import type { Stats, StaticMeta } from "../types";
 
 interface Props {
   stats: Stats;
   title: string;
   meta?: StaticMeta | null;
+  streak?: StreakData | null;
   inline?: boolean;
+}
+
+// Subtle by design — a plain "Nd streak · X/Y this week" readout, not a
+// badge/achievement system. Rendered wherever the other KPI segments are,
+// not called out as a separate hero element.
+function StreakReadout({ streak }: { streak: StreakData }) {
+  return (
+    <span className="text-xs text-neutral-500">
+      🔥 {streak.current}d streak · {streak.weeklyRead}/{WEEKLY_GOAL} this week
+    </span>
+  );
 }
 
 function sentimentColor(score: number): string {
   return score > 0.1 ? "text-green-400" : score < -0.1 ? "text-red-400" : "text-neutral-400";
 }
 
+// "never" reads better than formatRelative's generic "unknown" fallback for
+// a last-run/exported-at timestamp that simply hasn't happened yet.
 function relativeTime(iso?: string | null): string {
-  if (!iso) return "never";
-  try {
-    return formatDistanceToNow(new Date(iso), { addSuffix: true });
-  } catch {
-    return iso.slice(0, 16);
-  }
+  return iso ? formatRelative(iso) : "never";
 }
 
 function SentimentBar({ score }: { score: number | null }) {
@@ -40,7 +50,7 @@ function SentimentBar({ score }: { score: number | null }) {
   );
 }
 
-export function KPIStrip({ stats, title, meta, inline }: Props) {
+export function KPIStrip({ stats, title, meta, streak, inline }: Props) {
   const t1_7d = stats.t1_7d ?? 0;
   const lastRun = stats.last_run;
   const lastRunAt = lastRun?.finished_at;
@@ -132,6 +142,11 @@ export function KPIStrip({ stats, title, meta, inline }: Props) {
                   </div>
                 </div>
               ) : null}
+              {streak && (
+                <div className="col-span-2">
+                  <StreakReadout streak={streak} />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -201,6 +216,11 @@ export function KPIStrip({ stats, title, meta, inline }: Props) {
                 </div>
               </div>
             ) : null}
+            {streak && (
+              <div className="pl-5">
+                <StreakReadout streak={streak} />
+              </div>
+            )}
           </nav>
         </div>
       </div>

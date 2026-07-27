@@ -237,13 +237,17 @@ the reddit-specific throttle in [harvester/sources/rss.py](harvester/sources/rss
 
 **For You feed:** a learned, cross-tier ranking that personalises the order
 based on your reading behaviour. Signals are collected entirely client-side
-(opens, dwell time, saves, mutes) and stored in `localStorage` — nothing is
-sent anywhere. Dwell time and repeated exposure without engagement ("story
-fatigue") both feed the ranking, and a small adaptive-exploration slice keeps
-surfacing outside your established preferences so the feed doesn't collapse
-into a filter bubble. The score breakdown for any article is visible in its
-detail panel ("Why ranked here?"). Ranking uses Maximal Marginal Relevance
-(λ=0.7) to keep the feed diverse even as the model learns your preferences.
+(opens, dwell time, saves, mutes, and a weak "skip" signal — via
+`IntersectionObserver`, an article visible ≥2s without being opened nudges
+its weight down slightly) and stored in `localStorage` — nothing is sent
+anywhere. Category exploration uses real Thompson sampling (a proper
+Beta-distribution draw via the Gamma-ratio method, not an approximation) to
+occasionally surface a category you haven't engaged with, so the feed
+doesn't collapse into a filter bubble; ranking itself uses Maximal Marginal
+Relevance (λ=0.7, weighted toward the backend's own cluster grouping over
+frontend tag overlap) to stay diverse as the model learns your preferences.
+The score breakdown for any article is visible in its detail panel ("Why
+ranked here?").
 
 **Navigation:** category chips (feed-derived, deterministic — no LLM
 involved) filter the whole dashboard; a category with a genuine internal
@@ -262,6 +266,39 @@ committing silently. A "new since last visit" badge — backed by a real
 Stats panel (affinity weights, read/save history) round out the session
 tools.
 
+**Blindspots & On This Day:** a "Blindspots" panel surfaces T1/T2 stories
+from the last 7 days covered by exactly one source (`cluster_size === 1`)
+— important enough per the enrichment model, but not picked up elsewhere
+in the feed set. "On This Day" resurfaces the top T1 story from 7 and 30
+days ago (cheap to rely on since T1 is the one tier exempt from retention
+pruning — see [Pipeline reliability](#pipeline-reliability)). Both read
+from the full dataset regardless of the current category filter or
+today-only toggle, so neither goes empty just because a filter happens to
+be active. The detail panel's cluster-corroboration section is a
+chronological story timeline (first-reported marker, one entry per
+source, current article called out) rather than a flat list.
+
+**Reading streak:** a small, deliberately subtle `🔥 Nd streak · X/50 this
+week` readout in the KPI strip — no badges or achievement pop-ups, just a
+running count backed by `localStorage`.
+
+### Mobile
+
+Below `640px`: a lightweight headline-card variant (title + one meta line,
+~72-80px tall, vs. the desktop card's full layout) replaces `ArticleCard`
+everywhere in the feed, with swipe-left-to-save / swipe-right-to-read
+gestures (Pointer Events, so mouse drag works in a desktop browser too, not
+just touch) instead of tap targets there's no room for. The detail panel
+adds a drag handle and swipe-down-to-dismiss; the whole page supports
+pull-to-refresh. A first-visit topic picker seeds "For You" with an
+initial affinity so it doesn't start identical to the Tiered view until
+~20 articles have been read. The bottom nav's Today tab carries both an
+unread-count badge and a small SVG ring showing overall read progress.
+Under the hood, the "Background" tier (routinely 70%+ of all articles) is
+virtualized (`@tanstack/react-virtual`) rather than fully rendered, and the
+static GitHub Pages export ships a same-day tier alongside the full
+history so first paint on a phone doesn't wait on a multi-MB JSON payload.
+
 ---
 
 ## Pipeline reliability
@@ -277,7 +314,8 @@ tools.
 - **Context budget warning:** both the `llamacpp` and `ollama` backends log a warning when a call's token usage crosses 90% of the configured `num_ctx`, so context overflow shows up as a log line instead of a silently truncated prompt
 - **Backend fast-fail:** before starting Stage 3, `EnrichmentClient.health_check()` probes the LLM backend once; if it's unreachable, the run skips enrichment immediately instead of discovering it one article at a time (3 retries × every article — turns an outage into a 30-60 minute run that enriches nothing). Articles are left untouched, not marked `failed_llm`, so the retry budget isn't spent on attempts that never happened
 - **llama-server watchdog:** a genuine Windows Scheduled Task (`SignalHarvester\LlamaServerWatchdog`, [scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1)) checks every 5 minutes whether llama-server is actually responding and restarts it if not — independent of any login session, terminal, or other software staying open. Exists because the original autostart (an HKCU "run at login" entry) only fires once at login; if llama-server crashed afterward, nothing ever restarted it. That's exactly what happened: it crashed and stayed down silently across two separate scheduled runs (2026-07-24 23:38 through 2026-07-25 16:15+, ~800 failed enrichments) before anyone noticed
-- **Push notifications:** optional, gated on the `NTFY_TOPIC` env var — ntfy.sh, free, no account. Fires on backend-unreachable aborts, high-failure-rate runs (≥5 failures and >20%), and watchdog restarts (repeated restarts indicate a deeper problem even though each one self-heals). See [harvester/notify.py](harvester/notify.py)
+- **Push notifications (ntfy):** optional, gated on the `NTFY_TOPIC` env var — ntfy.sh, free, no account. Fires on backend-unreachable aborts, high-failure-rate runs (≥5 failures and >20%), and watchdog restarts (repeated restarts indicate a deeper problem even though each one self-heals).
+- **Morning briefing (Discord):** optional, gated on the `DISCORD_BRIEFING_WEBHOOK_URL` env var (deliberately not `DISCORD_WEBHOOK_URL` — that name collides with other webhook automations set as OS-level env vars, which silently win over `.env` since `python-dotenv` doesn't override already-set variables). Once per run with new articles, the same LLM backend that does enrichment writes a short narrative summary (3-6 paragraphs, under 350 words) over a capped, mixed-tier set of the day's stories — all T1, plus top-social T2 and T3, so it reflects real breadth rather than only the critical tier — and posts it as a Discord embed. A separate breaking-T1 alert fires immediately for any *new* T1 story (this run only, not re-fired on subsequent runs the same day) whose aggregated social score exceeds 500. See [harvester/notify.py](harvester/notify.py) and [harvester/enrich/client.py](harvester/enrich/client.py)'s `summarize_briefing`.
 - **Golden-set gated:** prompt and profile changes run against a 50-article golden set in CI before they can regress production (see [Golden set & CI](#golden-set--ci))
 
 ---
@@ -397,11 +435,11 @@ The Markdown digest is the "dashboard-down" fallback — it's a complete, readab
 
 ## Roadmap
 
-**Done:** HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; comment excerpts with real per-comment source links in the detail panel; Reddit ingestion via subreddit RSS (content source, not a comment/social API, after confirming Reddit's OAuth API is locked down for new/personal projects); embedding-based near-duplicate clustering; weekly rollup digest; Obsidian export; For You ranking v2 (MMR diversity, dwell-time learning, story fatigue, adaptive exploration); two-level taxonomy (category + subcategory); batch operations with undo; mobile-responsive layout; tiered retention pruning; prompt-drift and feed-staleness monitoring; Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI.
+**Done:** HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; comment excerpts with real per-comment source links in the detail panel; Reddit ingestion via subreddit RSS (content source, not a comment/social API, after confirming Reddit's OAuth API is locked down for new/personal projects); embedding-based near-duplicate clustering; weekly rollup digest; Obsidian export; For You ranking v2 (MMR diversity weighted toward cluster grouping, dwell-time learning, story fatigue, impression-based skip signal, Thompson-sampling category exploration, cold-start topic picker); two-level taxonomy (category + subcategory); batch operations with undo; mobile UX overhaul (virtualized background tier, swipe gestures, pull-to-refresh, drag-to-dismiss detail panel, tiered static export for fast first paint); Blindspot detection, story timeline, reading streak, "On This Day"; T1 push notifications and an LLM-written morning briefing (ntfy + Discord — see [Pipeline reliability](#pipeline-reliability)); tiered retention pruning; prompt-drift and feed-staleness monitoring; Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI. Full implementation notes for the mobile/algorithm/features work: [docs/mobile-perf-plan.md](docs/mobile-perf-plan.md).
 
-**Next up:** source reliability indicators (per-source tier distribution — is this feed mostly signal or mostly noise?); entity extraction (people/orgs/locations) for cross-referencing and archive filtering.
+**Next up:** source reliability indicators (per-source tier distribution — is this feed mostly signal or mostly noise?); entity extraction (people/orgs/locations) for cross-referencing and archive filtering; audio briefing (Web Speech API) and a weekly reflection panel.
 
-**Later:** Local RAG chat over the archive ("what happened with X this month?"); T1 push notifications (ntfy/Telegram — deliberately not built yet, needs an explicit choice of external service); light theme toggle; LLM-as-judge eval for summary faithfulness.
+**Later:** Local RAG chat over the archive ("what happened with X this month?"); Telegram as a second notification channel; light theme toggle; LLM-as-judge eval for summary faithfulness.
 
 ---
 

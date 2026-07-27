@@ -46,7 +46,11 @@ export const api = {
     limit?: number;
     offset?: number;
   }): Promise<ArticlesResponse> => {
-    if (IS_STATIC) return getStatic<ArticlesResponse>("articles.json");
+    if (IS_STATIC) {
+      // articles-today.json is a fraction of the size of the full export —
+      // route today_only requests there instead of loading everything.
+      return getStatic<ArticlesResponse>(params?.today_only ? "articles-today.json" : "articles.json");
+    }
     const q = new URLSearchParams();
     if (params?.tier) q.set("tier", params.tier);
     if (params?.search) q.set("search", params.search);

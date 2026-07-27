@@ -50,6 +50,19 @@ _CHATML_REPAIR = (
     "<|im_start|>assistant\n<think>\n\n</think>\n"
 )
 
+_BRIEFING_SYSTEM = (
+    "You are writing a short morning news briefing for one reader who already has a full "
+    "dashboard — this is just the highlight reel, sent as a Discord message. You'll be given "
+    "today's stories grouped by editorial tier: CRITICAL (top priority), NOTABLE, and "
+    "BACKGROUND (included for context/breadth, not necessarily important). "
+    "Write 3-6 short paragraphs of plain prose covering the most important stories first. "
+    "Connect or group related stories where there's a real connection — don't just restate "
+    "the list one item at a time. Call out anything genuinely surprising. Stay under 350 words. "
+    "No markdown headers or emoji; a couple of plain bullet points are fine if useful. "
+    "Base this ONLY on the summaries provided — do not add details, context, or claims that "
+    "aren't in them."
+)
+
 _COMMENT_SENTIMENT_SYSTEM = (
     "You are a public sentiment analyst. Given a news article summary and social media comments, "
     "assess how the general public is reacting to this news.\n\n"
@@ -116,6 +129,33 @@ class EnrichmentClient:
             return resp.status_code < 500
         except httpx.HTTPError:
             return False
+
+    def summarize_briefing(self, stories: list[dict[str, Any]]) -> str:
+        """Free-text narrative summary of today's top stories for the Discord
+        morning briefing (Task 4.1) — a different shape of call than enrich():
+        no JSON schema, no per-article validation/repair, just prose. Reuses
+        the same chat/generate plumbing (and the same model/generation
+        config) as enrichment, just with an overridden system prompt.
+
+        `stories` should already be capped by the caller (see
+        pipeline.py's `_select_briefing_stories`) — this doesn't itself
+        limit how many are sent to the model.
+        """
+        tier_label = {"T1": "CRITICAL", "T2": "NOTABLE", "T3": "BACKGROUND"}
+        lines = []
+        for s in stories:
+            label = tier_label.get(s.get("tier", ""), s.get("tier", ""))
+            summary = (s.get("enrich_summary") or "").strip()
+            line = f"[{label}] {s.get('title', '')} ({s.get('feed_name', '')})"
+            if summary:
+                line += f" — {summary}"
+            lines.append(line)
+        user_msg = "Today's stories:\n\n" + "\n".join(lines)
+
+        if self._cfg.llm.backend == "llamacpp":
+            return self._call_llamacpp(user_msg, override_system=_BRIEFING_SYSTEM).strip()
+        prompt = _CHATML.format(system=_BRIEFING_SYSTEM, user=user_msg)
+        return self._call_llm(prompt).strip()
 
     def enrich(self, article: dict[str, Any], cfg: ProfileConfig) -> dict[str, Any]:
         if cfg.llm.backend == "llamacpp":

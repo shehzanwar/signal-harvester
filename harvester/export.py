@@ -76,6 +76,15 @@ def export_site(cfg: ProfileConfig, out_dir: str = "site") -> None:
         a["category"] = cat_map.get(a.get("feed_name", ""), "general")
         a["subcategory"] = subcat_map.get(a.get("feed_name", ""), "")
 
+    # Today tier: same "today" definition as the live API's today_only filter
+    # (get_articles_page / get_enriched_articles use fetched_at >= today's UTC
+    # date) so static and live modes agree on what counts as "today". Filtered
+    # from the already-clustered `clean` list, not re-queried, so cluster_size
+    # stays correct (a cluster's sibling articles from before the cutoff must
+    # still count toward its size).
+    today_cutoff = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = [a for a in clean if (a.get("fetched_at") or "") >= today_cutoff]
+
     stats = db.get_stats()
     trends = db.get_trends(days=30)
     profile_info = {
@@ -104,6 +113,7 @@ def export_site(cfg: ProfileConfig, out_dir: str = "site") -> None:
 
     sizes = {
         "articles.json": write("articles.json", {"total": len(clean), "items": clean}),
+        "articles-today.json": write("articles-today.json", {"total": len(today), "items": today}),
         "stats.json": write("stats.json", stats),
         "trends.json": write("trends.json", trends),
         "profile.json": write("profile.json", profile_info),

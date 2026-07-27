@@ -1,5 +1,6 @@
-import { formatDistanceToNow } from "date-fns";
+import { memo } from "react";
 import { recordEngagement } from "../lib/affinity";
+import { formatRelative } from "../lib/format";
 import type { Article } from "../types";
 import { SentimentBadge } from "./SentimentBadge";
 import { TierBadge, tierBorderClass } from "./TierBadge";
@@ -17,15 +18,6 @@ interface Props {
   onToggleSave?: (id: string) => void;
   onToggleRead?: (id: string) => void;
   onToggleSelect?: (id: string) => void;
-}
-
-function relativeTime(iso?: string): string {
-  if (!iso) return "unknown";
-  try {
-    return formatDistanceToNow(new Date(iso), { addSuffix: true });
-  } catch {
-    return iso.slice(0, 10);
-  }
 }
 
 function CorroborationBadge({ count }: { count: number }) {
@@ -64,7 +56,13 @@ function SocialChip({ article }: { article: Article }) {
   );
 }
 
-export function ArticleCard({
+// Default shallow-prop comparison is sufficient here: `article` keeps stable
+// identity across renders (sourced from the react-query cache, only a new
+// object on refetch) and every other prop is a primitive, so a card whose
+// read/saved/focused/selected state didn't change bails out without
+// re-rendering — the win that matters when toggling one card among
+// thousands.
+export const ArticleCard = memo(function ArticleCard({
   article,
   compact = false,
   isRead = false,
@@ -129,7 +127,7 @@ export function ArticleCard({
             )}
             <span className="text-xs text-neutral-500">{article.feed_name}</span>
             <span className="text-neutral-700">·</span>
-            <span className="text-xs text-neutral-500">{relativeTime(article.published_at)}</span>
+            <span className="text-xs text-neutral-500">{formatRelative(article.published_at)}</span>
             <SentimentBadge
               label={article.sentiment_label}
               score={article.sentiment_score}
@@ -259,7 +257,7 @@ export function ArticleCard({
             </button>
           )}
           <span className="text-xs text-neutral-500" title={article.published_at ?? ""}>
-            {relativeTime(article.published_at)}
+            {formatRelative(article.published_at)}
           </span>
         </div>
       </div>
@@ -307,4 +305,4 @@ export function ArticleCard({
       )}
     </article>
   );
-}
+});

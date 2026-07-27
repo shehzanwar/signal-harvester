@@ -15,7 +15,7 @@ from harvester.enrich.client import EnrichmentClient
 from harvester.enrich.prompts import PROMPT_VERSION, prompt_template_hash
 from harvester.extract import extract_text
 from harvester.enrich.perception import compute_perception
-from harvester.notify import notify
+from harvester.notify import notify, notify_discord
 from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_twitter_comments, fetch_youtube_comments, twscrape_account_status
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
@@ -50,6 +50,22 @@ _NOISE_TITLE_RE = re.compile(
 
 def _is_title_noise(title: str) -> bool:
     return bool(_NOISE_TITLE_RE.search(title))
+
+
+def _select_briefing_stories(enriched_today: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pick a capped, mixed-tier set of today's stories for the LLM-written
+    Discord briefing (Task 4.1) — all of T1 (capped), plus top-social T2 and
+    T3 so the summary reflects real breadth, not just the critical tier."""
+    t1 = [a for a in enriched_today if a.get("tier") == "T1"]
+    t2 = sorted(
+        (a for a in enriched_today if a.get("tier") == "T2"),
+        key=lambda a: a.get("social_score") or 0, reverse=True,
+    )
+    t3 = sorted(
+        (a for a in enriched_today if a.get("tier") == "T3"),
+        key=lambda a: a.get("social_score") or 0, reverse=True,
+    )
+    return t1[:10] + t2[:5] + t3[:3]
 
 
 def _noise_enrichment_dict(model: str) -> dict[str, Any]:
@@ -263,6 +279,27 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
         if all_signals:
             db.save_social_signals(all_signals)
             log.info("social_done signals=%d", len(all_signals))
+
+        # Breaking T1 alert (Discord) — social_score isn't known until this
+        # stage, so this can't live in _enrich_one alongside the tier
+        # assignment. Scoped to `new_articles` (this run only), not
+        # `enriched_today` (today overall) — otherwise the same T1 story
+        # would re-alert on every run for the rest of the day.
+        new_ids_this_run = {a["id"] for a in new_articles}
+        social_by_article: dict[str, int] = {}
+        for s in all_signals:
+            social_by_article[s["article_id"]] = social_by_article.get(s["article_id"], 0) + (s.get("score") or 0)
+        for art in enriched_today:
+            if art["id"] not in new_ids_this_run or art.get("tier") != "T1":
+                continue
+            score = social_by_article.get(art["id"], 0)
+            if score > 500:
+                notify_discord(
+                    f"🔴 Breaking: {art.get('title', '')[:120]}",
+                    f"{art.get('feed_name', '')} · {score} social points",
+                    url=art.get("url"),
+                    level="critical",
+                )
 
     # -- Stage 5.5: Comment fetching (best-effort, sequential to respect rate limits) --
     # For each HN signal fetched this run, pull the top 10 comments and store
@@ -482,7 +519,20 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
     if pruned_any:
         db.vacuum()
 
-    _finalize(db, run_id, cfg, started_at, counts, prompt_hash=prompt_hash)
+    # LLM-written briefing summary (Task 4.1) — best-effort, must not fail
+    # the run. Falls back to the plain counts message in _finalize if this
+    # doesn't produce anything (backend unreachable, no qualifying stories,
+    # generation error).
+    briefing_summary: str | None = None
+    if counts["new"] > 0:
+        try:
+            stories = _select_briefing_stories(enriched_today)
+            if stories:
+                briefing_summary = client.summarize_briefing(stories)
+        except Exception as exc:
+            log.warning("briefing_summary_failed error=%s", exc)
+
+    _finalize(db, run_id, cfg, started_at, counts, prompt_hash=prompt_hash, briefing_summary=briefing_summary)
     return counts
 
 
@@ -493,6 +543,7 @@ def _finalize(
     started_at: str,
     counts: dict[str, int],
     prompt_hash: str | None = None,
+    briefing_summary: str | None = None,
 ) -> None:
     finished_at = datetime.now(timezone.utc).isoformat()
     db.record_run(run_id, cfg.profile, started_at, finished_at, counts, prompt_hash=prompt_hash)
@@ -502,6 +553,31 @@ def _finalize(
         run_id, counts["fetched"], counts["new"],
         counts["enriched"], counts["failed"], failure_rate,
     )
+
+    # Morning briefing digest (Discord) — only when there's something to
+    # report; a silent no-new-articles run doesn't need a push. Prefers the
+    # LLM-written narrative summary (mixes T1/T2/T3 — see
+    # _select_briefing_stories); falls back to the plain counts message if
+    # the summary wasn't generated (backend unreachable, generation error).
+    if counts["new"] > 0:
+        if briefing_summary:
+            notify_discord(
+                f"☀️ [{cfg.profile}] Morning Briefing",
+                briefing_summary,
+                url="https://shehzanwar.github.io/signal-harvester/",
+            )
+        else:
+            t1_today = len([
+                a for a in db.get_enriched_articles(today_only=True)
+                if a.get("tier") == "T1"
+            ])
+            notify_discord(
+                f"☀️ [{cfg.profile}] Briefing: {counts['new']} new articles",
+                f"{t1_today} critical · {counts['enriched']} enriched · "
+                f"{counts['failed']} failed",
+                url="https://shehzanwar.github.io/signal-harvester/",
+            )
+
     # >=5 failures keeps this from firing on tiny batches where one failure
     # is mathematically "100%"; >20% catches a genuinely bad run without
     # paging on every incidental failed_extract/failed_llm.

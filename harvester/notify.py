@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 import httpx
 
@@ -42,3 +43,47 @@ def notify(title: str, message: str, priority: str = "default", tags: str | None
         httpx.post(f"{_NTFY_BASE}/{topic}", data=message.encode("utf-8"), headers=headers, timeout=_TIMEOUT)
     except httpx.HTTPError as exc:
         log.debug("ntfy_notify_failed title=%r err=%s", title, exc)
+
+
+# Discord colors (decimal, matching Discord's own embed color swatches).
+_DISCORD_COLOR = {"info": 0x3498DB, "warning": 0xF1C40F, "critical": 0xE74C3C}
+
+
+def notify_discord(
+    title: str,
+    message: str,
+    *,
+    url: str | None = None,
+    level: str = "info",
+) -> None:
+    """Best-effort Discord webhook notification. Never raises — same
+    contract as notify(): a notification failure must not take down the
+    pipeline run it's trying to report on.
+
+    Gated on the DISCORD_BRIEFING_WEBHOOK_URL env var (set in .env,
+    gitignored — the URL itself is the credential; anyone who has it can
+    post to the channel). Silently does nothing when unset.
+
+    Deliberately not DISCORD_WEBHOOK_URL: that name collided with an
+    existing, unrelated job-notifier webhook set as a persistent OS env
+    var, which silently won (python-dotenv doesn't override already-set
+    env vars) and sent briefing messages to the wrong channel.
+
+    level: "info" | "warning" | "critical" — picks the embed's accent color.
+    url: optional link the embed title becomes clickable to (e.g. the
+    dashboard, or a specific article).
+    """
+    webhook = os.environ.get("DISCORD_BRIEFING_WEBHOOK_URL")
+    if not webhook:
+        return
+    embed: dict[str, Any] = {
+        "title": title[:256],  # Discord's own embed title limit
+        "description": message[:4096],  # Discord's own embed description limit
+        "color": _DISCORD_COLOR.get(level, _DISCORD_COLOR["info"]),
+    }
+    if url:
+        embed["url"] = url
+    try:
+        httpx.post(webhook, json={"embeds": [embed]}, timeout=_TIMEOUT)
+    except httpx.HTTPError as exc:
+        log.debug("discord_notify_failed title=%r err=%s", title, exc)
