@@ -26,6 +26,12 @@ class EnrichmentResult(BaseModel):
     editorial_tone: SentimentResult
     predicted_reaction: SentimentResult
     tags: list[str] = Field(min_length=1, max_length=5)
+    # Named entities (people/orgs/places mentioned by name) — distinct from
+    # tags, which are topic buckets. Optional/defaults to [] rather than
+    # required: older prompt revisions and the llamacpp backend (no grammar-
+    # constrained decoding, see EnrichmentClient._call_llamacpp) shouldn't hard-fail
+    # validation if the model omits it. Some articles genuinely name none.
+    entities: list[str] = Field(default_factory=list, max_length=8)
 
     @field_validator("tags")
     @classmethod
@@ -34,6 +40,16 @@ class EnrichmentResult(BaseModel):
             if len(tag) > 60:
                 raise ValueError(
                     f"Tag too long ({len(tag)} chars) — likely model reasoning leaked into tags: {tag[:40]!r}…"
+                )
+        return v
+
+    @field_validator("entities")
+    @classmethod
+    def entities_must_be_short(cls, v: list[str]) -> list[str]:
+        for entity in v:
+            if len(entity) > 80:
+                raise ValueError(
+                    f"Entity too long ({len(entity)} chars) — likely model reasoning leaked into entities: {entity[:40]!r}…"
                 )
         return v
 
@@ -58,6 +74,7 @@ class EnrichmentResult(BaseModel):
                 "rationale": self.predicted_reaction.rationale,
             },
             "tags": self.tags,
+            "entities": self.entities,
             "_model": model,
             "_prompt_version": prompt_version,
             "_raw_response": raw_response,
@@ -124,6 +141,7 @@ ENRICHMENT_JSON_SCHEMA: dict[str, Any] = {
         "editorial_tone": _SENTIMENT_SCHEMA,
         "predicted_reaction": _SENTIMENT_SCHEMA,
         "tags": {"type": "array", "items": {"type": "string", "maxLength": 60}, "minItems": 1, "maxItems": 5},
+        "entities": {"type": "array", "items": {"type": "string", "maxLength": 80}, "maxItems": 8},
     },
     "required": ["summary", "tier", "tier_rationale", "editorial_tone", "predicted_reaction", "tags"],
     "additionalProperties": False,

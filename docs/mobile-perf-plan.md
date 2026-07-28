@@ -1251,3 +1251,114 @@ being nullable under React 18's stricter types (`readIdsRef.current ??
 new Set()`).
 
 **Effort spent**: ~2.5 hours.
+
+---
+
+## Phase 7: Wikipedia "On This Day" integration
+
+From the same follow-up proposal as Phase 6 — the base integration (no LLM
+"connection" layer yet; that's the optional stretch piece, not started).
+
+**Design decision — frontend-only, no backend involved**: Wikipedia's
+`https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/{MM}/{DD}`
+REST API is CORS-enabled and designed for direct browser use, so this
+needed no pipeline wiring, no new DB table, no export.py changes, and no
+API key — it works identically in live mode and the static GitHub Pages
+export. Simpler than the proposal's original sketch (which assumed a
+backend fetch step) once the CORS support was confirmed by testing it
+directly.
+
+**What was added**:
+- `frontend/src/hooks/useWikipediaOnThisDay.ts` — fetches the day's
+  "selected" historical events, caches the normalized result in
+  `localStorage` keyed by calendar day (`signal-wiki-otd-MM-DD`) with no
+  expiry, since a given month/day's history doesn't change year to year.
+  Silently fails closed (`error: true`, empty events) on network issues —
+  a personal dashboard's "fun fact" section shouldn't surface an error
+  banner for a Wikipedia hiccup.
+- `frontend/src/components/OnThisDay.tsx` — added a second "In history"
+  subsection below the existing T1-memories one, each event collapsed to
+  one line by default with a click-to-expand for the full extract +
+  Wikipedia link. Renders independently of the existing section (either
+  can be empty without hiding the other); the whole component still
+  returns `null` if both are empty.
+
+**Verified live** (dev server): confirmed the real network fetch occurred
+and cached correctly (`localStorage['signal-wiki-otd-07-28']` held 6
+real events — e.g. the 2010 Airblue Flight 202 crash, the 2005 Birmingham
+tornado — with correct year/text/extract/thumbnail/url fields), and that
+clicking an event expanded it in place to show the full extract and a
+working Wikipedia link. `npx tsc -b --noEmit` passes clean.
+
+**Not started yet** (per the proposal's own "optional" framing, and the
+established one-task-at-a-time pattern): the LLM "connection" layer tying
+a historical event to a related story in today's feed — would need one
+extra LLM call/day, not built here.
+
+**Effort spent**: ~30 minutes.
+
+---
+
+## Phase 8: Entity extraction
+
+The proposal's highest-value LLM addition — extracting named people/orgs/
+places from each article, distinct from the existing topic `tags`.
+
+**Schema**: added `entities: list[str]` (default `[]`, max 8, each ≤80
+chars) to `EnrichmentResult` in
+[schemas.py](../harvester/enrich/schemas.py), plumbed through
+`to_storage_dict`, and added to `ENRICHMENT_JSON_SCHEMA` — deliberately
+left out of that schema's `required` list (unlike `tags`, which is
+required) so a model that omits it doesn't hard-fail Ollama's
+grammar-constrained decoding or Pydantic validation on the llamacpp path.
+
+**Prompt**: bumped `PROMPT_VERSION` v10 → v11. Added the field to the real
+tuned prompt at [prompts/enrichment.md](../prompts/enrichment.md) (not
+just the fallback default in `prompts.py`) plus a new rule explicitly
+distinguishing entities (proper nouns: "Federal Reserve", "Jerome Powell")
+from tags (topic buckets: "interest rates", "inflation") — inserting it
+required renumbering the rules that followed (was rule 8 onward, now 9
+onward) to avoid two rules both being "10."
+
+**Storage**: new `entities TEXT NOT NULL DEFAULT '[]'` column on
+`enrichments`, added both to `_SCHEMA` (fresh DBs) and the `ALTER TABLE`
+migration list (existing DBs) in
+[db.py](../harvester/store/db.py) — same pattern as every prior column
+addition. Threaded through `save_enrichment`'s insert and both read paths
+(`get_enriched_articles`, `get_articles_page`), each JSON-decoding it the
+same way `tags` already is. No `export.py` change needed — it copies
+whatever keys `get_enriched_articles()` returns, so `entities` flows into
+the static JSON export automatically.
+
+**Frontend**: added `entities?: string[]` to the `Article` type and a new
+"Entities" section in `DetailPanel.tsx`, rendered above the existing Tags
+section with a distinct blue chip style, guarded the same way tags is
+(`article.entities && article.entities.length > 0`) so older, pre-v11
+rows that lack the field render exactly as before.
+
+**Verified for real, not just type-checked**:
+- Ran the actual DB migration against the live `output/daily-briefing/
+  daily-briefing.db` — confirmed via `get_articles_page` that all existing
+  rows now read back `entities: []` with no errors.
+- Ran a real enrichment call against the live llama-server backend with a
+  Fed-rates test article: correctly extracted
+  `["Federal Reserve", "Jerome Powell", "Trump administration"]` as
+  entities, cleanly separated from tags
+  (`["federal reserve", "interest rates", "inflation"]`).
+- Full round-trip: inserted a stub article row, ran `client.enrich()` →
+  `db.save_enrichment()` → read back via both `get_articles_page` and
+  `get_enriched_articles` — `entities` came back correctly as a real list
+  from both paths. Test row cleaned up afterward.
+- `npx tsc -b --noEmit` passes clean. Live in the browser: opened the
+  detail panel on an existing (pre-v11) article — no console errors, and
+  the Entities section correctly stayed hidden since that row predates
+  entity extraction.
+
+**Not done yet**: existing articles won't have entities until they're
+naturally re-enriched or the DB is wiped/re-run — no backfill/reprocessing
+script was written, since re-running enrichment on the full historical set
+would cost significant LLM time for a portfolio project and wasn't asked
+for. Also not built: any dashboard feature that filters/searches BY entity
+(the proposal only asked for extraction + storage as the first step).
+
+**Effort spent**: ~1 hour.

@@ -30,6 +30,9 @@ export interface Article {
   sentiment_confidence?: "high" | "medium" | "low" | "predicted";
   perception_gap?: number;
   tags: string[];
+  // Named people/orgs/places mentioned by name (v11+ enrichments) — absent
+  // or empty on older rows enriched before this field existed.
+  entities?: string[];
   model?: string;
   enriched_at?: string;
   latency_ms?: number;

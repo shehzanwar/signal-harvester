@@ -396,6 +396,27 @@ export function DetailPanel({
             </section>
           )}
 
+          {/* Entities — named people/orgs/places, distinct from the topic
+              tags below. Absent on pre-v11 enrichments, so guarded the same
+              way tags is. */}
+          {article.entities && article.entities.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
+                Entities
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {article.entities.map((entity) => (
+                  <span
+                    key={entity}
+                    className="text-xs px-2 py-0.5 rounded bg-blue-950/40 text-blue-300 border border-blue-900/60"
+                  >
+                    {entity}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Tags */}
           {article.tags.length > 0 && (
             <section>
