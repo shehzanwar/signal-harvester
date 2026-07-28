@@ -255,8 +255,11 @@ split gets a second-level subcategory row (e.g. `technology` →
 `ai`/`security`, `finance` → `markets`/`business`/`analysis`) that only
 appears when 2+ subcategories actually have articles, so it never shows up
 as a single useless option. A separate tag-chip bar surfaces the top
-trending tags as quick filters. Fully responsive down to phone width —
-single-column layout, bottom nav, 44px touch targets throughout.
+trending tags as quick filters — desktop-only above the feed; on mobile
+it lives in the Filters sheet instead, so a filter control doesn't cost
+permanent scroll space on the smallest screens. Fully responsive down to
+phone width — single-column layout, bottom nav, 44px touch targets
+throughout.
 
 **Batch operations:** multi-select mode lets you mark-read, save, or mute
 several articles at once from a floating action bar; every batch action
@@ -267,16 +270,21 @@ Stats panel (affinity weights, read/save history) round out the session
 tools.
 
 **Blindspots & On This Day:** a "Blindspots" panel surfaces T1/T2 stories
-from the last 7 days covered by exactly one source (`cluster_size === 1`)
+from the last 2 days covered by exactly one source (`cluster_size === 1`)
 — important enough per the enrichment model, but not picked up elsewhere
 in the feed set. "On This Day" resurfaces the top T1 story from 7 and 30
 days ago (cheap to rely on since T1 is the one tier exempt from retention
-pruning — see [Pipeline reliability](#pipeline-reliability)). Both read
-from the full dataset regardless of the current category filter or
+pruning — see [Pipeline reliability](#pipeline-reliability)), plus a
+second "In history" section pulling real historical events for today's
+month/day from Wikipedia's public on-this-day API (frontend-only, cached
+in `localStorage` per calendar day — no backend involved). Both panels
+read from the full dataset regardless of the current category filter or
 today-only toggle, so neither goes empty just because a filter happens to
-be active. The detail panel's cluster-corroboration section is a
-chronological story timeline (first-reported marker, one entry per
-source, current article called out) rather than a flat list.
+be active; both are collapsed behind a tap-to-expand header by default so
+they don't compete with the actual feed for the first screen on mobile.
+The detail panel's cluster-corroboration section is a chronological story
+timeline (first-reported marker, one entry per source, current article
+called out) rather than a flat list.
 
 **Reading streak:** a small, deliberately subtle `🔥 Nd streak · X/50 this
 week` readout in the KPI strip — no badges or achievement pop-ups, just a
@@ -435,9 +443,9 @@ The Markdown digest is the "dashboard-down" fallback — it's a complete, readab
 
 ## Roadmap
 
-**Done:** HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; comment excerpts with real per-comment source links in the detail panel; Reddit ingestion via subreddit RSS (content source, not a comment/social API, after confirming Reddit's OAuth API is locked down for new/personal projects); embedding-based near-duplicate clustering; weekly rollup digest; Obsidian export; For You ranking v2 (MMR diversity weighted toward cluster grouping, dwell-time learning, story fatigue, impression-based skip signal, Thompson-sampling category exploration, cold-start topic picker); two-level taxonomy (category + subcategory); batch operations with undo; mobile UX overhaul (virtualized background tier, swipe gestures, pull-to-refresh, drag-to-dismiss detail panel, tiered static export for fast first paint); Blindspot detection, story timeline, reading streak, "On This Day"; T1 push notifications and an LLM-written morning briefing (ntfy + Discord — see [Pipeline reliability](#pipeline-reliability)); tiered retention pruning; prompt-drift and feed-staleness monitoring; Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI. Full implementation notes for the mobile/algorithm/features work: [docs/mobile-perf-plan.md](docs/mobile-perf-plan.md).
+**Done:** HN/Bluesky/Mastodon/Lemmy/Twitter/YouTube comment aggregation with a three-layer perception model (editorial tone / predicted reaction / comment-informed public sentiment) and a perception gap metric; comment excerpts with real per-comment source links in the detail panel; Reddit ingestion via subreddit RSS (content source, not a comment/social API, after confirming Reddit's OAuth API is locked down for new/personal projects); embedding-based near-duplicate clustering; weekly rollup digest; Obsidian export; For You ranking v2 (MMR diversity weighted toward cluster grouping, dwell-time learning, story fatigue, impression-based skip signal, Thompson-sampling category exploration, cold-start topic picker); two-level taxonomy (category + subcategory); batch operations with undo; mobile UX overhaul (virtualized background tier, swipe gestures, pull-to-refresh, drag-to-dismiss detail panel, tiered static export for fast first paint); Blindspot detection (2-day, collapsed by default), story timeline, reading streak, "On This Day" (T1 memories plus real Wikipedia history for today's date); named-entity extraction (people/orgs/places, shown in the detail panel, distinct from topic tags); T1 push notifications and an LLM-written morning briefing (ntfy + Discord — see [Pipeline reliability](#pipeline-reliability)); tiered retention pruning; prompt-drift and feed-staleness monitoring; Docker deployment with a separate GitHub Pages static export; golden-set eval harness gated in CI; App.tsx decomposed into focused hooks. Full implementation notes for the mobile/algorithm/features work: [docs/mobile-perf-plan.md](docs/mobile-perf-plan.md).
 
-**Next up:** source reliability indicators (per-source tier distribution — is this feed mostly signal or mostly noise?); entity extraction (people/orgs/locations) for cross-referencing and archive filtering; audio briefing (Web Speech API) and a weekly reflection panel.
+**Next up:** source reliability indicators (per-source tier distribution — is this feed mostly signal or mostly noise?); an LLM "connection" layer tying On This Day's historical events to related stories in today's feed; audio briefing (Web Speech API) and a weekly reflection panel.
 
 **Later:** Local RAG chat over the archive ("what happened with X this month?"); Telegram as a second notification channel; light theme toggle; LLM-as-judge eval for summary faithfulness.
 

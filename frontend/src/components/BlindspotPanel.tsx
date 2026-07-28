@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatRelative } from "../lib/format";
 import type { Article } from "../types";
 
-const WINDOW_DAYS = 7;
+const WINDOW_DAYS = 2;
 const LIMIT = 10;
 
 interface Props {
@@ -31,33 +31,50 @@ export function BlindspotPanel({ articles, onOpen }: Props) {
       .slice(0, LIMIT);
   }, [articles]);
 
+  // Collapsed by default — same reasoning as OnThisDay: a "here's what
+  // you're missing" side note shouldn't push the actual feed down on
+  // first paint, especially on mobile. Not persisted across sessions.
+  const [open, setOpen] = useState(false);
+
   if (blindspots.length === 0) return null;
 
   return (
     <section className="mb-8">
-      <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide mb-3">
-        🔍 Blindspots — Only 1 Source Reporting
-      </h2>
-      <div className="space-y-2">
-        {blindspots.map((a) => (
-          <button
-            key={a.id}
-            onClick={() => onOpen(a)}
-            className="w-full text-left p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 hover:border-neutral-600 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full shrink-0 ${a.tier === "T1" ? "bg-red-500" : "bg-amber-500"}`} aria-hidden />
-              <span className="text-sm font-medium text-neutral-100 line-clamp-1">{a.title}</span>
-            </div>
-            <p className="mt-1 ml-4 text-xs text-neutral-500">
-              Only reported by <span className="text-neutral-300">{a.feed_name}</span>
-              {" · "}
-              {formatRelative(a.published_at)}
-              {(a.social_score ?? 0) > 0 && ` · ${a.social_score} social`}
-            </p>
-          </button>
-        ))}
-      </div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between mb-3 text-left"
+        aria-expanded={open}
+      >
+        <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
+          🔍 Blindspots — Only 1 Source, Last {WINDOW_DAYS} Days
+          <span className="ml-2 normal-case text-neutral-600">{blindspots.length}</span>
+        </h2>
+        <span className={`text-neutral-600 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-2">
+          {blindspots.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => onOpen(a)}
+              className="w-full text-left p-3 rounded-lg bg-neutral-900/50 border border-neutral-800 hover:border-neutral-600 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full shrink-0 ${a.tier === "T1" ? "bg-red-500" : "bg-amber-500"}`} aria-hidden />
+                <span className="text-sm font-medium text-neutral-100 line-clamp-1">{a.title}</span>
+              </div>
+              <p className="mt-1 ml-4 text-xs text-neutral-500">
+                Only reported by <span className="text-neutral-300">{a.feed_name}</span>
+                {" · "}
+                {formatRelative(a.published_at)}
+                {(a.social_score ?? 0) > 0 && ` · ${a.social_score} social`}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

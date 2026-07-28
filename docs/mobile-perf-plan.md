@@ -1362,3 +1362,66 @@ for. Also not built: any dashboard feature that filters/searches BY entity
 (the proposal only asked for extraction + storage as the first step).
 
 **Effort spent**: ~1 hour.
+
+---
+
+## Phase 9: Mobile information hierarchy — On This Day collapse + Blindspots window
+
+User-driven: "on mobile, I should be able to see the most important stuff
+first or at least on the screen," citing social-media conventions where
+secondary/nostalgia content collapses behind a summary row rather than
+pushing the actual feed down.
+
+**What changed**:
+- [OnThisDay.tsx](../frontend/src/components/OnThisDay.tsx): the whole
+  section (T1 memories + Wikipedia history) is now collapsed by default
+  behind a tappable header showing an item count and a chevron — not
+  persisted across sessions, so it defaults shut every visit rather than
+  remembering a prior expand.
+- [BlindspotPanel.tsx](../frontend/src/components/BlindspotPanel.tsx):
+  `WINDOW_DAYS` 7 → 2, so it only surfaces single-source stories from the
+  last 2 days instead of the full week; header text now states the window
+  explicitly ("Last 2 Days") instead of leaving it implicit.
+
+**Verified live**: reloaded the dev server, confirmed On This Day renders
+collapsed (no "1 week ago"/"In history" text visible until the header is
+tapped), clicking it expands correctly, and Blindspots' header/window
+updated as expected. `npx tsc -b --noEmit` passes clean.
+
+**Effort spent**: ~20 minutes.
+
+---
+
+## Phase 10: Mobile information hierarchy, continued — tag chips + Blindspots collapse
+
+Follow-up to Phase 9, implementing the two highest-impact items from that
+recommendation list.
+
+**Tag chips moved off the mobile first screen**: the tag-chip row in
+[App.tsx](../frontend/src/App.tsx) is a filter control, not content, so it
+now renders `hidden sm:flex` (desktop only) instead of always-visible. A
+new "Tags" section was added to the mobile Filters `BottomSheet` — same
+chips, same `toggleTag`/`selectedTags` state, just relocated so mobile
+doesn't lose the feature, only the permanent screen real estate it cost.
+
+**Blindspots collapsed by default**: same pattern as On This Day (Phase
+9) — a tappable header with an item-count badge and chevron, collapsed on
+mount, not persisted across sessions.
+
+**Verified live** (mobile viewport, 375px): confirmed the tag row is gone
+from above the feed and Blindspots renders collapsed with a count badge
+matching Critical/Notable's own style. Opened the Filters sheet and
+confirmed the Tags section is present with all chips; clicked a chip
+inside the sheet specifically (not the hidden desktop row, which is also
+technically clickable via `element.click()` even while `display: none` —
+had to scope the test to `document.querySelector('[role="dialog"]')` to
+actually exercise the mobile path) and confirmed it toggled to the
+selected/blue state and the shared `selectedTags` state updated
+(a "Clear" control appeared elsewhere on the page, confirming both chip
+rows read the same underlying state). `npx tsc -b --noEmit` passes clean.
+
+With this, the mobile first screen now goes straight from the toolbar to
+Critical articles, with On This Day and Blindspots both collapsed to a
+single row each above it.
+
+**Effort spent**: ~25 minutes.

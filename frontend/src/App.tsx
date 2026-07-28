@@ -177,9 +177,11 @@ export default function App() {
           />
         )}
 
-        {/* Tag filter chips */}
+        {/* Tag filter chips — desktop only. On mobile this is a filter
+            control, not content, so it moves into the Filters sheet
+            (below) instead of taking a full row above the feed. */}
         {topTags.length > 0 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
+          <div className="hidden sm:flex gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
             {selectedTags.size > 0 && (
               <button
                 onClick={() => setSelectedTags(new Set())}
@@ -489,6 +491,39 @@ export default function App() {
             onChange={setShowSavedOnly}
           />
         </div>
+
+        {/* Tag chips — mobile-only home for the row hidden above. */}
+        {topTags.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-neutral-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-neutral-400">Tags</span>
+              {selectedTags.size > 0 && (
+                <button
+                  onClick={() => setSelectedTags(new Set())}
+                  className="text-xs text-neutral-500 hover:text-neutral-300"
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {topTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${
+                    selectedTags.has(tag)
+                      ? "bg-blue-600 border-blue-500 text-white"
+                      : "bg-neutral-800 border-neutral-700 text-neutral-400"
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <button
           onClick={() => {
             setFilterSheet(false);
