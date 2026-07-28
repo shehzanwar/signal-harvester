@@ -25,7 +25,19 @@ IF NOT EXIST "%VENV%\Scripts\activate.bat" (
 CALL "%VENV%\Scripts\activate.bat"
 
 ECHO.
-ECHO [1/4] Running pipeline...
+ECHO [1/5] Checking llama-server is up...
+REM Replaces the old every-5-minutes watchdog scheduled task (which polled
+REM whether the backend was healthy 24/7, whether or not a run was about
+REM to happen) with a single check right before the one time per day it
+REM actually matters. Same script, same restart-if-down logic — just
+REM invoked here instead of on its own recurring trigger. If llama-server
+REM was down and needs a fresh model load, this blocks until it's back
+REM (or gives up) so the pipeline run right after doesn't start against a
+REM backend still warming up.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PROJECT_DIR%\scripts\ensure_llamaserver.ps1" >> logs\pipeline-run.log 2>&1
+
+ECHO.
+ECHO [2/5] Running pipeline...
 REM Task Scheduler's "Start a Program" action does not capture stdout/stderr
 REM on its own -- without this redirect, a scheduled run's pipeline output
 REM (including stage-by-stage social/comments logging) is discarded entirely
@@ -37,7 +49,7 @@ IF ERRORLEVEL 1 (
 )
 
 ECHO.
-ECHO [2/4] Building static frontend...
+ECHO [3/5] Building static frontend...
 CD "%PROJECT_DIR%\frontend"
 CALL npm run build:static
 IF ERRORLEVEL 1 (
@@ -47,7 +59,7 @@ IF ERRORLEVEL 1 (
 CD /D "%PROJECT_DIR%"
 
 ECHO.
-ECHO [3/4] Exporting data to site/...
+ECHO [4/5] Exporting data to site/...
 python -m harvester --profile "%PROFILE%" export --out site
 IF ERRORLEVEL 1 (
     ECHO Export failed. Aborting publish.
@@ -55,7 +67,7 @@ IF ERRORLEVEL 1 (
 )
 
 ECHO.
-ECHO [4/4] Committing and pushing site/...
+ECHO [5/5] Committing and pushing site/...
 git add site/
 git commit -m "snapshot: %DATE% %TIME%"
 git push origin main

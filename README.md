@@ -321,7 +321,7 @@ history so first paint on a phone doesn't wait on a multi-MB JSON payload.
 - **Feed staleness warning:** logs a warning for any feed that's gone 48h without returning an article (a stricter, alerting-focused threshold than the dashboard health tab's 3-day display default) — a feed silently dying used to be invisible short of opening that tab
 - **Context budget warning:** both the `llamacpp` and `ollama` backends log a warning when a call's token usage crosses 90% of the configured `num_ctx`, so context overflow shows up as a log line instead of a silently truncated prompt
 - **Backend fast-fail:** before starting Stage 3, `EnrichmentClient.health_check()` probes the LLM backend once; if it's unreachable, the run skips enrichment immediately instead of discovering it one article at a time (3 retries × every article — turns an outage into a 30-60 minute run that enriches nothing). Articles are left untouched, not marked `failed_llm`, so the retry budget isn't spent on attempts that never happened
-- **llama-server watchdog:** a genuine Windows Scheduled Task (`SignalHarvester\LlamaServerWatchdog`, [scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1)) checks every 5 minutes whether llama-server is actually responding and restarts it if not — independent of any login session, terminal, or other software staying open. Exists because the original autostart (an HKCU "run at login" entry) only fires once at login; if llama-server crashed afterward, nothing ever restarted it. That's exactly what happened: it crashed and stayed down silently across two separate scheduled runs (2026-07-24 23:38 through 2026-07-25 16:15+, ~800 failed enrichments) before anyone noticed
+- **llama-server health check:** [scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1) checks whether llama-server is actually responding and restarts it if not. Originally ran on its own Windows Scheduled Task every 5 minutes around the clock; now invoked once, right before each actual pipeline run (`publish.cmd`/`run_harvester.cmd` call it as their first step) — the backend only needs to be healthy at run time, so polling it 24/7 regardless of whether a run was imminent was pure overhead. Exists because the original autostart (an HKCU "run at login" entry) only fires once at login; if llama-server crashed afterward, nothing ever restarted it. That's exactly what happened: it crashed and stayed down silently across two separate scheduled runs (2026-07-24 23:38 through 2026-07-25 16:15+, ~800 failed enrichments) before anyone noticed
 - **Push notifications (ntfy):** optional, gated on the `NTFY_TOPIC` env var — ntfy.sh, free, no account. Fires on backend-unreachable aborts, high-failure-rate runs (≥5 failures and >20%), and watchdog restarts (repeated restarts indicate a deeper problem even though each one self-heals).
 - **Morning briefing (Discord):** optional, gated on the `DISCORD_BRIEFING_WEBHOOK_URL` env var (deliberately not `DISCORD_WEBHOOK_URL` — that name collides with other webhook automations set as OS-level env vars, which silently win over `.env` since `python-dotenv` doesn't override already-set variables). Once per run with new articles, the same LLM backend that does enrichment writes a short narrative summary (3-6 paragraphs, under 350 words) over a capped, mixed-tier set of the day's stories — all T1, plus top-social T2 and T3, so it reflects real breadth rather than only the critical tier — and posts it as a Discord embed. A separate breaking-T1 alert fires immediately for any *new* T1 story (this run only, not re-fired on subsequent runs the same day) whose aggregated social score exceeds 500. See [harvester/notify.py](harvester/notify.py) and [harvester/enrich/client.py](harvester/enrich/client.py)'s `summarize_briefing`.
 - **Golden-set gated:** prompt and profile changes run against a 50-article golden set in CI before they can regress production (see [Golden set & CI](#golden-set--ci))
@@ -354,12 +354,13 @@ Also worth knowing: [scripts/publish_site.cmd](scripts/publish_site.cmd) exists 
 
 ## Scheduling
 
-Two genuine Windows Scheduled Tasks — not dependent on any terminal, login
+One genuine Windows Scheduled Task — not dependent on any terminal, login
 session beyond the trigger itself, or other software (this repo's tooling
 included) staying open:
 
-**`SignalHarvester\DailyBriefing`** — the full publish cycle (pipeline →
-static frontend build → export → git commit/push), daily at 6 AM:
+**`SignalHarvester\DailyBriefing`** — the full publish cycle (llama-server
+health check → pipeline → static frontend build → export → git
+commit/push), daily at 6 AM:
 
 ```cmd
 schtasks /Create /TN "SignalHarvester\DailyBriefing" ^
@@ -370,42 +371,36 @@ schtasks /Create /TN "SignalHarvester\DailyBriefing" ^
 (Wrap the target in `cmd.exe /c "..."` as shown — a bare `/TR` with a space
 in the project path gets silently mis-split by `schtasks` otherwise.)
 
-**`SignalHarvester\LlamaServerWatchdog`** — checks every 5 minutes whether
-the LLM backend is actually responding and restarts it if not (see
-[Pipeline reliability](#pipeline-reliability) for why this exists). Created
-via XML import, not the `/TR` flag directly — same path-quoting issue as
-above, worse with the extra nesting a raw `/TR` string would need. The
-XML's action calls `powershell.exe -WindowStyle Hidden` **directly**, not
-through a `cmd.exe /c "script.cmd"` wrapper — Task Scheduler doesn't hide a
-launched `cmd.exe`'s own console window just because the PowerShell *it*
-spawns is hidden, so wrapping it that way would flash a black console
-window on screen every 5 minutes, indefinitely (including, unhelpfully,
-over a fullscreen game). Re-import with:
+**llama-server health check** — no longer its own recurring scheduled
+task. It used to run every 5 minutes around the clock
+(`SignalHarvester\LlamaServerWatchdog`, via
+[scripts/llamaserver_watchdog_task.xml](scripts/llamaserver_watchdog_task.xml)),
+which meant polling the backend 24/7 for a check that only actually
+mattered once a day. It's now just the first step of `publish.cmd` /
+`run_harvester.cmd` — one health check immediately before the run that
+needs it, restarting llama-server first if it's down so the pipeline
+doesn't start against a dead backend. Same underlying script
+([scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1)), just
+invoked inline instead of on a timer. The old scheduled task is disabled
+(not deleted) rather than removed outright, in case a recurring check is
+ever wanted again — re-enable with
+`schtasks /Change /TN "SignalHarvester\LlamaServerWatchdog" /ENABLE`, or
+re-import fresh via
+`schtasks /Create /TN "SignalHarvester\LlamaServerWatchdog" /XML "scripts\llamaserver_watchdog_task.xml" /F`
+(XML must be UTF-16 encoded).
 
-```powershell
-schtasks /Create /TN "SignalHarvester\LlamaServerWatchdog" /XML "scripts\llamaserver_watchdog_task.xml" /F
-```
+The only time the inline check does real work is the rare case
+llama-server is actually down: it then loads an ~5.4GB GGUF onto the GPU,
+which **will** compete for VRAM if something else (a game) is using the
+GPU heavily at that exact moment. In practice this only matters in the
+narrow window where llama-server happens to be down right at the
+scheduled run time; the alternative (running the pipeline against a dead
+backend and losing the whole day's enrichment) was the actual problem
+this fixes.
 
-(The XML must be UTF-16 encoded — re-save with
-`[System.IO.File]::WriteAllText($path, (Get-Content $path -Raw), [System.Text.Encoding]::Unicode)`
-if `schtasks` rejects it.)
-
-**Resource impact while the watchdog is idle** (backend healthy, which is
-the overwhelming majority of the time): one HTTP GET every 5 minutes,
-negligible CPU/network, no visible window. The task's priority is set to
-Below Normal so it never competes with a foreground app for CPU. The only
-time it does real work is the rare case llama-server is actually down: it
-then loads an ~5.4GB GGUF onto the GPU, which **will** compete for VRAM if
-something else (a game) is using the GPU heavily at that exact moment —
-there's no game-detection logic to defer the restart. In practice this only
-matters in the narrow window where llama-server crashes while you're
-actively gaming; the alternative (leaving it down for hours until you
-happen to check) was the actual problem this fixes.
-
-See [scripts/ensure_llamaserver.ps1](scripts/ensure_llamaserver.ps1) for the
-health-check/restart logic. [scripts/run_llamaserver_watchdog.cmd](scripts/run_llamaserver_watchdog.cmd)
-is a manual-test convenience only (double-click to run it once visibly) —
-the registered task does not go through it.
+[scripts/run_llamaserver_watchdog.cmd](scripts/run_llamaserver_watchdog.cmd)
+remains as a manual-test convenience — double-click to run the health
+check once visibly, independent of a scheduled run.
 
 `/F` makes re-running idempotent — safe to run again to change the schedule.
 
