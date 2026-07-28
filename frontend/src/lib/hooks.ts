@@ -155,3 +155,84 @@ export function useImpressionTracker(
     if (el) observerRef.current?.observe(el);
   }, []);
 }
+
+const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Traps Tab/Shift+Tab focus cycling within `ref`'s subtree while `active`,
+ * and restores focus to whatever had it before the modal opened once it
+ * closes (the second half of the standard WAI-ARIA dialog pattern — a trap
+ * that doesn't give focus back on close just relocates the problem).
+ *
+ * Queries the focusable set fresh on every Tab keypress rather than once
+ * at mount: DetailPanel's comments load asynchronously after open, so a
+ * one-time query taken at mount would treat a since-added last element as
+ * unreachable via Tab, cycling back too early.
+ */
+export function useFocusTrap(active: boolean, ref: React.RefObject<HTMLElement | null>): void {
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const container = ref.current;
+    if (!container) return;
+
+    previouslyFocused.current = document.activeElement as HTMLElement | null;
+
+    const getFocusable = () =>
+      Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (el) => !el.hasAttribute("disabled"),
+      );
+
+    getFocusable()[0]?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    container.addEventListener("keydown", onKeyDown);
+    return () => {
+      container.removeEventListener("keydown", onKeyDown);
+      previouslyFocused.current?.focus?.();
+    };
+  }, [active, ref]);
+}
+
+/** A Set<string> mirrored to localStorage under `key` (readIds, savedIds, etc). */
+export function useLocalSet(key: string): [Set<string>, (id: string) => void] {
+  const [ids, setIds] = useState<Set<string>>(() => {
+    try {
+      return new Set<string>(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
+    } catch {
+      return new Set<string>();
+    }
+  });
+  const toggle = useCallback(
+    (id: string) => {
+      setIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        try {
+          localStorage.setItem(key, JSON.stringify([...next]));
+        } catch {
+          /* quota / disabled storage — ignore */
+        }
+        return next;
+      });
+    },
+    [key],
+  );
+  return [ids, toggle];
+}

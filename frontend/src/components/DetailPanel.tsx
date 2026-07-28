@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import { recordEngagement } from "../lib/affinity";
 import { clusterSiblings } from "../lib/clusters";
 import { formatRelative } from "../lib/format";
-import { useIsMobile } from "../lib/hooks";
+import { useFocusTrap, useIsMobile } from "../lib/hooks";
 import type { Article, Comment } from "../types";
 import { SentimentBadge } from "./SentimentBadge";
 import { TierBadge } from "./TierBadge";
@@ -83,6 +83,7 @@ export function DetailPanel({
   // repurposing it for dismiss doesn't fight the panel's own scrolling.
   const isMobile = useIsMobile();
   const panelRef = useRef<HTMLElement>(null);
+  useFocusTrap(!!article, panelRef);
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragStartY = useRef(0);

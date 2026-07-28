@@ -77,7 +77,19 @@ export const ArticleCard = memo(function ArticleCard({
   onToggleSelect,
 }: Props) {
   const border = tierBorderClass(article.tier);
-  const dimClass = isRead && !batchMode ? "opacity-40" : "";
+  // Explicit colors instead of opacity: opacity-40 uniformly faded every
+  // already-dim text-neutral-500/600 element in the card below WCAG AA
+  // contrast, not just the title. batchMode exemption preserved — selection
+  // state should stay legible regardless of read status.
+  //
+  // text-neutral-400, not the more obvious -500: computed actual contrast
+  // ratios (WCAG relative-luminance formula) against this card's real
+  // backgrounds — neutral-500 on neutral-900/950 measures ~3.8-4.2:1,
+  // under the 4.5:1 AA threshold for normal-weight text; neutral-400
+  // measures ~7.1-7.9:1 against the same backgrounds.
+  const isDimmed = isRead && !batchMode;
+  const titleColor = isDimmed ? "text-neutral-400" : "text-neutral-100";
+  const cardBg = isDimmed ? "bg-neutral-950/60" : "bg-neutral-900";
   const focusRing = isFocused ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-950" : "";
   const selectedRing = isSelected ? "ring-2 ring-blue-500 ring-offset-1 ring-offset-neutral-950" : "";
 
@@ -92,7 +104,7 @@ export const ArticleCard = memo(function ArticleCard({
     return (
       <div
         className={`relative flex items-start gap-2.5 py-1.5 px-3 rounded hover:bg-neutral-800 transition-colors group/card
-                    cursor-pointer ${dimClass} ${batchMode ? selectedRing : focusRing}`}
+                    cursor-pointer ${batchMode ? selectedRing : focusRing}`}
         onClick={handleCardClick}
         data-article-id={article.id}
       >
@@ -111,7 +123,7 @@ export const ArticleCard = memo(function ArticleCard({
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-neutral-200 group-hover/card:text-white line-clamp-2 leading-tight hover:underline block"
+            className={`text-sm ${isDimmed ? "text-neutral-400" : "text-neutral-200"} group-hover/card:text-white line-clamp-2 leading-tight hover:underline block`}
             onClick={(e) => {
               e.stopPropagation();
               recordEngagement(article, "open");
@@ -178,8 +190,8 @@ export const ArticleCard = memo(function ArticleCard({
 
   return (
     <article
-      className={`rounded-lg border border-neutral-800 border-l-4 ${border} bg-neutral-900 p-4
-                  hover:bg-neutral-850 transition-colors cursor-pointer ${dimClass} ${batchMode ? selectedRing : focusRing}`}
+      className={`rounded-lg border border-neutral-800 border-l-4 ${border} ${cardBg} p-4
+                  hover:bg-neutral-850 transition-colors cursor-pointer ${batchMode ? selectedRing : focusRing}`}
       onClick={handleCardClick}
       data-article-id={article.id}
     >
@@ -266,7 +278,7 @@ export const ArticleCard = memo(function ArticleCard({
         href={article.url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`block ${article.tier === "T1" ? "text-xl font-bold" : "text-base font-semibold"} text-neutral-100 hover:text-white leading-snug mb-2 hover:underline`}
+        className={`block ${article.tier === "T1" ? "text-xl font-bold" : "text-base font-semibold"} ${titleColor} hover:text-white leading-snug mb-2 hover:underline`}
         onClick={(e) => {
           e.stopPropagation();
           recordEngagement(article, "open");

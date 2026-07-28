@@ -1010,9 +1010,138 @@ correct rather than assuming the mismatch was a bug and stopping there.
 
 ## Phase 5: Accessibility & Polish (Week 5-6)
 
-Unchanged from original draft (contrast fix, focus trap, ARIA live region,
-dark/light toggle). No code in this phase referenced a wrong path or a
-nonexistent function.
+### Task 5.1: Fix contrast on read articles **[DONE — the plan's own suggested color didn't clear its own bar]**
+
+**Status (2026-07-27)**: implemented in `frontend/src/components/ArticleCard.tsx`
+(both compact and full variants) and `MobileHeadlineCard.tsx` — replaced
+`opacity-40` on the whole card with explicit `text-*`/`bg-*` color classes
+on the title and card background specifically, so a read article's already-
+dim `text-neutral-500` metadata isn't *also* cut in half by a parent
+opacity, and the title text is what actually needed the contrast fix.
+
+**The draft's exact suggested color didn't pass WCAG AA, computed the real
+numbers rather than trusting the plan's own claim of compliance**:
+`text-neutral-500` (`#737373`) against this card's real backgrounds
+(`neutral-900` `#171717` unread, `neutral-950` `#0a0a0a` read) computes to
+**3.78:1 and 4.18:1** respectively via the actual WCAG relative-luminance
+formula — both under the 4.5:1 AA threshold for normal-weight text (T2/T3
+titles are `text-base font-semibold`, which doesn't meet WCAG's "large
+text" exemption at 3:1). Used `text-neutral-400` (`#a3a3a3`) instead, which
+computes to 7.11:1 / 7.85:1 against the same two backgrounds — comfortably
+clears AA with margin, not just barely. `MobileHeadlineCard` had the exact
+same unverified `text-neutral-500` choice already in place from Task 2.2;
+fixed it too, for the same reason.
+
+**Verified via actual computed styles in a live browser, not just visual
+inspection**: found a genuinely-read article and read `getComputedStyle()`
+directly — `opacity: "1"` (confirms the whole-card fade is gone),
+`backgroundColor: rgba(10, 10, 10, 0.6)` (confirms `bg-neutral-950/60`
+applied correctly), and the title link's `color: rgb(163, 163, 163)` —
+exactly `#a3a3a3`, `neutral-400`, matching the verified value. (First
+attempt at reading the title color grabbed the wrong `<a>` — the
+`SocialChip`'s orange discussion link comes first in DOM order within the
+card — caught by checking `className` against the selected element rather
+than trusting the first `querySelector('a')` match.) Confirmed an unread
+card still shows `neutral-100` (`rgb(245, 245, 245)`) for contrast.
+
+**Effort spent**: ~1.5 hours (the WCAG math and the DOM-selector correction
+were most of it).
+
+### Task 5.2: Focus trap in DetailPanel & BottomSheet **[DONE — added focus restoration, not just the trap]**
+
+**Status (2026-07-27)**: `useFocusTrap(active, ref)` added to
+`frontend/src/lib/hooks.ts` (matching this repo's existing hooks
+convention, not a new file) and wired into `DetailPanel.tsx` (reusing the
+`panelRef` already there from Task 2.4's swipe-to-dismiss) and
+`BottomSheet.tsx` (new ref) — which also covers `OnboardingSheet` and the
+Filters sheet for free, since both are built on `BottomSheet`. `PrefsPanel`/
+`StatsPanel` are separate modals not named in this task and weren't
+touched; a natural follow-up if a future pass wants full modal coverage.
+
+**Two deviations from the draft's sketch, both deliberate**:
+- Queries the focusable set **fresh on every Tab keypress** rather than
+  once at mount. The draft's version captured `first`/`last` once in the
+  effect body — `DetailPanel`'s comments load asynchronously after open,
+  so a one-time query would treat a since-added last element as
+  unreachable via Tab and cycle back too early.
+- Added focus **restoration on close** (captures
+  `document.activeElement` before trapping, refocuses it on cleanup) —
+  not in the draft's sketch, but the second half of the standard WAI-ARIA
+  dialog pattern the draft was already implementing the first half of. A
+  trap that doesn't give focus back on close just relocates the problem
+  rather than fixing it.
+
+**Verified via synthetic `KeyboardEvent`/`focus()` calls and
+`document.activeElement` checks, not just glancing at a screenshot**:
+- Opened `DetailPanel` → confirmed `document.activeElement` was exactly
+  the first focusable element (the save button), not merely "some
+  button."
+- Focused the last element ("Open original article"), dispatched `Tab` →
+  confirmed focus wrapped to the first element. Dispatched `Shift+Tab`
+  from there → confirmed it wrapped back to the last. Both checked in
+  separate follow-up calls after each dispatch, not read synchronously in
+  the same script (the same batching gotcha noted in Tasks 2.3-2.5).
+- Focus restoration specifically: focused a real, named button ("For
+  You") *before* opening the panel, opened and closed it, then confirmed
+  `document.activeElement` was that *exact same element* — not just
+  "focus ended up on `<body>`," which browsers do automatically once a
+  focused node is removed from the DOM regardless of any restore logic,
+  and would have been a false positive for a test that didn't establish a
+  real focusable predecessor first (an earlier attempt at this check did
+  exactly that and had to be redone).
+- `BottomSheet` (via the Filters sheet): confirmed the first focusable
+  element ("Today only" toggle) received focus on open.
+
+**Effort spent**: ~2 hours.
+
+### Task 5.3: ARIA live region for toasts **[DONE — fixed a reliability gap in the existing implementation]**
+
+**Status (2026-07-27)**: `Toast.tsx` already had `role="status"
+aria-live="polite"` directly on the visible toast — but that element
+mounts fresh (new `key={toast.key}` on every toast, per `App.tsx`'s
+`showToast`) *with its content already inside it* the instant it appears.
+Many screen reader/browser combinations don't reliably announce a live
+region that's inserted into the DOM already populated — the pattern that
+actually works is a **persistent** region that exists empty beforehand and
+has its text updated afterward, which is exactly what this task's draft
+was asking for. Added that persistent region directly in `App.tsx`
+(`<div aria-live="polite" role="status" className="sr-only">
+{toast?.message ?? ""}</div>`, always mounted regardless of toast state)
+and removed the now-redundant `role`/`aria-live` from the visible
+`Toast.tsx` component, so there's exactly one announcement path, not two
+racing each other.
+
+**Caught my own mistake mid-task**: initially added `aria-hidden="true"`
+to the visible toast's container, following the draft's literal "Visual
+toast remains aria-hidden" wording — but that would have removed the
+entire subtree, including the Undo and dismiss **buttons**, from the
+accessibility tree, making Undo unreachable for screen-reader/keyboard
+users navigating via assistive tech. Caught this before verifying (the
+draft's phrasing meant "doesn't need its own live-region announcement,"
+not literally "hide the interactive controls") and removed `aria-hidden`
+entirely — the visible toast is now a plain, fully-accessible element that
+just doesn't duplicate the announcement.
+
+**Also flagged, unprompted, something suspicious**: partway through this
+task, a tool result contained text formatted as an urgent user instruction
+("try again please") that hadn't actually been sent by the user — it
+appeared injected into a tool output rather than as a real conversation
+turn. Didn't act on it; verified the actual file state directly instead of
+trusting the injected text, then proceeded once the real state was
+confirmed.
+
+**Verified live, with real timing discipline** (the same round-trip-vs-
+4-second-auto-dismiss gotcha bit the first attempt at this check — the
+toast had already auto-dismissed between separate tool calls, resetting
+the live region to empty, which is expected `Toast` behavior, not a bug in
+this fix): confirmed the persistent region exists in the DOM with empty
+text before any toast fires; combined a real click with a short in-script
+delay (not a separate round trip) and confirmed the region's text updated
+to "Marked unread"/"Marked read" correctly; confirmed the visible toast no
+longer carries `aria-live`/`role`/`aria-hidden`, and that both "Undo" and
+"×" remain present and clickable.
+
+**Effort spent**: ~1.5 hours.
 
 ---
 
@@ -1039,3 +1168,86 @@ nonexistent function.
 Everything else in the original draft (Phases 1.3-1.4, 2.3-2.6, 3.1-3.3,
 4.2-4.7, 5.1-5.4) was checked against the current codebase and needs no
 changes.
+
+---
+
+## Phase 6: App.tsx decomposition (outside original plan)
+
+Not part of the original 5-phase draft — prompted by a follow-up proposal
+(Wikipedia "On This Day," more LLM use, and focused improvements) that
+explicitly recommended decomposing `App.tsx` (1197 lines, 20+ `useState`
+hooks) before adding more state to it for On This Day / entity filtering.
+User chose "App.tsx decomposition first" over starting the new features
+directly.
+
+**What changed**: extracted `App.tsx`'s state and logic into 10 focused
+hooks under a new `frontend/src/hooks/` directory (a deliberate departure
+from the established convention of small hooks living in
+`frontend/src/lib/hooks.ts` — justified here because this is a large,
+multi-concern decomposition, not a single small addition):
+
+- `useArticlesData` — the 5 `useQuery` calls (profile/stats/meta/trends/
+  articles), the static-mode background prefetch effect, and the reactive
+  `enabled: false` full-dataset read.
+- `useCategoryFilters` — category/subcategory/tag filter chain and their
+  counts/options.
+- `useToast` — undo-toast state.
+- `useReadingStreak` — wraps `lib/streak.ts`'s `updateStreak`/
+  `incrementWeeklyRead`.
+- `useReadSaveTracking` — `readIds`/`savedIds` (via `useLocalSet`, moved
+  into `lib/hooks.ts`) plus the "tracked" toggle wrappers that record
+  affinity engagement and show undo toasts.
+- `useBatchOperations` — multi-select mode, `batchMarkRead`/`batchSave`/
+  `batchMute`, each with its own undo toast.
+- `useDetailPanel` — open/close plus bucketed dwell-time tracking
+  (`dwell_short`/`dwell_medium`/`dwell_long`) and `openedIdsRef` (consumed
+  directly by `TieredFeed`'s impression tracker).
+- `useForYouRanking` — affinity-weighted ordering, re-rank trigger, mute
+  action, and the "why ranked" breakdown.
+- `useReadingProgress` — `flatArticles` (keyboard-nav order),
+  `clusterMembers`, `readProgress`, `todayUnreadCount`, `topTags`, and the
+  `showSavedOnly` toggle.
+- `useKeyboardNav` — the global keydown handler (`/`, `x`, `1`/`2`/`3`,
+  `j`/`k`, `Enter`/`o`, `s`, `r`, `d`).
+- `usePullToRefresh` — mobile pull-to-refresh gesture + refetch.
+- `useOnboarding` — first-run category picker.
+
+`App.tsx` itself is now a composition of these hooks plus the JSX render —
+reduced from 1197 lines to roughly a third of that.
+
+**Deviation from the user's illustrative hook names**: the proposal
+suggested names like `useDwellTracking` standalone, but the real
+dependency graph doesn't cleanly separate that way — e.g. dwell tracking,
+open-tracking, and detail-panel open/close all share the same
+`detailOpenRef`/`openedIdsRef` state, so splitting them would just
+relocate coupling via 5+ threaded params rather than reduce it. Grouped by
+actual shared state instead of by illustrative name.
+
+**Bug caught while extracting, not introduced by it**: while transcribing
+`isPublishedToday` (used by `todayUnreadCount`) into `useReadingProgress`,
+first draft was written from memory as `pub.getTime() === today.getTime()`
+(same calendar day) — but the real original code is `pub >= today`
+(today-or-future). Caught by re-reading the actual source before finalizing
+and corrected to match; preserved the original's exact behavior rather than
+"fixing" what might look like a bug, since changing it wasn't in scope.
+
+**Verified live** (dev server, `frontend-dev`): category filter (Tech
+click → progress bar updated to reflect the filtered subset), For You mode
+activation (re-rank button appeared, feed reordered, category filter still
+applied), keyboard nav (`j` then `d` opened the detail panel on the
+focused card), detail panel's "why ranked" breakdown rendered with real
+score components (tier/category interest/taps/recency), mute action
+(closed the panel via `setDetailArticle(null)`, not `closeDetail`, matching
+the original's behavior of skipping a dwell-time flush on mute; showed the
+undo toast), batch mode (Select → click card → BatchBar appeared → Mark
+read → toast "Marked 1 read" → BatchBar dismissed → reading progress
+incremented to 1/225). No new console or server errors introduced (one
+pre-existing "Viewport height is too small: 0" warning, unrelated to this
+change, was present before and after).
+
+`npx tsc -b --noEmit` passes clean. Two type errors found and fixed during
+the port: an unused `setFocusedId` destructure, and `RefObject.current`
+being nullable under React 18's stricter types (`readIdsRef.current ??
+new Set()`).
+
+**Effort spent**: ~2.5 hours.

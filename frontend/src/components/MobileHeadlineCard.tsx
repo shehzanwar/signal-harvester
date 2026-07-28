@@ -89,7 +89,7 @@ export const MobileHeadlineCard = memo(function MobileHeadlineCard({
             recordEngagement(article, "open");
           }}
           className={`flex-1 min-w-0 text-[15px] leading-snug font-medium line-clamp-2 hover:underline
-                      ${isRead ? "text-neutral-500" : "text-neutral-100"}`}
+                      ${isRead ? "text-neutral-400" : "text-neutral-100"}`}
         >
           {article.title}
         </a>

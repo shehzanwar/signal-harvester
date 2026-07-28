@@ -18,8 +18,6 @@ export function Toast({ message, onUndo, onDismiss }: Props) {
                  flex items-center gap-3 px-4 py-3 rounded-lg
                  bg-neutral-800 border border-neutral-700 shadow-2xl
                  text-sm text-neutral-200 whitespace-nowrap"
-      role="status"
-      aria-live="polite"
     >
       <span>{message}</span>
       <button
