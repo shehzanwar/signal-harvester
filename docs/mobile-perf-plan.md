@@ -1562,3 +1562,79 @@ backfill run yet — the next scheduled pipeline run will start populating
 this for new articles only).
 
 **Effort spent**: ~3 hours (including audit + the environment detour).
+
+---
+
+## Phase 12: T1 budget, Notable/crowd rails, For You default (Week B)
+
+The three fastest-win moves from Part 3 of the niches proposal.
+
+**Move 1 — T1 budget**: two layers, per the proposal's own split.
+- Soft/prompt layer: a new `$t1_daily_cap` Template placeholder
+  substitutes the configured cap into both the fallback prompt
+  ([prompts.py](../harvester/enrich/prompts.py)) and the real tuned one
+  ([prompts/enrichment.md](../prompts/enrichment.md) rule 2), so the
+  model's own "T1 is rare" framing states the actual number
+  ("~15 T1 stories per day") instead of leaving it implicit.
+- Hard/deterministic layer: new `ProfileConfig.t1_daily_cap` (default 15)
+  and `_apply_t1_budget()` in
+  [pipeline.py](../harvester/pipeline.py), called at Stage 5 once
+  social signals are saved (corroboration/social data isn't known
+  earlier — same reasoning as the existing breaking-T1-alert). Ranks
+  today's T1s by `cluster_size × log1p(social_score)` and demotes
+  anything past the cap to T2, both in the DB (new
+  `enrichments.demoted_from_t1` column, same migration pattern as
+  entities/niches) and in the in-memory `enriched_today` list so the
+  same-run briefing selector and breaking-alert check see the post-cap
+  state, not the LLM's original call. Logs the demotion count, and warns
+  if demoting >50% ("tighten the prompt, not the cap" — the proposal's
+  own guidance verbatim).
+
+**Move 2 — Notable/crowd rails** ([TieredFeed.tsx](../frontend/src/components/TieredFeed.tsx)):
+added a "Best of Notable" rail (top 5 T2 by a social÷(1+age-in-days)
+recency-weighted score — not full affinity scoring, since that needs
+prefs/weights threaded down from `App.tsx`, which this component doesn't
+currently take; noted as a simplification, not silently done) and a "The
+Crowd Disagrees" rail (up to 3 T3 stories with `social_score >= 200`),
+both inserted directly below the T1 hero block and above T2/T3, visible
+only in Tiered mode (not brief/For You, which are already curated). Both
+correctly render nothing when empty rather than an empty section header.
+
+**Move 3 — For You as default**: `useForYouRanking`'s `sortMode` now
+defaults to `"foryou"` instead of `"tiered"` — the single highest-leverage
+change in Week B, per the proposal. Tiered remains available as the
+"full scan" tab.
+
+**Verified**:
+- Real llama-server prompt build inspected directly — `$t1_daily_cap`
+  substitutes correctly (confirmed "~15" in the rendered prompt).
+- `_apply_t1_budget` unit-tested against real historical T1 articles with
+  a stubbed `Database` (no real writes) — correctly kept the 5
+  highest-corroboration/social items out of 20, correctly demoted the
+  rest, correctly logged the >50%-demotion warning, and correctly
+  no-ops (zero DB calls) when under the cap.
+- **Caught and fixed a real mistake during this verification**: an
+  earlier test run passed the *actual* `Database` object (not a stub)
+  alongside a `copy.deepcopy`'d article list — the deepcopy only
+  sandboxed the in-memory dicts, not the DB writes `_apply_t1_budget`
+  makes internally, so it genuinely demoted 15 real historical T1
+  articles in the live database. Caught immediately by re-querying for
+  `demoted_from_t1` rows, reverted with a direct SQL fix
+  (`tier='T1', demoted_from_t1=0` on the 15 affected rows), and
+  re-verified the T1 count and demoted-flag count were back to their
+  pre-test state before continuing. All further tests used a stub
+  `Database` instead.
+- DB migration applied cleanly to the live 7313-article database;
+  `demoted_from_t1` reads back as a real `bool` from both query paths.
+- `npx tsc -b --noEmit` passes clean. Live in the browser: confirmed For
+  You is now the default view on load (merged ranked list, no tier
+  headers); switched to Tiered and confirmed "Best of Notable" renders
+  with real T2 content (Italy head coach story, etc.); confirmed "The
+  Crowd Disagrees" correctly stays hidden — verified directly against the
+  DB that zero T3 articles in the entire dataset currently exceed the
+  200-social-score threshold, so this is correct behavior, not a bug.
+
+**Not done**: Weeks C (Letterboxd/Trakt taste profile) and D
+(T3-to-archive, weekend catch-up, open-share-by-tier stat) — not started.
+
+**Effort spent**: ~1.5 hours.

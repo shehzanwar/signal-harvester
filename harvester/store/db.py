@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS enrichments (
     tags                         TEXT NOT NULL,
     entities                     TEXT NOT NULL DEFAULT '[]',
     niches                       TEXT NOT NULL DEFAULT '[]',
+    demoted_from_t1              INTEGER NOT NULL DEFAULT 0,
     model                        TEXT NOT NULL,
     prompt_version               TEXT NOT NULL,
     raw_response                 TEXT,
@@ -222,6 +223,7 @@ class Database:
             "ALTER TABLE article_comments ADD COLUMN comment_url TEXT",
             "ALTER TABLE enrichments ADD COLUMN entities TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE enrichments ADD COLUMN niches TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE enrichments ADD COLUMN demoted_from_t1 INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 with self._conn() as con:
@@ -384,6 +386,20 @@ class Database:
             con.executemany(
                 "UPDATE articles SET cluster_id=? WHERE id=?",
                 [(cid, aid) for aid, cid in cluster_map.items()],
+            )
+
+    def demote_from_t1(self, article_ids: list[str], new_tier: str = "T2") -> None:
+        """Deterministic T1-budget enforcement (Part 3, Move 1 of the niches
+        proposal): re-tier articles that lost the corroboration/social
+        ranking once T1 exceeded the profile's daily cap. Sets
+        demoted_from_t1 so the demotion is auditable/reversible-in-spirit
+        even though the row now reads as an ordinary T2."""
+        if not article_ids:
+            return
+        with self._conn() as con:
+            con.executemany(
+                "UPDATE enrichments SET tier=?, demoted_from_t1=1 WHERE article_id=?",
+                [(new_tier, aid) for aid in article_ids],
             )
 
     def save_social_signals(self, signals: list[dict[str, Any]]) -> None:
@@ -632,7 +648,7 @@ class Database:
                            e.predicted_reaction_rationale,
                            e.public_sentiment_label, e.public_sentiment_score,
                            e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
-                           e.tags, e.entities, e.niches, e.model, e.enriched_at, e.latency_ms, e.prompt_version
+                           e.tags, e.entities, e.niches, e.demoted_from_t1, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
                     WHERE {where}
@@ -649,6 +665,7 @@ class Database:
                 d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
                 d["entities"] = json.loads(d["entities"]) if d.get("entities") else []
                 d["niches"] = json.loads(d["niches"]) if d.get("niches") else []
+                d["demoted_from_t1"] = bool(d.get("demoted_from_t1"))
                 d["social"] = []
                 d["social_score"] = 0
                 results.append(d)
@@ -729,7 +746,7 @@ class Database:
                            e.predicted_reaction_rationale,
                            e.public_sentiment_label, e.public_sentiment_score,
                            e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
-                           e.tags, e.entities, e.niches, e.model, e.enriched_at, e.latency_ms, e.prompt_version
+                           e.tags, e.entities, e.niches, e.demoted_from_t1, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
                     WHERE {where}
@@ -745,6 +762,7 @@ class Database:
                 d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
                 d["entities"] = json.loads(d["entities"]) if d.get("entities") else []
                 d["niches"] = json.loads(d["niches"]) if d.get("niches") else []
+                d["demoted_from_t1"] = bool(d.get("demoted_from_t1"))
                 d["social"] = []
                 d["social_score"] = 0
                 results.append(d)

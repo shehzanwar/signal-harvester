@@ -37,6 +37,24 @@ interface Props {
 
 const T1_HERO_COUNT = 5;
 const BRIEF_T1_LIMIT = 7;
+const NOTABLE_RAIL_COUNT = 5;
+const CROWD_RAIL_COUNT = 3;
+// "The internet loved this, tiering underrated it" — a T3 needs real social
+// traction to earn a spot here, not just a nonzero score.
+const CROWD_RAIL_THRESHOLD = 200;
+
+/** Recency-weighted score for the "Best of Notable" rail — social signal
+ * matters, but a 6-day-old T2 with old engagement shouldn't outrank a
+ * fresh one with less. Not full affinity scoring (that needs prefs/weights
+ * threaded down from App.tsx, which this component doesn't currently take)
+ * — a lighter proxy that still beats the plain publish-date sort T2 used
+ * to get by default. */
+function notableScore(a: Article): number {
+  const social = a.social_score ?? 0;
+  const ageMs = a.published_at ? Date.now() - new Date(a.published_at).getTime() : Number.MAX_SAFE_INTEGER;
+  const ageDays = Math.max(ageMs / 86_400_000, 0);
+  return social / (1 + ageDays);
+}
 
 function dateBucket(publishedAt?: string): "Today" | "Yesterday" | "This Week" | "Earlier" {
   if (!publishedAt) return "Earlier";
@@ -395,6 +413,22 @@ export function TieredFeed({
   const restT1 = t1.slice(T1_HERO_COUNT);
   const injectInT1 = !!statsSlot && t1.length > 0;
 
+  // "Best of Notable" + "The crowd disagrees" rails — only in the main
+  // Tiered view (not brief/For You, which are already curated/ranked
+  // subsets): the fix for T2/T3 stories getting buried below a long T1
+  // wall is surfacing a handful of them right above the fold, not just
+  // making the full T2/T3 sections marginally more prominent.
+  const showRails = mode === "tiered" && !briefMode;
+  const bestOfNotable = showRails
+    ? t2.slice().sort((a, b) => notableScore(b) - notableScore(a)).slice(0, NOTABLE_RAIL_COUNT)
+    : [];
+  const crowdDisagrees = showRails
+    ? t3
+        .filter((a) => (a.social_score ?? 0) >= CROWD_RAIL_THRESHOLD)
+        .sort((a, b) => (b.social_score ?? 0) - (a.social_score ?? 0))
+        .slice(0, CROWD_RAIL_COUNT)
+    : [];
+
   return (
     <div className="space-y-10">
       {/* T1 — top 5 rendered as a visually dominant "hero" block; the rest collapsed by default */}
@@ -456,6 +490,36 @@ export function TieredFeed({
 
       {/* Stats slot fallback: shown before T2 when no T1 articles exist */}
       {!injectInT1 && statsSlot && <div className="mb-2">{statsSlot}</div>}
+
+      {/* Best of Notable — top T2 by social+recency, always visible above
+          the fold regardless of how long the T1 wall runs. */}
+      {bestOfNotable.length > 0 && (
+        <section>
+          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-400/80 mb-3">
+            🟡 Best of Notable
+          </h2>
+          <div className="divide-y divide-neutral-800 rounded-lg border border-neutral-800">
+            {bestOfNotable.map((a) => (
+              <FeedCard key={a.id} article={a} compact isMobile={isMobile} {...cardProps(a)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* The crowd disagrees — T3 stories the tiering model underrated but
+          that clearly resonated with real engagement elsewhere. */}
+      {crowdDisagrees.length > 0 && (
+        <section>
+          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-blue-400/80 mb-3">
+            🔵 The Crowd Disagrees
+          </h2>
+          <div className="divide-y divide-neutral-800 rounded-lg border border-neutral-800">
+            {crowdDisagrees.map((a) => (
+              <FeedCard key={a.id} article={a} compact isMobile={isMobile} {...cardProps(a)} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* T2 */}
       {t2.length > 0 && (

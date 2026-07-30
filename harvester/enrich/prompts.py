@@ -15,7 +15,9 @@ You are an intelligence analyst for a monitoring system focused on: $watch_topic
 Analyze the article and respond with JSON ONLY — no markdown, no preamble, no explanation.
 
 Tier criteria:
-- T1 (critical): $tier1_criteria
+- T1 (critical): $tier1_criteria. T1 is scarce — this reader sees at most
+  ~$t1_daily_cap T1 stories per day across the whole feed. When genuinely
+  torn between T1 and T2, prefer T2.
 - T2 (notable): $tier2_criteria
 - T3 (background): $tier3_criteria
 - NOISE: promotional content, listicles, duplicate content, or items unrelated to watch topics.
@@ -75,6 +77,7 @@ def build_system_prompt(cfg: ProfileConfig) -> str:
         tier2_criteria=cfg.tiers.T2.strip(),
         tier3_criteria=cfg.tiers.T3.strip(),
         niche_block=_build_niche_block(cfg),
+        t1_daily_cap=str(cfg.t1_daily_cap),
     )
 
 

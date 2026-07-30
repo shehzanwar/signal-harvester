@@ -51,9 +51,11 @@ Rules:
        worse than an occasional false alarm. This is a tie-breaker for real
        uncertainty, not a license to inflate T1 — the frequency guard in
        rule 2 is the hard ceiling regardless of how you resolve ties.
-2. T1 is rare — expect 0 or 1 per day across all articles. If you are assigning T1, be certain.
-   T1 should never exceed 5% of a batch. If you find yourself assigning T1 to more than 1 in 20
-   articles, STOP and re-read the T1 criteria — you are being too generous. A criminal conviction,
+2. T1 is rare — expect 0 or 1 per day across all articles, and the reader sees at most ~$t1_daily_cap
+   T1 stories total per day regardless (a deterministic cap enforced after enrichment demotes any
+   excess to T2 — see t1_daily_cap in config.py). T1 should never exceed 5% of a batch. If you find
+   yourself assigning T1 to more than 1 in 20 articles, STOP and re-read the T1 criteria — you are
+   being too generous. A criminal conviction,
    a domestic protest, or a scientific/sporting milestone is NOT T1 on its own, even if the topic
    feels important — T1 requires the specific criteria below (confirmed casualties, active military
    escalation against civilian infrastructure, government-power change, confirmed >3% index move,

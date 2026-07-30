@@ -31,7 +31,12 @@ export function useForYouRanking(
   setDetailArticle: (a: Article | null) => void,
   showToast: (message: string, undo: () => void) => void,
 ): ForYouRankingResult {
-  const [sortMode, setSortMode] = useState<"tiered" | "foryou">("tiered");
+  // Defaults to "foryou" (Week B of the niches/T2-T3 proposal): behavior
+  // data showed T2/T3 essentially never got read under the tier-separated
+  // Tiered layout, so the merged, personally-ranked view is now the
+  // morning-briefing default. Tiered remains available as the "full scan"
+  // tab for browsing everything in strict editorial order.
+  const [sortMode, setSortMode] = useState<"tiered" | "foryou">("foryou");
   const [briefMode, setBriefMode] = useState(false);
   const [rankSeed, setRankSeed] = useState(0);
   const [affinityWeights, setAffinityWeights] = useState<Record<string, number>>({});

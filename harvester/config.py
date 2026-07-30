@@ -153,6 +153,14 @@ class ProfileConfig(BaseModel):
     # default so this is opt-in per profile, not a breaking change to
     # profiles that don't want it.
     niches: dict[str, NicheConfig] = Field(default_factory=dict)
+    # Daily T1 budget (Part 3, Move 1 of the niches/T2-T3 proposal): a
+    # deterministic ceiling on how many T1 articles can stand at once for
+    # "today," independent of how generous the LLM's own tier calls run on
+    # a busy news day. Enforced post-hoc in pipeline.py (_apply_t1_budget),
+    # not in the enrichment prompt alone — the prompt's own "T1 is rare"
+    # framing (see prompts/enrichment.md rule 2) is a soft target the model
+    # can still miss on volatile days; this is the hard backstop.
+    t1_daily_cap: int = 15
 
     @field_validator("feeds")
     @classmethod

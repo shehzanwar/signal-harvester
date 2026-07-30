@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 import time
@@ -66,6 +67,49 @@ def _select_briefing_stories(enriched_today: list[dict[str, Any]]) -> list[dict[
         key=lambda a: a.get("social_score") or 0, reverse=True,
     )
     return t1[:10] + t2[:5] + t3[:3]
+
+
+def _apply_t1_budget(db: Database, enriched_today: list[dict[str, Any]], cap: int) -> int:
+    """Deterministic backstop for T1 inflation (Part 3, Move 1 of the
+    niches/T2-T3 proposal): the enrichment prompt's own "T1 is rare"
+    framing (see prompts/enrichment.md rule 2) is a soft target the model
+    can still miss on a genuinely busy news day — a policy-level cap here
+    is auditable and tunable independent of prompt behavior. Ranks today's
+    T1s by corroboration (cluster_size) x log(social_score), keeps the top
+    `cap`, and demotes the rest to T2 in both the DB and the in-memory
+    `enriched_today` list (so downstream same-run consumers — the
+    briefing selector, the Discord fallback count — see the post-cap
+    state, not what the LLM originally assigned).
+
+    Returns the number of articles demoted.
+    """
+    t1_today = [a for a in enriched_today if a.get("tier") == "T1"]
+    if len(t1_today) <= cap:
+        return 0
+
+    attach_cluster_metadata(t1_today)
+
+    def _rank_score(a: dict[str, Any]) -> float:
+        corroboration = a.get("cluster_size") or 1
+        social = a.get("social_score") or 0
+        return corroboration * math.log1p(max(social, 0))
+
+    t1_today.sort(key=_rank_score, reverse=True)
+    demoted = t1_today[cap:]
+    demoted_ids = [a["id"] for a in demoted]
+
+    db.demote_from_t1(demoted_ids, new_tier="T2")
+    for a in demoted:
+        a["tier"] = "T2"
+
+    log.info("t1_budget_applied cap=%d total=%d demoted=%d", cap, len(t1_today), len(demoted))
+    if len(demoted) > len(t1_today) * 0.5:
+        log.warning(
+            "t1_budget_high_demotion_rate cap=%d total=%d demoted=%d (%.0f%%) — "
+            "consider tightening the enrichment prompt's T1 criteria rather than the cap",
+            cap, len(t1_today), len(demoted), len(demoted) / len(t1_today) * 100,
+        )
+    return len(demoted)
 
 
 def _noise_enrichment_dict(model: str) -> dict[str, Any]:
@@ -280,15 +324,30 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             db.save_social_signals(all_signals)
             log.info("social_done signals=%d", len(all_signals))
 
+        # social_by_article aggregates THIS run's freshly-fetched signals only;
+        # enriched_today's own social_score (from the get_enriched_articles
+        # query above) predates them, so merge before anything below ranks on
+        # social — both the T1 budget and the breaking-alert check need
+        # today's real total, not last run's.
+        social_by_article: dict[str, int] = {}
+        for s in all_signals:
+            social_by_article[s["article_id"]] = social_by_article.get(s["article_id"], 0) + (s.get("score") or 0)
+        for art in enriched_today:
+            fresh = social_by_article.get(art["id"])
+            if fresh:
+                art["social_score"] = (art.get("social_score") or 0) + fresh
+
+        # T1 budget (Part 3, Move 1 of the niches/T2-T3 proposal) — enforced
+        # here, not in _enrich_one, for the same reason the breaking-alert
+        # check below is: corroboration/social data isn't known until now.
+        _apply_t1_budget(db, enriched_today, cfg.t1_daily_cap)
+
         # Breaking T1 alert (Discord) — social_score isn't known until this
         # stage, so this can't live in _enrich_one alongside the tier
         # assignment. Scoped to `new_articles` (this run only), not
         # `enriched_today` (today overall) — otherwise the same T1 story
         # would re-alert on every run for the rest of the day.
         new_ids_this_run = {a["id"] for a in new_articles}
-        social_by_article: dict[str, int] = {}
-        for s in all_signals:
-            social_by_article[s["article_id"]] = social_by_article.get(s["article_id"], 0) + (s.get("score") or 0)
         for art in enriched_today:
             if art["id"] not in new_ids_this_run or art.get("tier") != "T1":
                 continue
