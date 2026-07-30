@@ -249,7 +249,11 @@ export function TieredFeed({
   const t2Compact = compact && !isMobile;
 
   const [showNoise, setShowNoise] = useState(false);
-  const [showT3, setShowT3] = useState(true);
+  // Collapsed by default (Part 3, Move 4 of the niches/T2-T3 proposal):
+  // "the daily briefing is T1 + T2, T3 is archive" — reachable via this
+  // toggle, search, niche views, and For You's own (low) weighting, but
+  // no longer part of the default scroll on every visit.
+  const [showT3, setShowT3] = useState(false);
   const [showRestT1, setShowRestT1] = useState(false);
 
   let filtered = articles;

@@ -9,6 +9,7 @@ import { CategoryBar } from "./components/CategoryBar";
 import { KPIStrip } from "./components/KPIStrip";
 import { OnboardingSheet } from "./components/OnboardingSheet";
 import { OnThisDay } from "./components/OnThisDay";
+import { WeekendCatchUp } from "./components/WeekendCatchUp";
 import { TieredFeed } from "./components/TieredFeed";
 import { TrendsStrip } from "./components/TrendsStrip";
 import { orderedCategories } from "./lib/categories";
@@ -469,6 +470,14 @@ export default function App() {
             shouldn't be starved to "today" by the static-mode default). */}
         {articlesData && sortMode === "tiered" && !briefMode && !nicheFilter && (
           <BlindspotPanel articles={historicalArticles} onOpen={openDetail} />
+        )}
+
+        {/* Weekend catch-up: Sunday-only, unread high-social T2/T3 from the
+            past week — see WeekendCatchUp's own doc comment for why this is
+            a frontend panel rather than the Discord digest line the
+            original proposal described (read state is client-side only). */}
+        {articlesData && sortMode === "tiered" && !briefMode && !nicheFilter && (
+          <WeekendCatchUp articles={historicalArticles} readIds={readIds} onOpen={openDetail} />
         )}
 
         {articlesData && (

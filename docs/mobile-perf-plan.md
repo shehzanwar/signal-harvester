@@ -1753,3 +1753,80 @@ register themselves at https://trakt.tv/oauth/applications and add to
 stat) — not started.
 
 **Effort spent**: ~3 hours.
+
+---
+
+## Phase 14: T3-to-archive, weekend catch-up, open-share-by-tier (Week D)
+
+The final three moves from Part 3 of the niches proposal — cleanup and
+verification now that Weeks A–C have landed.
+
+**Move 4a — T3 to archive**: `showT3` in
+[TieredFeed.tsx](../frontend/src/components/TieredFeed.tsx) now defaults
+to `false` (was `true`) — "the daily briefing is T1 + T2, T3 is archive."
+Still fully reachable (one tap on the section header), just no longer
+part of the default scroll on every visit. Same collapse pattern already
+proven for On This Day and Blindspots.
+
+**Move 4b — weekend catch-up**: new
+[WeekendCatchUp.tsx](../frontend/src/components/WeekendCatchUp.tsx) —
+**a deliberate deviation from the proposal's own description**, worth
+stating plainly: the proposal frames this as a line in the Sunday Discord
+digest ("3 stories you skipped that readers everywhere loved"), but
+read/save state lives entirely in the browser's `localStorage` — the
+Python backend that generates the Discord digest has no way to know what
+was actually opened. Implemented as a frontend panel instead (same
+family as On This Day/Blindspots: Sunday-only, collapsed by default),
+surfacing up to 3 unread T2/T3 stories from the past 7 days, at least 48h
+old (so same-day noise doesn't qualify), with real social engagement
+(`social_score >= 100`).
+
+**Move 4c — open-share-by-tier stat**: added to
+[StatsPanel.tsx](../frontend/src/components/StatsPanel.tsx)'s existing
+"Your Week in Review" section — per-tier read/total counts and
+percentages, scoped to the current week (not all-time, since the point is
+watching the number move after Weeks A–B's changes). Computed from
+existing `readIds` + `articles` props, no new tracking needed. This is
+the proposal's own verification step: "if T2 opens stay near zero even
+when visible at the top, the problem was never position — it's relevance
+— and the niche work (not the layout work) is what saves it."
+
+**Verified**:
+- `npx tsc -b --noEmit` passes clean (one real bug caught first: the new
+  `weekOpenShareByTier` computation referenced the `tiers` const before
+  its declaration further down the file — TS caught it immediately,
+  fixed by inlining the tier list instead of hoisting the shared one).
+- Live in the browser: "Open share by tier" renders in the real Reading
+  Stats panel with real data — `🔴 Critical 4/74 (5%)`,
+  `🟡 Notable 0/676 (0%)`.
+- Weekend Catch-Up verified by temporarily overriding
+  `Date.prototype.getDay` to simulate Sunday (restored immediately after)
+  — rendered 3 real, sensible picks (Italy head coach saga, India Gen-Z
+  protests, Lebanon rubble — all 3 days old, all with 7,000–61,000+
+  social points, all unread), then confirmed it correctly disappears again
+  on the real (Thursday) date.
+- T3-collapse **could not be live-verified with real data this session**:
+  the current dataset's T1+T2 articles alone (all-time, no `today_only`
+  filter — "today" has had no fresh fetches, a pre-existing data-staleness
+  issue noted in earlier phases) exceed the API's 2000-row fetch cap, so
+  `t3.length` was 0 in every reachable view during this test session —
+  confirmed via `document.getElementById('section-t3')` returning null
+  while `section-t1`/`section-t2` both existed. This is a characteristic
+  of the current dataset/query limit, not something this change caused;
+  confirmed by code inspection instead (identical `showT3`/`open`/
+  `onToggle` wiring already proven correct for Blindspots and On This Day
+  earlier this session) and will self-resolve once a real pipeline run
+  refreshes "today" data.
+
+**Effort spent**: ~1 hour.
+
+---
+
+## Niches/T2-T3 proposal — all four weeks complete
+
+Phases 11–14 cover the full proposal: personal niches (soccer, US
+politics, economy, AI, screen, basketball) with LLM + deterministic
+matching and a merged-tier filter view; T1 daily budget, Notable/crowd
+rails, and For You as the default; Letterboxd/Trakt taste-profile
+matching; and T3-to-archive with a weekend catch-up panel and a
+verification stat. Total effort across all four weeks: ~10 hours.

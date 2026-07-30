@@ -68,6 +68,22 @@ export function StatsPanel({ open, articles, readIds, savedIds, prefs, onClose }
   const sentiments = readThisWeek.map((a) => a.sentiment_score).filter((s): s is number => s != null);
   const avgSentiment = sentiments.length > 0 ? sentiments.reduce((s, v) => s + v, 0) / sentiments.length : null;
 
+  // Open share by tier, this week only (Part 3, Move 4's verification
+  // step of the niches proposal) — "you already track opens and dwell...
+  // add one stat to the weekly review." Read/save state is client-side
+  // only (localStorage), so this is computed here rather than in the
+  // backend's weekly digest, which has no way to know what was actually
+  // opened. The whole point: if T2's share doesn't rise after the T1
+  // budget/rails/For You-default work, the fix was never position — it
+  // was relevance — and that's the niches work's job, not the layout's.
+  const weekOpenShareByTier = (["T1", "T2", "T3"] as const)
+    .map((t) => {
+      const all = thisWeek.filter((a) => a.tier === t);
+      const read = all.filter((a) => readIds.has(a.id)).length;
+      return { tier: t, total: all.length, read, pct: all.length > 0 ? (read / all.length) * 100 : null };
+    })
+    .filter((t) => t.total > 0);
+
   // Tier breakdown
   const tiers = ["T1", "T2", "T3"] as const;
   const tierLabel: Record<string, string> = { T1: "🔴 Critical", T2: "🟡 Notable", T3: "🔵 Background" };
@@ -152,6 +168,24 @@ export function StatsPanel({ open, articles, readIds, savedIds, prefs, onClose }
                           style={{ width: `${Math.min(80, count * 12)}px` }}
                         />
                         <span className="text-xs text-neutral-400">{topic} ({count})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {weekOpenShareByTier.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1.5">
+                    Open share by tier
+                  </div>
+                  <div className="space-y-1">
+                    {weekOpenShareByTier.map(({ tier, read, total, pct }) => (
+                      <div key={tier} className="flex items-center justify-between text-xs text-neutral-400">
+                        <span>{tierLabel[tier]}</span>
+                        <span className="tabular-nums text-neutral-300">
+                          {read}/{total} ({pct!.toFixed(0)}%)
+                        </span>
                       </div>
                     ))}
                   </div>
