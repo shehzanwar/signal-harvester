@@ -70,6 +70,25 @@ def _select_briefing_stories(enriched_today: list[dict[str, Any]]) -> list[dict[
     return t1[:10] + t2[:5] + t3[:3]
 
 
+def _yesterdays_top_headlines(db: Database, limit: int = 5) -> list[str]:
+    """Yesterday's top story titles, for the briefing's continuity
+    instruction ("frame it as ongoing, not new"). No dedicated storage —
+    T1/T2 titles are already persisted with `fetched_at`, so this just
+    queries the date range directly rather than caching yesterday's
+    briefing text anywhere new. `get_enriched_articles` only takes a
+    lower bound, so the upper bound (before today) is applied here."""
+    now = datetime.now(timezone.utc)
+    today_start = now.strftime("%Y-%m-%d")
+    yesterday_start = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    window = db.get_enriched_articles(since=yesterday_start)
+    yesterday = [a for a in window if (a.get("fetched_at") or "") < today_start]
+    top = sorted(
+        (a for a in yesterday if a.get("tier") in ("T1", "T2")),
+        key=lambda a: (a.get("tier") != "T1", -(a.get("social_score") or 0)),
+    )
+    return [a["title"] for a in top[:limit] if a.get("title")]
+
+
 def _apply_t1_budget(db: Database, enriched_today: list[dict[str, Any]], cap: int) -> int:
     """Deterministic backstop for T1 inflation (Part 3, Move 1 of the
     niches/T2-T3 proposal): the enrichment prompt's own "T1 is rare"
@@ -610,7 +629,8 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
         try:
             stories = _select_briefing_stories(enriched_today)
             if stories:
-                briefing_summary = client.summarize_briefing(stories)
+                previous_headlines = _yesterdays_top_headlines(db)
+                briefing_summary = client.summarize_briefing(stories, previous_headlines=previous_headlines)
         except Exception as exc:
             log.warning("briefing_summary_failed error=%s", exc)
 

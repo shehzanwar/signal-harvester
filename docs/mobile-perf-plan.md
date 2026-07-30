@@ -1830,3 +1830,86 @@ matching and a merged-tier filter view; T1 daily budget, Notable/crowd
 rails, and For You as the default; Letterboxd/Trakt taste-profile
 matching; and T3-to-archive with a weekend catch-up panel and a
 verification stat. Total effort across all four weeks: ~10 hours.
+
+---
+
+## Phase 15: Discord briefing prompt — editor, not aggregator
+
+A prompt critique of the real July 28/29 briefings identified a concrete
+failure with hard evidence: the Iran/Saudi strike-and-response story was
+told twice, three paragraphs apart. Diagnosis: the briefing prompt asked
+for prose but gave no synthesis rules — no dedup instruction, no
+lead-with-the-most-important-story instruction, no paragraph-theme
+discipline — so the model fell back to near-concatenation on busy days.
+
+**Rewrote `_BRIEFING_SYSTEM`** ([client.py](../harvester/enrich/client.py))
+with 7 numbered editorial rules: deduplicate by real-world situation (not
+just by input item), lead with the day's single biggest story, one theme
+per paragraph, ban crutch transitions ("meanwhile," "separately," "in
+other news," "notably," "in a separate development"), proportion detail
+to significance rather than source volume, order by gravity within a
+paragraph, and add a stakes/consequence clause for the top 2-3 stories.
+
+**Two additions the critique explicitly called out as needing the
+pipeline, not just the prompt** — both now shipped, since the niches work
+(Phases 11-13) unblocked personalization:
+- **Continuity**: new `_yesterdays_top_headlines()` in
+  [pipeline.py](../harvester/pipeline.py) — no new storage needed,
+  T1/T2 titles are already persisted with `fetched_at`, so this just
+  queries yesterday's date range directly. Passed into
+  `summarize_briefing(..., previous_headlines=...)`, with an instruction
+  to frame a continuing story as ongoing rather than re-introducing it.
+- **Personalization**: each story line now includes
+  `[touches reader interest: soccer]` when the article's `niches` field
+  (Phase 11) is set, with an instruction to give it modest extra
+  prominence and a brief why-you-care note, integrated into its natural
+  paragraph rather than a separate section — exactly what the critique
+  asked for once niches existed.
+
+**What was deliberately NOT added**, per the critique's own "what not to
+add" list: no rigid per-paragraph template (breaks on unusual news days),
+no subheads/bullets (fights the planned audio-briefing feature), no new
+tone instructions (existing ones were already fine).
+
+**The "check before touching the prompt" question — investigated, not
+assumed**: the critique suspected the Iran duplication might be an
+upstream clustering bug (two angles of one event wrongly split into
+separate clusters). Checked directly: `_yesterdays_top_headlines()`
+against the real live DB returned 5 "top" headlines, 4 of which were
+genuinely distinct facts about the same unfolding situation ("US/Saudi
+strike militias," "Iran launches missiles," "Oil prices rise," "Jordan
+intercepts missiles") — correct clustering behavior, not a bug. These
+are actually different chronological facts, not the same fact from two
+angles; the fix belongs in the prompt's synthesis instructions, not in
+clustering, confirming the critique's own tentative diagnosis was the
+right one without needing a pipeline change there.
+
+**Verified with real llama-server calls, iteratively, not just once**:
+- First pass (7 rules, abstract): re-ran the actual July 29-equivalent
+  story batch (18 real stories from the live DB) — the Iran/Saudi
+  duplication **still happened**, just as concatenated as before, plus
+  one leftover "meanwhile." Abstract rules alone weren't enough for an
+  8B local model.
+- Added a concrete worked example (WRONG/RIGHT pair) to the dedup rule,
+  specifically modeling the Iran/Saudi case — re-ran the same batch: the
+  Iran/Saudi story was now told **once, completely, with a spontaneous
+  stakes clause** ("disrupted energy shipments through the Strait of
+  Hormuz") that rule 7 was designed to produce. Confirmed real,
+  measurable improvement, not just a prompt-reads-better assumption.
+- Strengthened the paragraph-theme rule after the same run bridged the
+  Middle East story into the Japan earthquake with "meanwhile" — re-ran:
+  the earthquake correctly became its own paragraph.
+- Added a mandatory self-check pass to the crutch-transitions rule after
+  "meanwhile" persisted once more — re-ran twice: 1 of 2 trials came back
+  completely clean of banned words, versus 0 of the earlier trials. Noted
+  honestly rather than claimed as fully solved: this local model doesn't
+  reach 100% compliance on the transition-word ban, and further tightening
+  wasn't pursued past this point — diminishing returns, and the critique's
+  own explicit warning against a bloated prompt.
+- Verified personalization separately with a synthetic soccer-niche
+  story: the briefing correctly wrote "touches on the reader's interest
+  in soccer."
+- Verified `_yesterdays_top_headlines()` against the real live database
+  (5 real headlines returned, correctly excluding today).
+
+**Effort spent**: ~1.5 hours.

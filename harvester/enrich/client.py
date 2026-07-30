@@ -56,14 +56,54 @@ _BRIEFING_SYSTEM = (
     "dashboard — this is just the highlight reel, sent as a Discord message. You'll be given "
     "today's stories grouped by editorial tier: CRITICAL (top priority), NOTABLE, and "
     "BACKGROUND (included for context/breadth, not necessarily important). "
-    "Write 3-6 short paragraphs of plain prose covering the most important stories first. "
-    "Connect or group related stories where there's a real connection — don't just restate "
-    "the list one item at a time. Call out anything genuinely surprising. Stay under 350 words. "
+    "Write 3-6 short paragraphs of plain prose. Stay under 350 words. "
     "No markdown headers or emoji; a couple of plain bullet points are fine if useful. "
     "Base this ONLY on the summaries provided — do not add details, context, or claims that "
-    "aren't in them. If a story is tagged '[reader has watched/rated/on watchlist this on "
-    "Letterboxd/Trakt]', briefly note that personal connection in passing — it's a signal the "
-    "reader specifically cares about that one, not filler to dwell on."
+    "aren't in them.\n\n"
+    "You are an editor, not an aggregator — these rules exist because a plain concatenation "
+    "of the input reads like a wire feed, not a briefing:\n"
+    "1. DEDUPLICATE: each real-world SITUATION appears in exactly ONE paragraph, told completely, "
+    "and never mentioned again after that paragraph ends. Multiple input items about the same "
+    "unfolding situation (a strike, the retaliation it provoked, the market reaction to it, a "
+    "third country's response) are ONE story, not several — merge everything about it into that "
+    "single paragraph, in chronological or causal order, then move on for good. Before writing "
+    "each new paragraph, check: does this repeat or continue a situation I already covered? If "
+    "yes, that content belongs back in the earlier paragraph, not here. WRONG (repeats itself): "
+    "'Para 2: The US and Saudi Arabia struck Iran-backed militias in Iraq, raising fears of a "
+    "wider war.' ... 'Para 4: Iran responded to the US-Saudi strikes in Iraq by launching "
+    "missiles, further escalating the conflict.' RIGHT (one paragraph, whole arc, told once): "
+    "'The US and Saudi Arabia struck Iran-backed militias in Iraq; Iran responded by launching "
+    "missiles at a US base in Jordan, its first such attack since strikes were paused — the "
+    "exchange raises fears of a wider regional war.'\n"
+    "2. LEAD WITH THE LEDE: open with the single most important story in 1-2 sentences, before "
+    "any grouping. Never open with a throat-clearing line like 'The day started with...' or "
+    "'A series of events...' — name the biggest story immediately.\n"
+    "3. ONE THEME PER PARAGRAPH: every paragraph covers one theme (e.g. a specific conflict, "
+    "markets, a natural disaster, technology). A natural disaster and a geopolitical conflict "
+    "are always different themes, even if adjacent in your source list — put them in separate "
+    "paragraphs. A story that doesn't fit the paragraph's current theme starts a NEW paragraph; "
+    "it does not get bridged into the current one with a transition word.\n"
+    "4. NO CRUTCH TRANSITIONS: never write 'meanwhile,' 'separately,' 'in other news,' "
+    "'notably,' or 'in a separate development.' If you reach for one of these, the two stories "
+    "are in the wrong paragraph — move one of them instead of bridging them. Before your final "
+    "answer, reread your own draft and delete/rewrite any sentence containing one of these "
+    "words — this check is mandatory, not optional.\n"
+    "5. PROPORTION TO SIGNIFICANCE: word count tracks real-world importance, not how much "
+    "source material or how many outlets covered it. A heavily-reported minor story does not "
+    "outrank a major story with a thinner writeup. A non-event (an alert that didn't pan out, a "
+    "warning that produced nothing) gets a clause, not a sentence.\n"
+    "6. ORDER BY GRAVITY WITHIN A PARAGRAPH: inside each paragraph, sequence stories from most "
+    "to least serious. Never place a violent or tragic story immediately after something "
+    "lighthearted or commercial.\n"
+    "7. STAKES FOR THE TOP STORIES: for the 2-3 biggest stories, add a short clause on "
+    "consequence or what to watch next — facts without stakes are a wire feed, not a briefing.\n\n"
+    "If a story is tagged '[reader has watched/rated/on watchlist this on Letterboxd/Trakt]', "
+    "briefly note that personal connection in passing. If given the reader's ongoing interests "
+    "(soccer, US politics, economy, AI, films/TV, basketball), a story that touches one earns "
+    "modest extra prominence and a brief why-you-care note — integrated into its natural "
+    "paragraph, never split into its own section. If given yesterday's top stories and one "
+    "continues today, frame it as ongoing ('Rescue operations continued after yesterday's "
+    "quake...') instead of re-introducing it as new."
 )
 
 _COMMENT_SENTIMENT_SYSTEM = (
@@ -133,7 +173,12 @@ class EnrichmentClient:
         except httpx.HTTPError:
             return False
 
-    def summarize_briefing(self, stories: list[dict[str, Any]]) -> str:
+    def summarize_briefing(
+        self,
+        stories: list[dict[str, Any]],
+        *,
+        previous_headlines: list[str] | None = None,
+    ) -> str:
         """Free-text narrative summary of today's top stories for the Discord
         morning briefing (Task 4.1) — a different shape of call than enrich():
         no JSON schema, no per-article validation/repair, just prose. Reuses
@@ -142,7 +187,11 @@ class EnrichmentClient:
 
         `stories` should already be capped by the caller (see
         pipeline.py's `_select_briefing_stories`) — this doesn't itself
-        limit how many are sent to the model.
+        limit how many are sent to the model. `previous_headlines` (see
+        pipeline.py's `_yesterdays_top_headlines`) lets the model frame a
+        still-developing story as ongoing instead of re-introducing it as
+        new — no separate storage needed, since T1/T2 titles are already
+        persisted and queryable by date.
         """
         tier_label = {"T1": "CRITICAL", "T2": "NOTABLE", "T3": "BACKGROUND"}
         lines = []
@@ -150,6 +199,9 @@ class EnrichmentClient:
             label = tier_label.get(s.get("tier", ""), s.get("tier", ""))
             summary = (s.get("enrich_summary") or "").strip()
             line = f"[{label}] {s.get('title', '')} ({s.get('feed_name', '')})"
+            niches = s.get("niches") or []
+            if niches:
+                line += f" [touches reader interest: {', '.join(niches)}]"
             taste = s.get("taste_match")
             if taste:
                 line += f" [reader has {taste['status']} this on {taste['source'].capitalize()}]"
@@ -157,6 +209,8 @@ class EnrichmentClient:
                 line += f" — {summary}"
             lines.append(line)
         user_msg = "Today's stories:\n\n" + "\n".join(lines)
+        if previous_headlines:
+            user_msg += "\n\nYesterday's top stories were:\n" + "\n".join(f"- {h}" for h in previous_headlines)
 
         if self._cfg.llm.backend == "llamacpp":
             return self._call_llamacpp(user_msg, override_system=_BRIEFING_SYSTEM).strip()
