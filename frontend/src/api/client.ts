@@ -10,7 +10,15 @@ import type {
 } from "../types";
 
 const IS_STATIC = import.meta.env.VITE_STATIC === "true";
-const API_BASE = "/api";
+// Normally relative, proxied to the live backend by Vite's dev server (see
+// vite.config.ts). Override via VITE_API_BASE (e.g. in a local, gitignored
+// .env.development.local) to bypass the dev proxy entirely and hit the
+// backend directly — a workaround for environments where large responses
+// stall through that proxy hop specifically (confirmed via direct browser
+// fetch: identical request completes in <1s straight to the backend, but
+// hangs indefinitely through the Vite proxy). Has no effect on the Docker/
+// static builds, which don't go through this proxy at all.
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 const DATA_BASE = "./data";
 
 // Static mode has no per-article endpoint — comments.json is one blob keyed

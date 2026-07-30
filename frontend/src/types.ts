@@ -33,6 +33,10 @@ export interface Article {
   // Named people/orgs/places mentioned by name (v11+ enrichments) — absent
   // or empty on older rows enriched before this field existed.
   entities?: string[];
+  // Personal-interest niche keys this article was flagged as serving (e.g.
+  // ["soccer"]) — see NicheConfig in harvester/config.py. Empty/absent for
+  // profiles with no niches configured, or pre-v12 enrichments.
+  niches?: string[];
   model?: string;
   enriched_at?: string;
   latency_ms?: number;
@@ -97,6 +101,10 @@ export interface ProfileInfo {
   watch_topics: string[];
   feeds: Array<{ name: string; url: string; trust: string }>;
   model: string;
+  // {niche_key: {label, emoji}} — empty object for profiles with no niches
+  // configured, absent entirely on older backends/static exports predating
+  // this field.
+  niches?: Record<string, { label: string; emoji: string }>;
 }
 
 export interface ArticlesResponse {

@@ -88,6 +88,7 @@ def build_app(cfg: ProfileConfig | None = None) -> FastAPI:
             "watch_topics": cfg.watch_topics,
             "feeds": [{"name": f.name, "url": f.url, "trust": f.trust} for f in cfg.feeds],
             "model": cfg.llm.model,
+            "niches": {key: {"label": n.label, "emoji": n.emoji} for key, n in cfg.niches.items()},
         }
 
     # Serve built frontend as static files so `python -m harvester serve` is one-command demo

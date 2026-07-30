@@ -13,7 +13,10 @@ export interface CategoryFiltersResult {
   selectedTags: ReadonlySet<string>;
   setSelectedTags: (tags: ReadonlySet<string>) => void;
   toggleTag: (tag: string) => void;
-  /** Post category → subcategory → tag filter chain, in that order. */
+  /** Selected personal-interest niche key (see NicheConfig), or null for "all". */
+  nicheFilter: string | null;
+  setNicheFilter: (key: string | null) => void;
+  /** Post category → subcategory → tag → niche filter chain, in that order. */
   tagFilteredArticles: Article[];
 }
 
@@ -28,6 +31,7 @@ export function useCategoryFilters(allArticles: Article[]): CategoryFiltersResul
   const [category, setCategory] = useState<string | null>(null);
   const [subcategory, setSubcategory] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<ReadonlySet<string>>(new Set());
+  const [nicheFilter, setNicheFilter] = useState<string | null>(null);
 
   // Selecting a new top-level category invalidates whatever subcategory was
   // active — a subcategory value from one category is meaningless in another.
@@ -87,12 +91,25 @@ export function useCategoryFilters(allArticles: Article[]): CategoryFiltersResul
   );
 
   // Tag filter applied after category/subcategory filter (client-side; OR semantics across selected tags).
-  const tagFilteredArticles = useMemo(
+  const tagOnlyFilteredArticles = useMemo(
     () =>
       selectedTags.size > 0
         ? subcategoryArticles.filter((a) => a.tags.some((t) => selectedTags.has(t)))
         : subcategoryArticles,
     [subcategoryArticles, selectedTags],
+  );
+
+  // Niche filter — last stage of the chain. A niche cuts across categories
+  // (e.g. "soccer" spans sports + whatever else mentions it), so unlike
+  // category/subcategory/tag this doesn't narrow within a single category;
+  // it's an independent lens applied on top of whatever the rest of the
+  // chain already produced.
+  const tagFilteredArticles = useMemo(
+    () =>
+      nicheFilter
+        ? tagOnlyFilteredArticles.filter((a) => (a.niches ?? []).includes(nicheFilter))
+        : tagOnlyFilteredArticles,
+    [tagOnlyFilteredArticles, nicheFilter],
   );
 
   const toggleTag = useCallback((tag: string) => {
@@ -115,6 +132,8 @@ export function useCategoryFilters(allArticles: Article[]): CategoryFiltersResul
     selectedTags,
     setSelectedTags,
     toggleTag,
+    nicheFilter,
+    setNicheFilter,
     tagFilteredArticles,
   };
 }

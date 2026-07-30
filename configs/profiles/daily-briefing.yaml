@@ -138,6 +138,16 @@ feeds:
     trust: medium
     category: sports
 
+  # ── Entertainment ─────────────────────────────────────────────────────────
+  # Added for the "Screen" niche (Part 4 feed audit, 2026-07): the profile had
+  # zero entertainment coverage before this — no category, no feed. One trade
+  # source per the audit's cap of 1.
+  - name: Deadline
+    url: https://deadline.com/feed/
+    trust: medium
+    max_articles: 15
+    category: entertainment
+
   # ── World News ────────────────────────────────────────────────────────────
   # subcategory: health / science / (unset = general world news)
   - name: Reuters World
@@ -320,6 +330,69 @@ retention:
   noise_days: 3
   raw_data_days: 7
   health_days: 30
+
+# Personal interest lenses layered on top of the generic category taxonomy
+# (see Part 1 of the niches proposal, 2026-07). Deterministic tag/title
+# match (below) is mechanism 1 of 2 — mechanism 2 is the LLM niche flag in
+# the enrichment prompt, which catches articles the tag list alone would
+# miss (e.g. a FIFA broadcast-rights story tagged "media", not "soccer").
+niches:
+  soccer:
+    label: "Soccer"
+    emoji: "⚽"
+    tags:
+      - soccer
+      - premier-league
+      - la-liga
+      - champions-league
+      - world-cup
+      - transfer-window
+      - manchester-united
+      - fc-barcelona
+  us_politics:
+    label: "US Politics"
+    emoji: "🏛"
+    tags:
+      - us-politics
+      - congress
+      - white-house
+      - supreme-court
+      - 2026-midterms
+  economy:
+    label: "Economy"
+    emoji: "📈"
+    tags:
+      - fed
+      - inflation
+      - interest-rates
+      - jobs-report
+      - treasury
+      - markets
+  ai:
+    label: "AI"
+    emoji: "🤖"
+    tags:
+      - ai
+      - llm
+      - openai
+      - anthropic
+      - nvidia
+      - ai-regulation
+      - chips
+  screen:
+    label: "Screen"
+    emoji: "🎬"
+    tags:
+      - movies
+      - tv
+  basketball:
+    label: "Basketball"
+    emoji: "🏀"
+    tags:
+      - nba
+      - basketball
+      - la-lakers
+      - lakers
 
 # Social enrichment settings. Requires YOUTUBE_API_KEY env var to activate.
 # preferred_channels: case-insensitive channel name match — these are boosted

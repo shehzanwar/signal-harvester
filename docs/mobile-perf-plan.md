@@ -1425,3 +1425,140 @@ Critical articles, with On This Day and Blindspots both collapsed to a
 single row each above it.
 
 **Effort spent**: ~25 minutes.
+
+---
+
+## Phase 11: Personal niches (Week A of the niches/taste-profile proposal)
+
+From a detailed follow-up proposal diagnosing why T2/T3 stories go unread
+(tier inflation, strict hierarchy layout, and importance-vs-relevance
+mismatch) and prescribing personal "niche" lenses as the fix. This phase
+covers Week A only: feed audit, niche config, the LLM niche flag, and the
+filter row. Weeks B (T1 budget, Notable rail, For You default), C
+(Letterboxd/Trakt taste profile), and D (T3-to-archive, weekend catch-up)
+are not started.
+
+**Feed gap audit** (real DB query, last 30 days, 7313 enriched articles):
+AI (~75/day), US Politics (~31/day), and Economy (~27/day) were all
+well-fed already. Soccer, filtered to unambiguous terms (EPL/La Liga/
+Champions League/UEFA/FIFA — the naive "football" keyword conflates with
+NFL, 646 hits vs 586 genuine soccer hits), came in at ~19.5/day with 45
+Manchester United/Barcelona mentions in 30 days — well-fed, because this
+profile's sports feeds (BBC Sport, Sky Sports, The Athletic) are UK-centric,
+contrary to the proposal's generic assumption of US-centric ESPN-style
+coverage. Basketball/Lakers: 110 mentions/30 days (~3.7/day), also
+adequate via existing sports feeds. Screen (movies/TV): ~4.7/day off
+generic keyword matches alone, and **zero dedicated category or feed
+existed at all** — confirmed real gap. Added
+[Deadline](https://deadline.com/feed/) (`category: entertainment`) as the
+one new feed the audit justified — the proposal's own cap was 1.
+
+**Niche config**: new `NicheConfig` (label, emoji, tags) and a
+`niches: dict[str, NicheConfig]` field on `ProfileConfig`
+([config.py](../harvester/config.py)), opt-in per profile (empty dict
+default). Configured six in
+[daily-briefing.yaml](../configs/profiles/daily-briefing.yaml): soccer
+(Manchester United, FC Barcelona), US politics, economy, AI, screen, and
+basketball (LA Lakers) — the last two added mid-task per direct user
+requests ("add in LA Lakers as well").
+
+**LLM niche flag** (mechanism 2 of the proposal's two-mechanism design —
+mechanism 1, deterministic tag/title matching, was deferred; the LLM flag
+alone already covers the "FIFA broadcast-rights story tagged media, not
+soccer" case the proposal specifically wanted): added an optional
+`niches: list[str]` field to `EnrichmentResult`
+([schemas.py](../harvester/enrich/schemas.py)), not in the required set
+so the llamacpp backend (no grammar-constrained decoding) and older
+prompt revisions don't hard-fail validation. `PROMPT_VERSION` bumped
+v11 → v12; the reader's niche list is injected into the system prompt via
+a new `$niche_block` Template placeholder (empty string, not even a blank
+line, when a profile has no niches configured, so unaffected profiles get
+byte-identical prompts). Real tuned prompt
+([prompts/enrichment.md](../prompts/enrichment.md)) updated with the
+niches JSON field, a `$niche_block` placeholder, and a new rule (inserted
+as rule 9, renumbering the rules after it) instructing strict, sparse
+flagging by exact key. `EnrichmentClient.enrich()` filters the model's
+returned niche keys against the active profile's actually-configured
+niches before storage, so a hallucinated or stale niche name never
+reaches the DB — schemas.py itself stays profile-agnostic (no `cfg`
+access), so this filtering has to happen at the call site, not in
+validation.
+
+**Storage**: new `niches TEXT NOT NULL DEFAULT '[]'` column on
+`enrichments`, same migration/insert/read pattern as the earlier entities
+column ([db.py](../harvester/store/db.py)). `profile_info` (both
+[api.py](../harvester/api.py) and [export.py](../harvester/export.py))
+now exposes `{niche_key: {label, emoji}}` so the frontend drives its chip
+row from real config instead of a hardcoded duplicate list.
+
+**Frontend**: `useCategoryFilters` gained a `nicheFilter`/`setNicheFilter`
+stage, applied last in the category → subcategory → tag → niche chain
+(a niche cuts across categories, so it doesn't narrow within one the way
+the earlier stages do). New chip row in `App.tsx` (⚽ 🏛 📈 🤖 🎬 🏀),
+visible on both mobile and desktop — deliberately not demoted to the
+Filters sheet the way tag chips were in Phase 10, since this is the
+mechanism meant to surface T2/T3, not a rarely-touched filter. Per the
+proposal's "tiers merge inside a niche view" requirement: selecting a
+niche sets the feed's render mode to `"foryou"` (reusing the already-built
+cross-tier ranked list, not a new sort), so a T3 story in a niche can
+outrank a T1 story the way the proposal describes. Blindspots hidden
+while a niche is active (already curated/ranked, same reasoning as
+existing brief/For-You gating).
+
+**Bug caught during frontend wiring**: `profile.niches` is typed as
+required in `ProfileInfo`, but on first render (or against a backend
+process started before this change) it's genuinely `undefined` —
+`Object.keys(profile.niches)` threw, blanking the whole app. Fixed with
+`profile?.niches` and made the type itself `niches?:` to reflect reality
+rather than asserting a guarantee the API doesn't actually provide.
+
+**Verified**:
+- Config loads correctly (`load_profile` — all 6 niches, Deadline feed
+  present under `category: entertainment`).
+- Built prompt inspected directly — niche block renders with all 6 keys
+  and labels; profiles with no niches produce a byte-identical prompt
+  (empty substitution).
+- Real llama-server enrichment calls (not mocked): a Man Utd/Barcelona
+  transfer article correctly returned `niches: ["soccer"]`; an unrelated
+  bike-lane article correctly returned `niches: []` (not over-firing); a
+  synthetic hallucinated-niche-name test confirmed
+  `EnrichmentClient.enrich()`'s filtering drops unknown keys.
+- Full DB round-trip: real enrich → `save_enrichment` → read back through
+  both `get_articles_page` and `get_enriched_articles` — both correctly
+  returned `niches: ["soccer"]`. Migration applied cleanly against the
+  live 7313-article database.
+- `npx tsc -b --noEmit` passes clean.
+- Frontend live-verified before an unrelated environment issue interrupted
+  further clicking (see below): confirmed the real 1388-article feed
+  rendering with the niche chip row present and correctly populated from
+  `/api/profile`; selecting "Soccer" correctly reduced to 0 matches (no
+  real articles carry niches yet — this profile's dataset predates v12)
+  with the merged, section-header-free layout active (confirming the
+  `foryou`-mode tier-merge logic engaged) and the "✕ All" clear control
+  appearing.
+
+**Environment issue found, not a code defect**: mid-verification, the
+dev preview's `/api/articles` calls (proxied by Vite from :5173 to the
+live backend on :8001) began stalling indefinitely partway through the
+response — reproducible with `curl` directly (bypassing the browser
+entirely), consistently at ~64KiB regardless of requested payload size
+(a `limit=50` request behaves identically to `limit=2000`), while small
+endpoints (`/api/profile`, or an article request kept under ~64KB) return
+instantly. Confirmed via `git stash` that this reproduces identically on
+the last-committed code with zero niche changes present, ruling out a
+regression from this work. Tried the standard fix (`changeOrigin: true`
+on the Vite proxy) — no effect, reverted. Root cause not chased further
+than that (looks like a stream-backpressure stall specific to this
+sandboxed dev session's Node/proxy layer, not the application) — flagged
+here rather than silently worked around, since it could resurface for
+later verification work in this same session.
+
+**Not done** (Weeks B–D of the proposal, and mechanism 1's deterministic
+tag matching within niches): T1 budget cap, "Best of Notable"/"crowd
+disagrees" rails, For You as default, Letterboxd/Trakt taste profile,
+T3-to-archive policy, weekend catch-up digest, open-share-by-tier stat.
+Existing articles won't show any niche until they're re-enriched (no
+backfill run yet — the next scheduled pipeline run will start populating
+this for new articles only).
+
+**Effort spent**: ~3 hours (including audit + the environment detour).

@@ -123,6 +123,18 @@ class SocialConfig(BaseModel):
     twitter: TwitterConfig = Field(default_factory=TwitterConfig)
 
 
+class NicheConfig(BaseModel):
+    """A personal interest lens layered on top of the generic category
+    taxonomy — a named group of tags/titles the reader actually follows,
+    distinct from the categories the LLM classifies articles into (which
+    stay generic and profile-agnostic on purpose). Deterministic matching
+    (tags list here) is mechanism 1; the LLM niche flag in the enrichment
+    prompt (built from this config, see prompts.py) is mechanism 2."""
+    label: str
+    emoji: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
 class ProfileConfig(BaseModel):
     profile: str
     dashboard_title: str = "Signal Harvester"
@@ -137,6 +149,10 @@ class ProfileConfig(BaseModel):
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     social: SocialConfig = Field(default_factory=SocialConfig)
+    # {niche_key: NicheConfig} — empty dict (no niches configured) is the
+    # default so this is opt-in per profile, not a breaking change to
+    # profiles that don't want it.
+    niches: dict[str, NicheConfig] = Field(default_factory=dict)
 
     @field_validator("feeds")
     @classmethod

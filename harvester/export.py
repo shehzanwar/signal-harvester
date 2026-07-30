@@ -93,6 +93,7 @@ def export_site(cfg: ProfileConfig, out_dir: str = "site") -> None:
         "watch_topics": cfg.watch_topics,
         "feeds": [{"name": f.name, "url": f.url, "trust": f.trust} for f in cfg.feeds],
         "model": cfg.llm.model,
+        "niches": {key: {"label": n.label, "emoji": n.emoji} for key, n in cfg.niches.items()},
     }
     meta = {
         "exported_at": datetime.now(timezone.utc).isoformat(),

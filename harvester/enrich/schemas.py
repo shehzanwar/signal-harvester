@@ -32,6 +32,12 @@ class EnrichmentResult(BaseModel):
     # constrained decoding, see EnrichmentClient._call_llamacpp) shouldn't hard-fail
     # validation if the model omits it. Some articles genuinely name none.
     entities: list[str] = Field(default_factory=list, max_length=8)
+    # Personal niches (see NicheConfig in config.py) this article genuinely
+    # serves — e.g. ["soccer"]. Free-text at the schema level (profile-
+    # agnostic, like tags/entities); EnrichmentClient.enrich() filters this
+    # against the active profile's actual niche keys before storage, so a
+    # hallucinated or stale niche name never reaches the DB.
+    niches: list[str] = Field(default_factory=list, max_length=6)
 
     @field_validator("tags")
     @classmethod
@@ -75,6 +81,7 @@ class EnrichmentResult(BaseModel):
             },
             "tags": self.tags,
             "entities": self.entities,
+            "niches": self.niches,
             "_model": model,
             "_prompt_version": prompt_version,
             "_raw_response": raw_response,
@@ -142,6 +149,7 @@ ENRICHMENT_JSON_SCHEMA: dict[str, Any] = {
         "predicted_reaction": _SENTIMENT_SCHEMA,
         "tags": {"type": "array", "items": {"type": "string", "maxLength": 60}, "minItems": 1, "maxItems": 5},
         "entities": {"type": "array", "items": {"type": "string", "maxLength": 80}, "maxItems": 8},
+        "niches": {"type": "array", "items": {"type": "string", "maxLength": 40}, "maxItems": 6},
     },
     "required": ["summary", "tier", "tier_rationale", "editorial_tone", "predicted_reaction", "tags"],
     "additionalProperties": False,

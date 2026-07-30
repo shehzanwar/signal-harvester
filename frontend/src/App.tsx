@@ -84,7 +84,7 @@ export default function App() {
   const {
     category, subcategory, setSubcategory, selectCategory,
     categoryCounts, subcategoryCounts, subcategoryOptions,
-    selectedTags, setSelectedTags, toggleTag, tagFilteredArticles,
+    selectedTags, setSelectedTags, toggleTag, nicheFilter, setNicheFilter, tagFilteredArticles,
   } = useCategoryFilters(allArticles);
 
   const {
@@ -112,6 +112,14 @@ export default function App() {
 
   // Mobile forces compact cards; the toggle only exists on desktop.
   const effectiveCompact = compact || isMobile;
+  // Inside a niche view, tiers merge into one ranked list — that's the
+  // whole point (a T3 soccer story should be able to outrank a T1 story
+  // about something else once you've narrowed to "soccer"), rather than
+  // the niche just narrowing the same T1/T2/T3-separated Tiered layout.
+  // Reuses the existing For You ranking/rendering path rather than a new
+  // sort — forYouOrderFn scores whatever list it's handed, niche-filtered
+  // or not.
+  const feedMode = nicheFilter ? "foryou" : sortMode;
   // ── Personalization ────────────────────────────────────────────────────────
   const orderedCats = orderedCategories(prefs.categoryOrder);
   const isMutedFn = (a: Article) => isMuted(a, prefs);
@@ -175,6 +183,38 @@ export default function App() {
             selected={subcategory}
             onSelect={setSubcategory}
           />
+        )}
+
+        {/* Niche filter row — the personal-interest lens (soccer, US
+            politics, economy, AI, screen, etc.). Visible on both mobile and
+            desktop, unlike the tag row below: this is the mechanism meant
+            to surface T2/T3 stories that matter to you specifically, not a
+            rarely-touched filter, so it stays above the fold everywhere. */}
+        {profile?.niches && Object.keys(profile.niches).length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 -mx-1 px-1">
+            {nicheFilter && (
+              <button
+                onClick={() => setNicheFilter(null)}
+                className="shrink-0 text-xs px-2.5 py-1.5 rounded-full border border-neutral-600
+                           text-neutral-400 hover:text-neutral-200 transition-colors whitespace-nowrap"
+              >
+                ✕ All
+              </button>
+            )}
+            {Object.entries(profile.niches).map(([key, n]) => (
+              <button
+                key={key}
+                onClick={() => setNicheFilter(nicheFilter === key ? null : key)}
+                className={`shrink-0 text-xs px-2.5 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
+                  nicheFilter === key
+                    ? "bg-blue-600 border-blue-500 text-white"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-neutral-100"
+                }`}
+              >
+                {n.emoji} {n.label}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Tag filter chips — desktop only. On mobile this is a filter
@@ -427,7 +467,7 @@ export default function App() {
             framing doesn't add the same signal. Same historicalArticles
             source as OnThisDay above, for the same reason (7-day window
             shouldn't be starved to "today" by the static-mode default). */}
-        {articlesData && sortMode === "tiered" && !briefMode && (
+        {articlesData && sortMode === "tiered" && !briefMode && !nicheFilter && (
           <BlindspotPanel articles={historicalArticles} onOpen={openDetail} />
         )}
 
@@ -440,7 +480,7 @@ export default function App() {
             newSince={lastVisit}
             onExitBriefMode={() => setBriefMode(false)}
             compact={effectiveCompact}
-            mode={sortMode}
+            mode={feedMode}
             batchMode={batchMode}
             selectedIds={selectedIds}
             forYouOrder={forYouOrderFn}

@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS enrichments (
     composite_sentiment_score    REAL CHECK (composite_sentiment_score BETWEEN -1.0 AND 1.0),
     tags                         TEXT NOT NULL,
     entities                     TEXT NOT NULL DEFAULT '[]',
+    niches                       TEXT NOT NULL DEFAULT '[]',
     model                        TEXT NOT NULL,
     prompt_version               TEXT NOT NULL,
     raw_response                 TEXT,
@@ -220,6 +221,7 @@ class Database:
             "ALTER TABLE enrichments ADD COLUMN composite_sentiment_score REAL",
             "ALTER TABLE article_comments ADD COLUMN comment_url TEXT",
             "ALTER TABLE enrichments ADD COLUMN entities TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE enrichments ADD COLUMN niches TEXT NOT NULL DEFAULT '[]'",
         ]:
             try:
                 with self._conn() as con:
@@ -350,9 +352,9 @@ class Database:
                 """INSERT OR REPLACE INTO enrichments
                    (article_id, summary, tier, tier_rationale, sentiment_label, sentiment_score,
                     sentiment_rationale, predicted_reaction_label, predicted_reaction_score,
-                    predicted_reaction_rationale, tags, entities, model, prompt_version, raw_response,
+                    predicted_reaction_rationale, tags, entities, niches, model, prompt_version, raw_response,
                     enriched_at, latency_ms)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     article_id,
                     enrichment["summary"],
@@ -366,6 +368,7 @@ class Database:
                     reaction.get("rationale"),
                     json.dumps(enrichment.get("tags", [])),
                     json.dumps(enrichment.get("entities", [])),
+                    json.dumps(enrichment.get("niches", [])),
                     enrichment.get("_model", ""),
                     enrichment.get("_prompt_version", "v1"),
                     enrichment.get("_raw_response"),
@@ -629,7 +632,7 @@ class Database:
                            e.predicted_reaction_rationale,
                            e.public_sentiment_label, e.public_sentiment_score,
                            e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
-                           e.tags, e.entities, e.model, e.enriched_at, e.latency_ms, e.prompt_version
+                           e.tags, e.entities, e.niches, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
                     WHERE {where}
@@ -645,6 +648,7 @@ class Database:
                 d = dict(r)
                 d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
                 d["entities"] = json.loads(d["entities"]) if d.get("entities") else []
+                d["niches"] = json.loads(d["niches"]) if d.get("niches") else []
                 d["social"] = []
                 d["social_score"] = 0
                 results.append(d)
@@ -725,7 +729,7 @@ class Database:
                            e.predicted_reaction_rationale,
                            e.public_sentiment_label, e.public_sentiment_score,
                            e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
-                           e.tags, e.entities, e.model, e.enriched_at, e.latency_ms, e.prompt_version
+                           e.tags, e.entities, e.niches, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
                     WHERE {where}
@@ -740,6 +744,7 @@ class Database:
                 d = dict(r)
                 d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
                 d["entities"] = json.loads(d["entities"]) if d.get("entities") else []
+                d["niches"] = json.loads(d["niches"]) if d.get("niches") else []
                 d["social"] = []
                 d["social_score"] = 0
                 results.append(d)

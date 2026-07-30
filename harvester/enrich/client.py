@@ -163,11 +163,17 @@ class EnrichmentClient:
         else:
             raw = self._enrich_ollama(article, cfg)
         result = _parse_and_validate(raw, article)
-        return result.to_storage_dict(
+        storage = result.to_storage_dict(
             model=cfg.llm.model,
             prompt_version=PROMPT_VERSION,
             raw_response=raw,
         )
+        # Drop any niche name the model returned that isn't one of this
+        # profile's actually-configured niches (schemas.py validates niches
+        # as free-text since it has no access to cfg) — a hallucinated or
+        # stale niche name should never reach the DB.
+        storage["niches"] = [n for n in storage.get("niches", []) if n in cfg.niches]
+        return storage
 
     def _enrich_ollama(self, article: dict[str, Any], cfg: ProfileConfig) -> str:
         """Legacy path: raw ChatML + stream-salvage + multi-turn repair, needed to
