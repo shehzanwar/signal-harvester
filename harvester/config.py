@@ -135,6 +135,17 @@ class NicheConfig(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class TasteConfig(BaseModel):
+    """Letterboxd/Trakt usernames for the "Screen" niche's taste profile
+    (see harvester/taste.py). Both optional and independent — either can be
+    set alone. Letterboxd uses its public diary RSS (no key); Trakt needs
+    a TRAKT_CLIENT_ID env var (a free app registration at
+    https://trakt.tv/oauth/applications) — silently skipped if absent, same
+    pattern as YOUTUBE_API_KEY."""
+    letterboxd_username: str | None = None
+    trakt_username: str | None = None
+
+
 class ProfileConfig(BaseModel):
     profile: str
     dashboard_title: str = "Signal Harvester"
@@ -153,6 +164,7 @@ class ProfileConfig(BaseModel):
     # default so this is opt-in per profile, not a breaking change to
     # profiles that don't want it.
     niches: dict[str, NicheConfig] = Field(default_factory=dict)
+    taste: TasteConfig = Field(default_factory=TasteConfig)
     # Daily T1 budget (Part 3, Move 1 of the niches/T2-T3 proposal): a
     # deterministic ceiling on how many T1 articles can stand at once for
     # "today," independent of how generous the LLM's own tier calls run on

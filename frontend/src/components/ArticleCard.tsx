@@ -32,6 +32,20 @@ function CorroborationBadge({ count }: { count: number }) {
   );
 }
 
+function TasteBadge({ article }: { article: Article }) {
+  const match = article.taste_match;
+  if (!match) return null;
+  const label = match.status === "watchlist" ? "On your list" : "On your list ★";
+  return (
+    <span
+      title={`${match.status === "watchlist" ? "On your" : "You watched this on"} ${match.source === "letterboxd" ? "Letterboxd" : "Trakt"}${match.rating != null ? ` · rated ${match.rating}` : ""}`}
+      className="text-xs px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-800"
+    >
+      {label}
+    </span>
+  );
+}
+
 function SocialChip({ article }: { article: Article }) {
   const social = article.social ?? [];
   if (social.length === 0) return null;
@@ -147,6 +161,7 @@ export const ArticleCard = memo(function ArticleCard({
               compact
             />
             <CorroborationBadge count={article.cluster_size ?? 1} />
+            <TasteBadge article={article} />
             <SocialChip article={article} />
           </span>
         </span>
@@ -246,6 +261,7 @@ export const ArticleCard = memo(function ArticleCard({
             </span>
           )}
           <CorroborationBadge count={article.cluster_size ?? 1} />
+          <TasteBadge article={article} />
           <SocialChip article={article} />
         </div>
         <div className="flex items-center gap-2 shrink-0">

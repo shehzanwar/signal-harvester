@@ -38,6 +38,13 @@ class EnrichmentResult(BaseModel):
     # against the active profile's actual niche keys before storage, so a
     # hallucinated or stale niche name never reaches the DB.
     niches: list[str] = Field(default_factory=list, max_length=6)
+    # Confirmed taste-profile title match (see harvester/taste.py) — just
+    # the title string as the LLM echoes it back from the candidate list
+    # given in the user message; pipeline.py resolves this to the richer
+    # {title, type, status, rating, source} record before storage. Only
+    # ever populated for entertainment-category articles with at least one
+    # pre-filter candidate — see build_user_message's taste_candidates arg.
+    taste_match: str | None = None
 
     @field_validator("tags")
     @classmethod
@@ -82,6 +89,7 @@ class EnrichmentResult(BaseModel):
             "tags": self.tags,
             "entities": self.entities,
             "niches": self.niches,
+            "taste_match": self.taste_match,
             "_model": model,
             "_prompt_version": prompt_version,
             "_raw_response": raw_response,
@@ -150,6 +158,7 @@ ENRICHMENT_JSON_SCHEMA: dict[str, Any] = {
         "tags": {"type": "array", "items": {"type": "string", "maxLength": 60}, "minItems": 1, "maxItems": 5},
         "entities": {"type": "array", "items": {"type": "string", "maxLength": 80}, "maxItems": 8},
         "niches": {"type": "array", "items": {"type": "string", "maxLength": 40}, "maxItems": 6},
+        "taste_match": {"type": ["string", "null"], "maxLength": 200},
     },
     "required": ["summary", "tier", "tier_rationale", "editorial_tone", "predicted_reaction", "tags"],
     "additionalProperties": False,

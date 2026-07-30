@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS enrichments (
     entities                     TEXT NOT NULL DEFAULT '[]',
     niches                       TEXT NOT NULL DEFAULT '[]',
     demoted_from_t1              INTEGER NOT NULL DEFAULT 0,
+    taste_match                  TEXT,
     model                        TEXT NOT NULL,
     prompt_version               TEXT NOT NULL,
     raw_response                 TEXT,
@@ -131,6 +132,17 @@ CREATE TABLE IF NOT EXISTS article_comments (
     UNIQUE(article_id, source, comment_text)
 );
 
+CREATE TABLE IF NOT EXISTS taste_profile (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    year        INTEGER,
+    type        TEXT NOT NULL CHECK (type IN ('movie','show')),
+    status      TEXT NOT NULL CHECK (status IN ('watched','watchlist','rated')),
+    rating      REAL,
+    source      TEXT NOT NULL CHECK (source IN ('letterboxd','trakt')),
+    updated_at  TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_status     ON articles(status);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched_at ON articles(fetched_at);
 CREATE INDEX IF NOT EXISTS idx_enrichments_tier    ON enrichments(tier);
@@ -139,6 +151,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_feed_guid ON articles(feed_name, 
     WHERE guid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_feed_health_feed ON feed_health(feed_name, checked_at);
 CREATE INDEX IF NOT EXISTS idx_comments_article ON article_comments(article_id);
+CREATE INDEX IF NOT EXISTS idx_taste_profile_title ON taste_profile(title);
 """
 
 # FTS5 virtual table + triggers — created separately from _SCHEMA so they can be
@@ -224,6 +237,7 @@ class Database:
             "ALTER TABLE enrichments ADD COLUMN entities TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE enrichments ADD COLUMN niches TEXT NOT NULL DEFAULT '[]'",
             "ALTER TABLE enrichments ADD COLUMN demoted_from_t1 INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE enrichments ADD COLUMN taste_match TEXT",
         ]:
             try:
                 with self._conn() as con:
@@ -354,9 +368,9 @@ class Database:
                 """INSERT OR REPLACE INTO enrichments
                    (article_id, summary, tier, tier_rationale, sentiment_label, sentiment_score,
                     sentiment_rationale, predicted_reaction_label, predicted_reaction_score,
-                    predicted_reaction_rationale, tags, entities, niches, model, prompt_version, raw_response,
+                    predicted_reaction_rationale, tags, entities, niches, taste_match, model, prompt_version, raw_response,
                     enriched_at, latency_ms)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     article_id,
                     enrichment["summary"],
@@ -371,6 +385,7 @@ class Database:
                     json.dumps(enrichment.get("tags", [])),
                     json.dumps(enrichment.get("entities", [])),
                     json.dumps(enrichment.get("niches", [])),
+                    json.dumps(enrichment["taste_match"]) if enrichment.get("taste_match") else None,
                     enrichment.get("_model", ""),
                     enrichment.get("_prompt_version", "v1"),
                     enrichment.get("_raw_response"),
@@ -401,6 +416,29 @@ class Database:
                 "UPDATE enrichments SET tier=?, demoted_from_t1=1 WHERE article_id=?",
                 [(new_tier, aid) for aid in article_ids],
             )
+
+    def replace_taste_profile(self, rows: list[dict[str, Any]]) -> None:
+        """Full daily refresh (Part 2 of the niches proposal) — the taste
+        profile is small (dozens to low hundreds of rows) and always
+        re-fetched whole from Letterboxd/Trakt, so a delete-then-insert is
+        simpler and safer than trying to diff/upsert against stale rows
+        from titles that scrolled off a diary or were removed from a
+        watchlist. Caller only invokes this when the fetch actually
+        returned rows — an empty fetch (network hiccup) should leave
+        yesterday's cached profile in place, not wipe it (see
+        pipeline.py's refresh call site)."""
+        with self._conn() as con:
+            con.execute("DELETE FROM taste_profile")
+            con.executemany(
+                """INSERT INTO taste_profile (title, year, type, status, rating, source, updated_at)
+                   VALUES (:title, :year, :type, :status, :rating, :source, :updated_at)""",
+                [{**r, "updated_at": _now_utc()} for r in rows],
+            )
+
+    def get_taste_profile(self) -> list[dict[str, Any]]:
+        with self._conn() as con:
+            rows = con.execute("SELECT title, year, type, status, rating, source FROM taste_profile").fetchall()
+        return [dict(r) for r in rows]
 
     def save_social_signals(self, signals: list[dict[str, Any]]) -> None:
         """Upsert social signals. Each dict: {article_id, source, score, comments, permalink}."""
@@ -648,7 +686,7 @@ class Database:
                            e.predicted_reaction_rationale,
                            e.public_sentiment_label, e.public_sentiment_score,
                            e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
-                           e.tags, e.entities, e.niches, e.demoted_from_t1, e.model, e.enriched_at, e.latency_ms, e.prompt_version
+                           e.tags, e.entities, e.niches, e.demoted_from_t1, e.taste_match, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
                     WHERE {where}
@@ -666,6 +704,7 @@ class Database:
                 d["entities"] = json.loads(d["entities"]) if d.get("entities") else []
                 d["niches"] = json.loads(d["niches"]) if d.get("niches") else []
                 d["demoted_from_t1"] = bool(d.get("demoted_from_t1"))
+                d["taste_match"] = json.loads(d["taste_match"]) if d.get("taste_match") else None
                 d["social"] = []
                 d["social_score"] = 0
                 results.append(d)
@@ -746,7 +785,7 @@ class Database:
                            e.predicted_reaction_rationale,
                            e.public_sentiment_label, e.public_sentiment_score,
                            e.dominant_emotion, e.sentiment_confidence, e.perception_gap,
-                           e.tags, e.entities, e.niches, e.demoted_from_t1, e.model, e.enriched_at, e.latency_ms, e.prompt_version
+                           e.tags, e.entities, e.niches, e.demoted_from_t1, e.taste_match, e.model, e.enriched_at, e.latency_ms, e.prompt_version
                     FROM articles a
                     JOIN enrichments e ON a.id = e.article_id
                     WHERE {where}
@@ -763,6 +802,7 @@ class Database:
                 d["entities"] = json.loads(d["entities"]) if d.get("entities") else []
                 d["niches"] = json.loads(d["niches"]) if d.get("niches") else []
                 d["demoted_from_t1"] = bool(d.get("demoted_from_t1"))
+                d["taste_match"] = json.loads(d["taste_match"]) if d.get("taste_match") else None
                 d["social"] = []
                 d["social_score"] = 0
                 results.append(d)

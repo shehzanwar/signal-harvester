@@ -20,6 +20,7 @@ from harvester.notify import notify, notify_discord
 from harvester.social import SocialFetcher, fetch_bluesky_replies, fetch_hn_comments, fetch_twitter_comments, fetch_youtube_comments, twscrape_account_status
 from harvester.sources.rss import RSSSource
 from harvester.store.db import Database
+from harvester.taste import build_taste_profile, match_taste_candidates
 from harvester.store.writers import write_json_article, write_markdown_digest, write_weekly_digest
 
 log = logging.getLogger(__name__)
@@ -195,6 +196,18 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
                 log.warning("extract_failed id=%s error=%s", art_id, exc)
                 counts["failed_extract"] += 1
 
+    # -- Stage 2.5: Taste profile refresh (Letterboxd/Trakt) -----------------
+    # Best-effort, once per run (== once per day on the normal schedule).
+    # An empty fetch (network hiccup, Letterboxd/Trakt down) intentionally
+    # leaves whatever's already cached in the DB alone rather than wiping
+    # it — see build_taste_profile's docstring.
+    fetched_taste = build_taste_profile(cfg)
+    if fetched_taste:
+        db.replace_taste_profile(fetched_taste)
+        log.info("taste_profile_refreshed rows=%d", len(fetched_taste))
+    taste_rows = db.get_taste_profile()
+    feed_cat_map = cfg.feed_category_map()
+
     # -- Stage 3: Enrich -----------------------------------------------------
     # Includes newly extracted articles AND previously failed ones below the retry cap.
     client = EnrichmentClient(cfg)
@@ -232,7 +245,17 @@ def run_pipeline(cfg: ProfileConfig) -> dict[str, int]:
             return "prefiltered"
         try:
             t0 = time.monotonic()
-            enrichment = client.enrich(art, cfg)
+            # Taste-profile pre-filter (Part 2 of the niches proposal) —
+            # only entertainment-category articles pay the extra prompt
+            # tokens, and only when the cheap token-overlap match actually
+            # finds a plausible candidate. category comes from feed config
+            # (known before the LLM call), not the LLM's own classification.
+            taste_candidates = (
+                match_taste_candidates(title, taste_rows)
+                if taste_rows and feed_cat_map.get(art.get("feed_name", ""), "general") == "entertainment"
+                else []
+            )
+            enrichment = client.enrich(art, cfg, taste_candidates=taste_candidates)
             latency_ms = int((time.monotonic() - t0) * 1000)
             db.save_enrichment(art["id"], enrichment, latency_ms=latency_ms)
             log.debug(
@@ -721,13 +744,20 @@ def backfill(
 
     client = EnrichmentClient(cfg)
     success = fail = 0
+    taste_rows = db.get_taste_profile()
+    feed_cat_map = cfg.feed_category_map()
 
     def _backfill_one(art: dict[str, Any]) -> bool:
         """Returns True on success, False on failure."""
         db.reset_enrichment(art["id"])
         try:
             t0 = time.monotonic()
-            enrichment = client.enrich(art, cfg)
+            taste_candidates = (
+                match_taste_candidates(art.get("title", ""), taste_rows)
+                if taste_rows and feed_cat_map.get(art.get("feed_name", ""), "general") == "entertainment"
+                else []
+            )
+            enrichment = client.enrich(art, cfg, taste_candidates=taste_candidates)
             latency_ms = int((time.monotonic() - t0) * 1000)
             db.save_enrichment(art["id"], enrichment, latency_ms=latency_ms)
             return True

@@ -396,6 +396,20 @@ export function DetailPanel({
             </section>
           )}
 
+          {/* Taste match — Letterboxd/Trakt watch history (Part 2 of the
+              niches proposal). Only ever set on entertainment-category
+              articles that passed both the token-overlap pre-filter and
+              LLM confirmation, so this is high-confidence when present. */}
+          {article.taste_match && (
+            <div className="text-sm px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-800/50 text-amber-200">
+              {article.taste_match.status === "watchlist"
+                ? `On your Letterboxd/Trakt watchlist: ${article.taste_match.title}`
+                : `You watched this ${article.taste_match.type === "show" ? "show" : "film"} on ${
+                    article.taste_match.source === "letterboxd" ? "Letterboxd" : "Trakt"
+                  }${article.taste_match.rating != null ? ` · rated ${article.taste_match.rating}` : ""}`}
+            </div>
+          )}
+
           {/* Entities — named people/orgs/places, distinct from the topic
               tags below. Absent on pre-v11 enrichments, so guarded the same
               way tags is. */}

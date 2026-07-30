@@ -1638,3 +1638,118 @@ change in Week B, per the proposal. Tiered remains available as the
 (T3-to-archive, weekend catch-up, open-share-by-tier stat) — not started.
 
 **Effort spent**: ~1.5 hours.
+
+---
+
+## Phase 13: Letterboxd/Trakt taste profile (Week C)
+
+Part 2 of the niches proposal — matches news to the reader's own watch
+history so the Screen niche means "news about *my* queue," not just
+"entertainment news."
+
+**Two real constraints found and worked around, not silently assumed away**:
+- Letterboxd's watchlist RSS (`/watchlist/rss/`) is Cloudflare-gated —
+  confirmed via direct `curl`, returns HTTP 403 with a JS challenge page
+  even with a browser-like User-Agent. The **diary RSS works fine** (200,
+  real data). Scoped Letterboxd to diary only (watched + rated); Trakt's
+  own watchlist endpoint covers watchlist status when configured.
+- Trakt's API requires a registered app Client ID that only the account
+  owner can create (trakt.tv login). Can't be done on the user's behalf,
+  so it's gated behind an optional `TRAKT_CLIENT_ID` env var — same
+  silently-skip-if-absent pattern as `YOUTUBE_API_KEY`. Fully wired and
+  ready the moment a client ID is added; untested against real Trakt data
+  in this session since none was available.
+
+**New module** [harvester/taste.py](../harvester/taste.py):
+`fetch_letterboxd_diary` (RSS, no key), `fetch_trakt_watched/watchlist/ratings`
+(Trakt API, gated on the env var), `build_taste_profile` (combines both,
+best-effort per source), `match_taste_candidates` (mechanism 1 — cheap
+token-overlap pre-filter, ≥2 shared content tokens, capped at 10
+candidates so an overly generic title can't flood the LLM prompt), and
+`resolve_taste_match` (maps the LLM's confirmed title string back to the
+richest matching profile row — the LLM only ever echoes a title, it
+doesn't know status/rating/source).
+
+**Config**: new `TasteConfig` (`letterboxd_username`, `trakt_username`) on
+`ProfileConfig` ([config.py](../harvester/config.py)); set in
+[daily-briefing.yaml](../configs/profiles/daily-briefing.yaml) to
+`torque1` / `shehzanwar`.
+
+**Storage**: new `taste_profile` table (title, year, type, status,
+rating, source, updated_at) — a full delete-then-insert refresh each
+pipeline run rather than a diff/upsert (the profile is small, and this
+avoids stale rows from titles that scrolled off a diary or were removed
+from a watchlist). An empty fetch (network hiccup) intentionally leaves
+the previous day's cached profile alone rather than wiping it. New
+`enrichments.taste_match TEXT` column (nullable JSON), same migration
+pattern as entities/niches.
+
+**Matching, two mechanisms per the proposal**:
+1. Pre-filter (`match_taste_candidates`) — only runs for
+   `category: entertainment` articles (known from feed config before any
+   LLM call, not the LLM's own classification), and only when it finds
+   ≥1 real candidate.
+2. LLM confirmation — a `WATCHLIST CHECK` note is appended to the
+   *user message* (not the system prompt, unlike niches — candidates are
+   per-article, not a fixed list) only when the pre-filter found
+   something, listing just the actual candidates rather than a fixed
+   top-30 (a cost-conscious simplification of the proposal's framing,
+   noted rather than silently done: only genuine overlap candidates are
+   ever sent, not a blind full-history dump). `PROMPT_VERSION` bumped
+   v12 → v13.
+
+**Surfaces**: amber "On your list ★" badge on desktop `ArticleCard`, a
+compact 🎬 badge on `MobileHeadlineCard` (mobile has no room for the full
+label — see its own space-budget comment), a detail-panel line
+("You watched this film on Letterboxd · rated 2" / "On your
+Letterboxd/Trakt watchlist: ..."), and a briefing-prompt instruction so
+the Discord morning summary mentions the personal connection in passing
+when relevant (verified with a real LLM call, see below).
+
+**Verified for real, extensively**:
+- Live-fetched torque1's actual Letterboxd diary: 39 real entries
+  (Gladiator II, TRON: Ares, One Battle After Another, etc.) with correct
+  titles/years/ratings.
+- `match_taste_candidates` tested against real diary data: correctly
+  matched "TRON: Ares review — Disney gambles big..." and "One Battle
+  After Another dominates box office...", correctly rejected an unrelated
+  bike-lane article and a review of a film not in the diary.
+- Full DB round-trip: `replace_taste_profile` → `get_taste_profile`
+  returned all 39 rows correctly.
+- Real llama-server enrichment calls (not mocked): a TRON: Ares article
+  correctly resolved to `{title: "TRON: Ares", status: "watched",
+  rating: 2.0, source: "letterboxd"}`; an unrelated Wicked article
+  correctly returned no candidates (pre-filter gate — no LLM call spent)
+  and `taste_match: null`.
+- `taste_match` round-tripped correctly through both `get_articles_page`
+  and `get_enriched_articles` via the live SQLite DB (search-scoped
+  queries, since the default 2000-row limit sorts test rows out of range
+  on a 7300+-article DB — a known artifact from earlier phases, not a
+  bug).
+- Real `summarize_briefing()` call with a taste-matched story: the LLM
+  correctly wrote "The film, which the reader has already watched on
+  Letterboxd, appears to have failed to capture the audience's interest"
+  — confirming the briefing instruction actually works, not just that it
+  was added to the prompt.
+- **Caught and fixed a real environment gotcha, again**: after verifying
+  the DB layer, the live `harvester serve` process (port 8001, started
+  earlier in an unrelated turn) was still running pre-Phase-13 code in
+  memory — `/api/articles` responses were missing `taste_match` entirely
+  despite the DB holding it correctly. Restarted the backend process and
+  re-verified the field appeared. All three frontend surfaces then
+  confirmed live end-to-end using a temporary real DB row fetched through
+  the actual API (not a mock): mobile 🎬 badge, desktop "On your list ★"
+  badge, and the detail-panel line all rendered correctly with real data;
+  the test row was deleted immediately after and its removal confirmed
+  via the API.
+- `npx tsc -b --noEmit` passes clean.
+
+**Not done**: mechanism-1-only fallback isn't separately toggleable (both
+mechanisms always run together for entertainment articles); Trakt paths
+are implemented and DB/schema-verified but not yet exercised against a
+real Trakt account (needs `TRAKT_CLIENT_ID`, which the user has to
+register themselves at https://trakt.tv/oauth/applications and add to
+`.env`); Week D (T3-to-archive, weekend catch-up, open-share-by-tier
+stat) — not started.
+
+**Effort spent**: ~3 hours.

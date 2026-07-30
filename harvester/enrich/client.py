@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from harvester.config import ProfileConfig
 from harvester.enrich.prompts import PROMPT_VERSION, build_system_prompt, build_user_message
+from harvester.taste import resolve_taste_match
 from harvester.enrich.schemas import (
     COMMENT_SENTIMENT_SCHEMA,
     ENRICHMENT_JSON_SCHEMA,
@@ -60,7 +61,9 @@ _BRIEFING_SYSTEM = (
     "the list one item at a time. Call out anything genuinely surprising. Stay under 350 words. "
     "No markdown headers or emoji; a couple of plain bullet points are fine if useful. "
     "Base this ONLY on the summaries provided — do not add details, context, or claims that "
-    "aren't in them."
+    "aren't in them. If a story is tagged '[reader has watched/rated/on watchlist this on "
+    "Letterboxd/Trakt]', briefly note that personal connection in passing — it's a signal the "
+    "reader specifically cares about that one, not filler to dwell on."
 )
 
 _COMMENT_SENTIMENT_SYSTEM = (
@@ -147,6 +150,9 @@ class EnrichmentClient:
             label = tier_label.get(s.get("tier", ""), s.get("tier", ""))
             summary = (s.get("enrich_summary") or "").strip()
             line = f"[{label}] {s.get('title', '')} ({s.get('feed_name', '')})"
+            taste = s.get("taste_match")
+            if taste:
+                line += f" [reader has {taste['status']} this on {taste['source'].capitalize()}]"
             if summary:
                 line += f" — {summary}"
             lines.append(line)
@@ -157,11 +163,16 @@ class EnrichmentClient:
         prompt = _CHATML.format(system=_BRIEFING_SYSTEM, user=user_msg)
         return self._call_llm(prompt).strip()
 
-    def enrich(self, article: dict[str, Any], cfg: ProfileConfig) -> dict[str, Any]:
+    def enrich(
+        self,
+        article: dict[str, Any],
+        cfg: ProfileConfig,
+        taste_candidates: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         if cfg.llm.backend == "llamacpp":
-            raw = self._enrich_llamacpp(article, cfg)
+            raw = self._enrich_llamacpp(article, cfg, taste_candidates)
         else:
-            raw = self._enrich_ollama(article, cfg)
+            raw = self._enrich_ollama(article, cfg, taste_candidates)
         result = _parse_and_validate(raw, article)
         storage = result.to_storage_dict(
             model=cfg.llm.model,
@@ -173,13 +184,28 @@ class EnrichmentClient:
         # as free-text since it has no access to cfg) — a hallucinated or
         # stale niche name should never reach the DB.
         storage["niches"] = [n for n in storage.get("niches", []) if n in cfg.niches]
+        # Resolve the LLM's echoed title back to the richer taste-profile
+        # record (type/status/rating/source) it can't know on its own —
+        # same reasoning as the niches filter above: only trust what the
+        # model returns against ground truth we already have, never store
+        # an unresolvable/hallucinated title.
+        storage["taste_match"] = (
+            resolve_taste_match(storage["taste_match"], taste_candidates or [])
+            if storage.get("taste_match")
+            else None
+        )
         return storage
 
-    def _enrich_ollama(self, article: dict[str, Any], cfg: ProfileConfig) -> str:
+    def _enrich_ollama(
+        self,
+        article: dict[str, Any],
+        cfg: ProfileConfig,
+        taste_candidates: list[dict[str, Any]] | None = None,
+    ) -> str:
         """Legacy path: raw ChatML + stream-salvage + multi-turn repair, needed to
         survive the Ollama 0.32/Windows wsarecv crash. Returns the raw response
         that _parse_and_validate then re-checks (the repair here pre-validates)."""
-        user_msg = build_user_message(article, max_tokens=cfg.llm.max_article_tokens)
+        user_msg = build_user_message(article, max_tokens=cfg.llm.max_article_tokens, taste_candidates=taste_candidates)
         initial_prompt = _CHATML.format(system=self._system_prompt, user=user_msg)
 
         raw = self._call_llm(initial_prompt)
@@ -200,10 +226,15 @@ class EnrichmentClient:
             raw = self._call_llm(repair_prompt)
         return raw
 
-    def _enrich_llamacpp(self, article: dict[str, Any], cfg: ProfileConfig) -> str:
+    def _enrich_llamacpp(
+        self,
+        article: dict[str, Any],
+        cfg: ProfileConfig,
+        taste_candidates: list[dict[str, Any]] | None = None,
+    ) -> str:
         """Clean path: one call, native json_schema grammar, one retry. No ChatML,
         no stream-salvage, no crash sleeps — llama-server doesn't crash like Ollama."""
-        user_msg = build_user_message(article, max_tokens=cfg.llm.max_article_tokens)
+        user_msg = build_user_message(article, max_tokens=cfg.llm.max_article_tokens, taste_candidates=taste_candidates)
         raw = self._call_llamacpp(user_msg)
         try:
             _parse_and_validate(raw, article)

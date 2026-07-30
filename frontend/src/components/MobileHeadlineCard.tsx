@@ -117,6 +117,15 @@ export const MobileHeadlineCard = memo(function MobileHeadlineCard({
           <span className="shrink-0 text-orange-400 tabular-nums">{article.social_score}pts</span>
         )}
 
+        {article.taste_match && (
+          <span
+            className="shrink-0 text-amber-400"
+            title={`${article.taste_match.status === "watchlist" ? "On your" : "You watched this on"} ${article.taste_match.source === "letterboxd" ? "Letterboxd" : "Trakt"}${article.taste_match.rating != null ? ` · rated ${article.taste_match.rating}` : ""}`}
+          >
+            🎬
+          </span>
+        )}
+
         {article.perception_gap != null && Math.abs(article.perception_gap) >= 0.8 && (
           <span
             className={`shrink-0 ${article.perception_gap < 0 ? "text-red-400" : "text-emerald-400"}`}

@@ -394,6 +394,14 @@ niches:
       - la-lakers
       - lakers
 
+# Letterboxd/Trakt taste profile for the "Screen" niche (Part 2 of the
+# niches proposal). Letterboxd uses its public diary RSS — no key needed.
+# Trakt needs a TRAKT_CLIENT_ID env var (free app registration at
+# https://trakt.tv/oauth/applications) — silently skipped without one.
+taste:
+  letterboxd_username: torque1
+  trakt_username: shehzanwar
+
 # Social enrichment settings. Requires YOUTUBE_API_KEY env var to activate.
 # preferred_channels: case-insensitive channel name match — these are boosted
 # to the top of search results before comment fetching. Channels not on the

@@ -37,6 +37,16 @@ export interface Article {
   // ["soccer"]) — see NicheConfig in harvester/config.py. Empty/absent for
   // profiles with no niches configured, or pre-v12 enrichments.
   niches?: string[];
+  // Confirmed Letterboxd/Trakt taste-profile match (v13+ enrichments,
+  // entertainment-category articles only) — null/absent for everything
+  // else, including entertainment articles with no match.
+  taste_match?: {
+    title: string;
+    type: "movie" | "show";
+    status: "watched" | "watchlist" | "rated";
+    rating: number | null;
+    source: "letterboxd" | "trakt";
+  } | null;
   model?: string;
   enriched_at?: string;
   latency_ms?: number;
