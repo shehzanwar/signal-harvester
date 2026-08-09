@@ -1913,3 +1913,128 @@ right one without needing a pipeline change there.
   (5 real headlines returned, correctly excluding today).
 
 **Effort spent**: ~1.5 hours.
+
+---
+
+## Phase 16: Conclusive fix for silent scheduled-run failures
+
+The 6 AM scheduled run (`SignalHarvester\DailyBriefing`, via
+[publish.cmd](../scripts/publish.cmd)) had been silently fetching zero
+new articles for three consecutive mornings (Jul 31, Aug 1, Aug 2) while
+Task Scheduler reported success (`Last Result: 0`) every time — each
+day's "publish" was just a stub commit touching `meta.json`'s timestamp
+and nothing else.
+
+**Root cause, found and proven, not guessed**: `logs\pipeline-run.log`
+(the fixed path both `publish.cmd` and the pipeline's own `>>` redirect
+wrote to) was locked by something external — confirmed via
+`[System.IO.File]::Open(..., 'None')` failing, and via the exact same
+zero-log-entries symptom recurring across three genuinely fresh Task
+Scheduler invocations in a row (each spawned clean by the OS scheduler,
+not inheriting anything from an interactive session — ruling out
+leftover processes from manual testing as the cause). What was actually
+holding the lock was never conclusively identified (a local NTFS volume,
+not a network/cloud-synced drive — checked via `Get-CimInstance
+Win32_LogicalDisk`; candidates like Windows Search indexing or antivirus
+real-time scanning were suspected but not confirmed), and the fix below
+doesn't depend on ever finding out.
+
+**The actual mechanism, which is the more important finding**: when a
+`>>` redirect's target file can't be opened, `cmd.exe` does not run the
+redirected command *and* does not set a nonzero `ERRORLEVEL` — so
+`IF ERRORLEVEL 1` right after `python -m harvester ... run >> logs\...`
+never caught it. The pipeline silently never executed, nothing downstream
+knew, and `publish.cmd` proceeded through build/export/commit against
+stale data, exiting 0.
+
+**Fix**: both `publish.cmd` and `run_harvester.cmd` now generate a fresh,
+timestamped log filename (`logs\pipeline-run-YYYYMMDD-HHMMSS.log` /
+`logs\scheduler-YYYYMMDD-HHMMSS.log`) at the start of every run instead of
+writing to a fixed path — structurally immune to this failure mode
+regardless of what's causing it, since a brand-new file can't already be
+locked by a leftover handle on yesterday's file. Also added an explicit
+belt-and-suspenders check in `publish.cmd` right after the pipeline step:
+if the log file doesn't exist, or exists but is empty, abort with a clear
+message instead of silently continuing — closing the actual gap that let
+this go unnoticed for three days (the `IF ERRORLEVEL 1` check alone isn't
+sufficient, as established above).
+
+Also worth noting: the user separately reported that Ethernet had been
+off with only WiFi connected around one of the affected mornings — a
+plausible contributor to network-dependent failures on that specific day,
+but it doesn't explain the log-lock symptom itself (a local file lock,
+unrelated to network state), which reproduced identically on days without
+a known connectivity issue. Treated as a second, independent possible
+factor, not the root cause of the pattern found here.
+
+**Verified for real, not just written and assumed correct**: ran the
+fixed `publish.cmd` end-to-end. Confirmed a fresh
+`logs\pipeline-run-20260802-180155.log` was created and used (the old
+locked file was never touched), and the pipeline genuinely ran to
+completion: `fetched=519 new=300 enriched=299 failed=9 (3%)` — real new
+articles, not a stub. Full publish cycle completed and pushed
+(`58e3b22`), export grew from 8,230 to 8,497 articles with real content
+in `articles-today.json` (561.3 KB, not the empty/near-empty files from
+the three failed mornings).
+
+**Effort spent**: ~45 minutes.
+
+---
+
+## Phase 17: The real root cause (Phase 16's fix wasn't enough)
+
+The 6 AM run failed again on Aug 8 — same symptom, now against Phase 16's
+own timestamped log file: `logs\pipeline-run-20260808-060003.log exists
+but is empty`. The belt-and-suspenders check did its job (aborted loudly
+instead of silently succeeding), but the underlying problem wasn't fixed.
+
+**Phase 16's theory turned out to be wrong, and this time it was
+disproven directly rather than left as a guess**: a fresh timestamped
+file inside `logs\` failed too, which killed the "stale locked file"
+theory. Redirecting to `%TEMP%` instead — a completely unrelated system
+directory — **also failed identically**, which killed the "something
+watches this project's `logs\` folder" theory (the leading suspect at the
+time, given the drive is literally named "Brig Hold"). Both of Phase 16's
+candidate explanations were wrong.
+
+**Found by isolating the actual command, not by further guessing**: ran
+`python -m harvester ... run >> file 2>&1` standalone, with no preceding
+command touching the same file — it succeeded, every time. The only
+difference between that and the real failure: `publish.cmd` runs the
+llama-server health check (`ensure_llamaserver.ps1`) and the pipeline
+back to back, both appending to the *same* log file. PowerShell's file
+handle on that shared file isn't always released by the time cmd.exe
+reopens it a moment later for the pipeline's own `>>` redirect — a plain
+race condition between two processes over one file, not an external lock,
+not antivirus, not a backup agent, nothing exotic.
+
+**Fix**: give each step its own log file (`healthcheck-*.log` and
+`pipeline-run-*.log`, both timestamped, both in `%TEMP%` during the run
+and copied into `logs\` after) — there's no longer a shared handle to
+race on. Also fixed a real bug the retry loop introduced in Phase 16:
+`TIMEOUT /T 20` intermittently errored with `invalid time interval '/T'`
+depending on how the script was invoked — Git for Windows ships its own
+`timeout` (GNU coreutils, incompatible flags) that can shadow `cmd.exe`'s
+built-in on `PATH`. Replaced with `ping -n 21 127.0.0.1 >NUL`, the
+standard portable delay trick that doesn't depend on PATH resolution.
+
+**Verified for real, twice over**: first ran the exact pipeline command
+in isolation (no preceding writer) to confirm the race-condition theory —
+succeeded cleanly, `fetched=518 new=451 enriched=452`. Then ran the
+actual fixed `publish.cmd` end-to-end, back to back with that same
+database (so this was a genuine concurrent-usage-adjacent test, not a
+clean-slate one) — completed with **zero retries needed**, no "process
+cannot access" error anywhere in the output, and a full publish/push
+(`7ef9cdc`). Confirmed both archived logs landed correctly in `logs\`
+(`healthcheck-20260809-025142.log` empty as expected — nothing to log
+when llama-server is already healthy — and `pipeline-run-20260809-025142.log`
+with real content).
+
+**Lesson for next time this kind of bug shows up**: when a "the same
+symptom keeps recurring against different targets" pattern appears, that
+itself is evidence against whatever target-specific theory is currently
+held (a locked file, a watched folder) and toward something structural
+about *how* the failing commands relate to each other — worth checking
+early, not after two folder-relocation attempts.
+
+**Effort spent**: ~1.5 hours.
